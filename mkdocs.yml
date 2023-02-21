@@ -1,0 +1,54 @@
+site_name: houdini-package-manager
+repo_url: https://github.com/ariffjeff/houdini-package-manager
+site_url: https://ariffjeff.github.io/houdini-package-manager
+site_description: GUI package manager for Houdini
+site_author: Ariff Jeff
+edit_uri: edit/main/docs/
+repo_name: ariffjeff/houdini-package-manager
+copyright: Maintained by <a href="https://ariffjeff.com">Florian</a>.
+
+nav:
+  - Home: index.md
+  - Modules: modules.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+            setup_commands:
+                - import sys
+                - sys.path.append('../')
+theme:
+  name: material
+  feature:
+    tabs: true
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ariffjeff/houdini-package-manager
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/houdini-package-manager
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
