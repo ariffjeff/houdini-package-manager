@@ -36,6 +36,11 @@ line-length = 120
 target-version = ['py37']
 preview = true
 
+[tool.deptry]
+exclude = [
+        "learn"
+]
+
 [tool.mypy]
 files = ["houdini_package_manager"]
 disallow_untyped_defs = "True"
