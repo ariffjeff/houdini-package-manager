@@ -1,3 +1,9 @@
+<p align="center">
+  <img width="125" src="https://raw.githubusercontent.com/ariffjeff/houdini-package-manager/main/docs/static/hpm.svg">
+</p style = "margin-bottom: 2rem;">
+
+---
+
 # houdini-package-manager
 
 [![Release](https://img.shields.io/github/v/release/ariffjeff/houdini-package-manager)](https://img.shields.io/github/v/release/ariffjeff/houdini-package-manager)
