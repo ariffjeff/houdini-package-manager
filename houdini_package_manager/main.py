@@ -8,6 +8,7 @@ def main() -> None:
     app = QApplication(sys.argv)
 
     window = QWidget()
+    window.setWindowTitle("Houdini Package Manager")
     window.show()
 
     app.exec()
