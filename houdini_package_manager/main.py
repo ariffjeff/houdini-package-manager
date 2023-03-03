@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 
 def main(start: bool = True, headless: bool = False) -> QApplication:
-    """Start package manager app
+    """Start the Houdini package manager app
 
     Create and open the Houdini package manager window
 
