@@ -344,6 +344,18 @@ colorama = ">=0.4"
 async = ["aiofiles (>=0.7,<1.0)"]
 
 [[package]]
+name = "icespringpysidestubs-pyside6"
+version = "1.3.1"
+description = "PySide6 stubs with Qt signals and Qt documentations and more"
+category = "dev"
+optional = false
+python-versions = "*"
+files = [
+    {file = "IceSpringPySideStubs-PySide6-1.3.1.tar.gz", hash = "sha256:8ea90c61f10ee9aba2dde75de65255bc6e92f535d00250a7b305ccc6b6902f0c"},
+    {file = "IceSpringPySideStubs_PySide6-1.3.1-py3-none-any.whl", hash = "sha256:a814a883aece8cfd86141a778238dfcfbeeb1c2ea4b1355535e0534fa441c3ce"},
+]
+
+[[package]]
 name = "identify"
 version = "2.5.18"
 description = "File identification library for Python"
@@ -1204,4 +1216,4 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.12"
-content-hash = "d5330f2c2da3145ec6369f675326820be7ac6ee7f2bf46c38e585b2183e16cb9"
+content-hash = "0bb1963108a0f0b4eb15765994a081941469f7ccb521d8e559c23cb1b8e74e99"
