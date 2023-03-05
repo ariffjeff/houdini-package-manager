@@ -1,3 +1,7 @@
+.PHONY: run
+run: ## main app
+	@python .\houdini_package_manager\main.py
+
 .PHONY: build-exe
 build-exe: ## Build app executable from python
 	@pyinstaller --onefile -w --name="Houdini Package Manager" houdini_package_manager\main.py
