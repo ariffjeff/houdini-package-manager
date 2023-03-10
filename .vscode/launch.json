@@ -8,6 +8,14 @@
       "name": "Python: Current File",
       "type": "python",
       "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: main.py",
+      "type": "python",
+      "request": "launch",
       "program": "houdini_package_manager/main.py",
       "console": "integratedTerminal",
       "justMyCode": true
