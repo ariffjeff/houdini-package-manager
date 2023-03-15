@@ -5,12 +5,6 @@ import subprocess
 import winreg
 
 
-def main():
-    HouMeta()
-
-    print("a")
-
-
 class HouMeta:
 
     """
@@ -187,17 +181,3 @@ class PackageCollection:
     def __init__(self, path: str, configs: dict) -> None:
         self.path = path
         self.configs = configs
-
-
-class PackageConfig:
-
-    """
-    A config for an installed package
-    """
-
-    def __init__(self, package_dir) -> None:
-        pass
-
-
-if __name__ == "__main__":
-    main()
