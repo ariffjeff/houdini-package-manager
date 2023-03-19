@@ -304,13 +304,21 @@ class PackageConfig:
     def find_paths(self, data: dict) -> dict:
         """
         Find all the paths in a dict.
+
+        Paths are found with regex.
+        The regex pattern matches Windows-style and Unix-style file paths.
+        Supported delimiter matching:
+            Single backslashes
+            Double backslashes
+            Single forward slashes
+            Double forward slashes
         """
 
         paths = {}
         for key, value in data.items():
             if type(value) is str:
                 # pattern that matches file paths
-                pattern = r"([a-zA-Z]:\\(?:[^\\/:*?\"<>|]+\\)*[^\\/:*?\"<>|]*?)"
+                pattern = r"([a-zA-Z]:|[\\/])(?:[\\/][^\\/:\*\?\"<>\|\r\n]+)*[\\/][^\\/:\*\?\"<>\|\r\n]*"
                 match = re.search(pattern, value)
 
                 if match:
