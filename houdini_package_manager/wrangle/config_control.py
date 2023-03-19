@@ -1,6 +1,8 @@
+import json
 import os
 import pathlib
 import platform
+import re
 import subprocess
 import winreg
 
@@ -122,14 +124,20 @@ class HouMeta:
 
     def get_packages(self) -> None:
         """
-        Get package configs from each package config location
+        Get all the json package configs from each packages directory.
         """
 
         packages = {}
         for version, path in self.dirs_packages.items():
-            files = next(os.walk(path))
-            files = [name for name in files[2] if ".json" in name]  # only .json files
-            packages[version] = PackageCollection(path, files)
+            configs = next(os.walk(path))
+            configs = [name for name in configs[2] if ".json" in name]  # only .json files
+
+            # create package config object
+            for i, file in enumerate(configs):
+                config = str(pathlib.Path(path, file))
+                configs[i] = PackageConfig(config)
+
+            packages[version] = PackageCollection(path, configs)
         self.packages = packages
 
     def get_package_parent_dirs(self, paths: dict[str]) -> list:
@@ -175,9 +183,137 @@ class HouMeta:
 class PackageCollection:
 
     """
-    A group of package configs and their collective path for a specific version of Houdini
+    A group of package configs and their collective path for a specific version of Houdini.
     """
 
     def __init__(self, path: str, configs: dict) -> None:
         self.path = path
         self.configs = configs
+
+
+class PackageConfig:
+
+    """
+    A config json package file and its related path(s) to its installed plugin(s).
+
+    Depending on the package file, there may be multiple paths that point to locations that aren't directly
+    related to telling Houdini where the actual plugin directory is (which contains the HDAs in the /otls folder).
+    This class grabs all the valid paths that its able to find (as well as those it can resolve from $VARIABLES).
+    """
+
+    def __init__(self, config: str) -> None:
+        package_data = self.load(config)
+        package_data = self.flatten_dict(package_data)
+
+        package_data = self.resolve_variables(package_data)
+        self.config = package_data
+
+        paths = self.find_paths(package_data)
+
+        # remove paths that can't be resolved
+        # if the path can't be resolved then it probably points to something that isn't a plugin anyway
+        keys_to_delete = []
+        for key, value in paths.items():
+            if not os.path.exists(value):
+                keys_to_delete.append(key)
+        for key in keys_to_delete:
+            del paths[key]
+        del keys_to_delete
+
+        # search paths for plugin HDAs (\otls)
+
+        self.plugin_paths = paths
+
+    def flatten_dict(self, d: dict, parent_key="", sep=".") -> dict:
+        """
+        Flatten a dictionary such that none of the key-value pairs are nested.
+        De-nested keys have their name converted into the hierarchy they were de-nested from to prevent key name collisions.
+        """
+
+        items = []
+        for key, value in d.items():
+            new_key = f"{parent_key}{sep}{key}" if parent_key else key
+            if isinstance(value, dict):
+                items.extend(self.flatten_dict(value, new_key, sep=sep).items())
+            elif isinstance(value, list):
+                for i, val in enumerate(value):
+                    list_key = f"{new_key}{sep}{i}"
+                    if isinstance(val, dict):
+                        items.extend(self.flatten_dict(val, list_key, sep=sep).items())
+                    else:
+                        items.append((list_key, val))
+            else:
+                items.append((new_key, value))
+        return dict(items)
+
+    def resolve_variables(self, data: dict) -> dict:
+        """
+        Search a dict for the use of variables (denoted with '$...') and replace them with the variable's value.
+        Does not search in nested lists for dict key values.
+        """
+
+        # Iterate through all keys in the dictionary
+        for key in data:
+            # Check if the value is a string
+            if isinstance(data[key], str):
+                # Look for $ character in the string
+                index = data[key].find("$")
+
+                # If $ character is found, replace with variable value
+                while index != -1:
+                    start_index = index + 1
+                    end_index = start_index
+
+                    # Find the end index of the variable name
+                    while end_index < len(data[key]) and data[key][end_index].isalnum():
+                        end_index += 1
+
+                    # Get the variable name
+                    var_name = data[key][start_index:end_index]
+
+                    # Replace the variable with its value
+                    data[key] = data[key][:index] + data.get(var_name, "") + data[key][end_index:]
+
+                    # Look for $ character again
+                    index = data[key].find("$")
+
+        return data
+
+    def load(self, path: str) -> dict:
+        """
+        Load json contents.
+        Handles invalid json such as directory paths with single \\ character delimiters.
+        """
+
+        # convert invalid json values that are paths with '\' to '\\' to prevent json loading error
+        class JSONPathDecoder(json.JSONDecoder):
+            def decode(self, s, **kwargs):
+                regex_replacements = [
+                    (re.compile(r"([^\\])\\([^\\])"), r"\1\\\\\2"),
+                    (re.compile(r",(\s*])"), r"\1"),
+                ]
+                for regex, replacement in regex_replacements:
+                    s = regex.sub(replacement, s)
+                return super().decode(s, **kwargs)
+
+        with open(path) as f:
+            data = json.load(f, cls=JSONPathDecoder)
+
+        return data
+
+    def find_paths(self, data: dict) -> dict:
+        """
+        Find all the paths in a dict.
+        """
+
+        paths = {}
+        for key, value in data.items():
+            if type(value) is str:
+                # pattern that matches file paths
+                pattern = r"([a-zA-Z]:\\(?:[^\\/:*?\"<>|]+\\)*[^\\/:*?\"<>|]*?)"
+                match = re.search(pattern, value)
+
+                if match:
+                    paths[key] = value
+
+        return paths
