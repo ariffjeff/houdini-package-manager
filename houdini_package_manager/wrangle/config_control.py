@@ -102,8 +102,7 @@ class HouMeta:
         for version, directory in self.dirs_apps.items():
             if os.path.exists(directory):
                 version = self._major_minor_version(version)
-                path = self._houdini_pref_dir(os.path.join(directory, "bin\\hconfig.exe"))
-                houdini_dirs[version] = path
+                houdini_dirs[version] = self.env_vars[version]["HOUDINI_USER_PREF_DIR"]
 
         self.dirs_packages_parents = self.get_package_parent_dirs(houdini_dirs)
 
@@ -158,15 +157,6 @@ class HouMeta:
                 if path not in config_dirs:
                     config_dirs.append(path)
         return config_dirs
-
-    def _houdini_pref_dir(self, hconfig_path: str) -> str:
-        """
-        Execute hconfig for a certain version of Houdini and return the value of $HOUDINI_USER_PREF_DIR from it
-        """
-
-        env_var = "HOUDINI_USER_PREF_DIR"
-        env_vars = self.get_env_vars(hconfig_path, env_var)
-        return env_vars[env_var]
 
     def get_env_vars(self, hconfig_path: str, target_vars: str | list[str] = None) -> dict[str]:
         """
