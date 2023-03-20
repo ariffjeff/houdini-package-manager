@@ -10,7 +10,7 @@ import winreg
 class HouMeta:
 
     """
-    A controller to keep track of Houdini install and package config locations.
+    A controller to keep track of metadata and package data for different Houdini versions on the current machine.
 
     Arguments:
         only_hou_installs : bool
@@ -23,6 +23,11 @@ class HouMeta:
 
         if only_hou_installs:
             self.only_houdini_locations()
+
+        # get all environment variables for every installed version of Houdini
+        self.env_vars = {}
+        for version, directory in self.dirs_apps.items():
+            self.env_vars[version] = self.get_env_vars(os.path.join(directory, "bin\\hconfig.exe"))
 
         self.get_package_dirs()
         self.get_packages()
@@ -159,13 +164,67 @@ class HouMeta:
         Execute hconfig for a certain version of Houdini and return the value of $HOUDINI_USER_PREF_DIR from it
         """
 
-        ENV_VAR = "HOUDINI_USER_PREF_DIR"
+        env_var = "HOUDINI_USER_PREF_DIR"
+        env_vars = self.get_env_vars(hconfig_path, env_var)
+        return env_vars[env_var]
+
+    def get_env_vars(self, hconfig_path: str, target_vars: str | list[str] = None) -> dict[str]:
+        """
+        Get the environment variables for a specific version of Houdini by executing hconfig.exe.
+
+        Arguments:
+            hconfig_path : str
+                The path to hconfig.exe of a specific version of Houdini.
+            vars : str | list[str]
+                Desired env vars to only return out of all the env vars.
+
+        Returns Houdini's common and user-set environment variables in a dict.
+        """
+
+        def is_special_env_vars(string: str) -> str:
+            """
+            Check if the line of the hconfig output is an env var that sets its value with ':='.
+            """
+
+            string = string.split(" ")
+            if string[1] == ":=":
+                return True
+            return False
+
         output = subprocess.getstatusoutput([hconfig_path, "-p"])[1]
         output = output.split("\n")
 
-        for line in output:
-            if ENV_VAR in line:
-                return line.split("=")[1].strip()
+        # extract env vars from output
+        env_vars = {}
+        for el in output:
+            if len(el) > 0 and el[0] == "$":
+                env_var = el.split(" = ", 1)
+                env_var[0] = env_var[0].replace("$", "")
+                env_vars[env_var[0]] = env_var[1].strip()
+            elif len(el) > 0 and is_special_env_vars(el):
+                env_var = el.split(" := ", 1)
+                env_vars[env_var[0]] = env_var[1].strip()
+
+        # only get desired env vars
+        if target_vars:
+            if isinstance(target_vars, str):
+                target_vars = [target_vars]
+            env_vars = self.isolate_vars(env_vars, target_vars)
+
+        return env_vars
+
+    def isolate_vars(self, given: list[str], target: list[str]) -> list[str]:
+        """
+        Get only the desired env vars from the given list of env vars.
+        """
+
+        isolated_vars = {}
+        for key in target:
+            try:
+                isolated_vars[key] = given[key]
+            except KeyError:
+                print(f'"{key}" not found in Houdini environment variables.')
+        return isolated_vars
 
     def _major_minor_version(self, version: str) -> str:
         """
