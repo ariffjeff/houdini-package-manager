@@ -5,6 +5,7 @@ import platform
 import re
 import subprocess
 import winreg
+from itertools import takewhile
 
 
 class HouMeta:
@@ -19,8 +20,8 @@ class HouMeta:
     """
 
     def __init__(self, only_hou_installs=True) -> None:
+        # get paths of installed versions of Houdini
         self.dirs_apps = self.get_houdini_paths()
-
         if only_hou_installs:
             self.only_houdini_locations()
 
@@ -139,7 +140,11 @@ class HouMeta:
             # create package config object
             for i, file in enumerate(configs):
                 config = str(pathlib.Path(path, file))
-                configs[i] = PackageConfig(config)
+                if version in self.env_vars:  # installed houdini versions only
+                    env_vars = self.env_vars[version]
+                else:
+                    env_vars = {}
+                configs[i] = PackageConfig(config, env_vars)
 
             packages[version] = PackageCollection(path, configs)
         self.packages = packages
@@ -250,83 +255,154 @@ class PackageConfig:
     This class grabs all the valid paths that its able to find (as well as those it can resolve from $VARIABLES).
     """
 
-    def __init__(self, config: str) -> None:
-        package_data = self.load(config)
-        package_data = self.flatten_dict(package_data)
-
-        package_data = self.resolve_variables(package_data)
+    def __init__(self, config: str, env_vars=None) -> None:
+        package_data = self.flatten_package(self.load(config))
+        package_data = [list(item) for item in env_vars.items()] + package_data  # prepend environment variables
+        package_data = self.resolve_vars(package_data)
         self.config = package_data
+        self.plugin_paths = self.find_paths(package_data)
 
-        paths = self.find_paths(package_data)
+        # # search paths for plugin HDAs (\otls)
+        # # search paths for plugin HDAs (\otls)
+        # # search paths for plugin HDAs (\otls)
+        # # search paths for plugin HDAs (\otls)
 
-        # remove paths that can't be resolved
-        # if the path can't be resolved then it probably points to something that isn't a plugin anyway
-        keys_to_delete = []
-        for key, value in paths.items():
-            if not os.path.exists(value):
-                keys_to_delete.append(key)
-        for key in keys_to_delete:
-            del paths[key]
-        del keys_to_delete
-
-        # search paths for plugin HDAs (\otls)
-
-        self.plugin_paths = paths
-
-    def flatten_dict(self, d: dict, parent_key="", sep=".") -> dict:
+    def clean_paths(self, data: list[list]) -> list[list]:
         """
-        Flatten a dictionary such that none of the key-value pairs are nested.
-        De-nested keys have their name converted into the hierarchy they were de-nested from to prevent key name collisions.
+        Replace invalid double backslashes in paths with valid forward slashes.
+        This ensures future regex operations on
         """
 
-        items = []
-        for key, value in d.items():
-            new_key = f"{parent_key}{sep}{key}" if parent_key else key
-            if isinstance(value, dict):
-                items.extend(self.flatten_dict(value, new_key, sep=sep).items())
-            elif isinstance(value, list):
-                for i, val in enumerate(value):
-                    list_key = f"{new_key}{sep}{i}"
-                    if isinstance(val, dict):
-                        items.extend(self.flatten_dict(val, list_key, sep=sep).items())
-                    else:
-                        items.append((list_key, val))
-            else:
-                items.append((new_key, value))
-        return dict(items)
+        for i, value in enumerate(data):
+            value = value[-1]
+            if isinstance(value, str) and ("/" in value or "\\" in value):
+                value = value.replace("\\", "/")
+                data[i][-1] = value
+        return data
 
-    def resolve_variables(self, data: dict) -> dict:
+    def resolve_vars(self, data: list[list]) -> list[list]:
         """
-        Search a dict for the use of variables (denoted with '$...') and replace them with the variable's value.
-        Does not search in nested lists for dict key values.
+        Replace every variable call in a package config with the variable's value.
+
+        Custom package data structure rules:
+            The last list element is a value.
+            The second last list element is a value's key.
+            When variable call found, work backwards from the call to find the most recent
+            declaration of variable (var names will always be the second last element).
         """
 
-        # Iterate through all keys in the dictionary
-        for key in data:
-            # Check if the value is a string
-            if isinstance(data[key], str):
-                # Look for $ character in the string
-                index = data[key].find("$")
+        def replace_item(item):
+            """
+            Replace the variable calls with their corresponding values.
+            This func handles replacing nested variable calls until none remain.
+            """
+            return
 
-                # If $ character is found, replace with variable value
-                while index != -1:
-                    start_index = index + 1
-                    end_index = start_index
+        data = self.clean_paths(data)
 
-                    # Find the end index of the variable name
-                    while end_index < len(data[key]) and data[key][end_index].isalnum():
-                        end_index += 1
+        # get list of potential variables
+        # cannot be a dict in order to avoid var name collisions
+        # structure: [var name, var value]
+        potential_var_names = []
+        potential_var_names = [
+            path[-2].lower()
+            for path in data
+            if isinstance(path[-2], str) and len(path) >= 2 and path[-2].lower() not in potential_var_names
+        ]
 
-                    # Get the variable name
-                    var_name = data[key][start_index:end_index]
+        # find every potential var call
+        potential_var_call_indexes = []
+        for i, path in enumerate(data):
+            if isinstance(path[-1], str) and "$" in path[-1]:
+                potential_var_call_indexes.append(i)
 
-                    # Replace the variable with its value
-                    data[key] = data[key][:index] + data.get(var_name, "") + data[key][end_index:]
+        # extract every var call
+        var_calls = [
+            [call, i]
+            for i in potential_var_call_indexes
+            for call in ("".join(takewhile(str.isidentifier, call.lower())) for call in data[i][-1].split("$")[1:])
+            if call and call in potential_var_names
+        ]
 
-                    # Look for $ character again
-                    index = data[key].find("$")
+        # get all var inits
+        # structure: [var name, var value, index of var initialization]
+        var_inits = []
+        known_vars = [call[0] for call in var_calls]
+        for i, path in enumerate(data):
+            if isinstance(path[-2], str) and path[-2].lower() in known_vars:
+                var_inits.append([path[-2], path[-1], i])
+
+        # replace var calls with var values
+        for call, call_i in var_calls:
+            # determine which var init to try to get value from first
+            # get value from var init closest to var call and before the var call, or after
+            var_init_indexes = [init[2] for init in var_inits if init[0].lower() == call]
+            var_init_priority = self._split_indexes(var_init_indexes, call_i)
+            var_index = var_init_priority[0][-1] if len(var_init_priority[0]) != 0 else var_init_priority[1][0]
+
+            var_init_indexes = [init[2] for init in var_inits]
+            var = var_inits[var_init_indexes.index(var_index)]
+
+            # case insensitive replace
+            compiled = re.compile(re.escape("$" + call), re.IGNORECASE)
+            data[call_i][-1] = compiled.sub(var[1], data[call_i][-1])
 
         return data
+
+    def _split_indexes(self, nums: list[int], split_num: int) -> list[list[int]]:
+        index = len(nums)
+        for i, num in enumerate(nums):
+            if num > split_num:
+                index = i
+                break
+
+        start = nums[:index]
+        end = nums[index:]
+        return [start, end]
+
+    def flatten_package(self, data, prefix=None) -> list:
+        """
+        Recursively traverses a JSON-like data structure and returns a list of paths
+        to each value. Each path is structured as its own list where each element is
+        a key or the final value.
+
+        Essentially produces a rudimentary tree data structure.
+
+        Args:
+            data (dict or list or scalar): A JSON-like data structure to traverse.
+            prefix (list, optional): A list representing the current path being
+                traversed. Defaults to None, in which case the prefix is initialized
+                as an empty list.
+
+        Returns:
+            list: A list of paths, where each path is a list of keys and/or values
+                representing a path to a value in the original data structure.
+        """
+
+        if prefix is None:
+            prefix = []
+
+        flat = []
+        if isinstance(data, dict):
+            for key, value in data.items():
+                path = [*prefix, key]
+                flat.extend(self.flatten_package(value, path))
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                path = [*prefix, i]
+                flat.extend(self.flatten_package(item, path))
+        else:  # str, int, bool
+            flat.append([*prefix, data])
+        return flat
+
+    def find_paths(self, data: list[list]) -> list[str]:
+        """
+        Find all the valid paths in the package.
+        Returns a list of all the valid paths.
+        """
+
+        paths = [path[-1] for path in data if isinstance(path[-1], str) and os.path.exists(path[-1])]
+        return paths
 
     def load(self, path: str) -> dict:
         """
@@ -349,28 +425,3 @@ class PackageConfig:
             data = json.load(f, cls=JSONPathDecoder)
 
         return data
-
-    def find_paths(self, data: dict) -> dict:
-        """
-        Find all the paths in a dict.
-
-        Paths are found with regex.
-        The regex pattern matches Windows-style and Unix-style file paths.
-        Supported delimiter matching:
-            Single backslashes
-            Double backslashes
-            Single forward slashes
-            Double forward slashes
-        """
-
-        paths = {}
-        for key, value in data.items():
-            if type(value) is str:
-                # pattern that matches file paths
-                pattern = r"([a-zA-Z]:|[\\/])(?:[\\/][^\\/:\*\?\"<>\|\r\n]+)*[\\/][^\\/:\*\?\"<>\|\r\n]*"
-                match = re.search(pattern, value)
-
-                if match:
-                    paths[key] = value
-
-        return paths
