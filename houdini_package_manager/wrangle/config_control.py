@@ -270,7 +270,7 @@ class PackageConfig:
     def clean_paths(self, data: list[list]) -> list[list]:
         """
         Replace invalid double backslashes in paths with valid forward slashes.
-        This ensures future regex operations on
+        This ensures future regex operations do not encounter errors parsing escape characters.
         """
 
         for i, value in enumerate(data):
