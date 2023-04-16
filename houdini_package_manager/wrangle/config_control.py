@@ -145,6 +145,7 @@ class HouMeta:
                 else:
                     env_vars = {}
                 configs[i] = PackageConfig(config, env_vars)
+                configs[i].setup()
 
             packages[version] = PackageCollection(path, configs)
         self.packages = packages
@@ -255,17 +256,27 @@ class PackageConfig:
     This class grabs all the valid paths that its able to find (as well as those it can resolve from $VARIABLES).
     """
 
-    def __init__(self, config: str, env_vars=None) -> None:
-        package_data = self.flatten_package(self.load(config))
-        package_data = [list(item) for item in env_vars.items()] + package_data  # prepend environment variables
-        package_data = self.resolve_vars(package_data)
-        self.config = package_data
-        self.plugin_paths = self.find_paths(package_data)
+    def __init__(self, config_path: str, env_vars=None) -> None:
+        if env_vars is None:
+            env_vars = {}
+        self.config_raw = self.load(config_path)
+        self.config = self.flatten_package(self.config_raw)
+        self._env_vars = env_vars
 
         # # search paths for plugin HDAs (\otls)
         # # search paths for plugin HDAs (\otls)
         # # search paths for plugin HDAs (\otls)
         # # search paths for plugin HDAs (\otls)
+
+    def setup(self) -> None:
+        """
+        Convert the package configuration and extracts any resolved paths from its values.
+        """
+
+        package_data = [list(item) for item in self._env_vars.items()] + self.config  # prepend environment variables
+        package_data = self.resolve_vars(package_data)
+        self.config = package_data
+        self.plugin_paths = self.find_paths(package_data)
 
     def clean_paths(self, data: list[list]) -> list[list]:
         """
