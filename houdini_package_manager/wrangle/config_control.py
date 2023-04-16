@@ -310,19 +310,15 @@ class PackageConfig:
             if isinstance(path[-2], str) and len(path) >= 2 and path[-2].lower() not in potential_var_names
         ]
 
-        # find every potential var call
-        potential_var_call_indexes = []
+        # find and extract variable calls
+        var_calls = []
         for i, path in enumerate(data):
             if isinstance(path[-1], str) and "$" in path[-1]:
-                potential_var_call_indexes.append(i)
-
-        # extract every var call
-        var_calls = [
-            [call, i]
-            for i in potential_var_call_indexes
-            for call in ("".join(takewhile(str.isidentifier, call.lower())) for call in data[i][-1].split("$")[1:])
-            if call and call in potential_var_names
-        ]
+                var_calls.extend(
+                    [call, i]
+                    for call in ("".join(takewhile(str.isidentifier, call.lower())) for call in path[-1].split("$")[1:])
+                    if call and call in potential_var_names
+                )
 
         # get all var inits
         # structure: [var name, var value, index of var initialization]
