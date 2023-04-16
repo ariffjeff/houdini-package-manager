@@ -302,57 +302,62 @@ class PackageConfig:
             declaration of variable (var names will always be the second last element).
         """
 
-        def replace_item(item):
-            """
-            Replace the variable calls with their corresponding values.
-            This func handles replacing nested variable calls until none remain.
-            """
-            return
-
         data = self.clean_paths(data)
 
-        # get list of potential variables
-        # cannot be a dict in order to avoid var name collisions
-        # structure: [var name, var value]
-        potential_var_names = []
-        potential_var_names = [
-            path[-2].lower()
-            for path in data
-            if isinstance(path[-2], str) and len(path) >= 2 and path[-2].lower() not in potential_var_names
-        ]
+        while True:
+            # get list of potential variables
+            # cannot be a dict in order to avoid var name collisions
+            # structure: [var name, var value]
+            potential_var_names = []
+            potential_var_names = [
+                path[-2].lower()
+                for path in data
+                if isinstance(path[-2], str) and len(path) >= 2 and path[-2].lower() not in potential_var_names
+            ]
 
-        # find and extract variable calls
-        var_calls = []
-        for i, path in enumerate(data):
-            if isinstance(path[-1], str) and "$" in path[-1]:
-                var_calls.extend(
-                    [call, i]
-                    for call in ("".join(takewhile(str.isidentifier, call.lower())) for call in path[-1].split("$")[1:])
-                    if call and call in potential_var_names
-                )
+            # find and extract variable calls
+            var_calls = []
+            for i, path in enumerate(data):
+                if isinstance(path[-1], str) and "$" in path[-1]:
+                    var_calls.extend(
+                        [call, i, set()]
+                        for call in (
+                            "".join(takewhile(str.isidentifier, call.lower())) for call in path[-1].split("$")[1:]
+                        )
+                        if call and call in potential_var_names
+                    )
 
-        # get all var inits
-        # structure: [var name, var value, index of var initialization]
-        var_inits = []
-        known_vars = [call[0] for call in var_calls]
-        for i, path in enumerate(data):
-            if isinstance(path[-2], str) and path[-2].lower() in known_vars:
-                var_inits.append([path[-2], path[-1], i])
+            # break the loop if no more variable calls are found
+            if not var_calls:
+                break
 
-        # replace var calls with var values
-        for call, call_i in var_calls:
-            # determine which var init to try to get value from first
-            # get value from var init closest to var call and before the var call, or after
-            var_init_indexes = [init[2] for init in var_inits if init[0].lower() == call]
-            var_init_priority = self._split_indexes(var_init_indexes, call_i)
-            var_index = var_init_priority[0][-1] if len(var_init_priority[0]) != 0 else var_init_priority[1][0]
+            # get all var inits
+            # structure: [var name, var value, index of var initialization]
+            var_inits = []
+            known_vars = [call[0] for call in var_calls]
+            for i, path in enumerate(data):
+                if isinstance(path[-2], str) and path[-2].lower() in known_vars:
+                    var_inits.append([path[-2], path[-1], i])
 
-            var_init_indexes = [init[2] for init in var_inits]
-            var = var_inits[var_init_indexes.index(var_index)]
+            # replace var calls with var values
+            for call, call_i, processed_vars in var_calls:
+                # check for circular references
+                if call in processed_vars:
+                    raise ValueError(f"Circular reference detected for variable '{call}'")
+                processed_vars.add(call)
 
-            # case insensitive replace
-            compiled = re.compile(re.escape("$" + call), re.IGNORECASE)
-            data[call_i][-1] = compiled.sub(var[1], data[call_i][-1])
+                # determine which var init to try to get value from first
+                # get value from var init closest to var call and before the var call, or after
+                var_init_indexes = [init[2] for init in var_inits if init[0].lower() == call]
+                var_init_priority = self._split_indexes(var_init_indexes, call_i)
+                var_index = var_init_priority[0][-1] if len(var_init_priority[0]) != 0 else var_init_priority[1][0]
+
+                var_init_indexes = [init[2] for init in var_inits]
+                var = var_inits[var_init_indexes.index(var_index)]
+
+                # case insensitive replace
+                compiled = re.compile(re.escape("$" + call), re.IGNORECASE)
+                data[call_i][-1] = compiled.sub(var[1], data[call_i][-1])
 
         return data
 
