@@ -262,6 +262,7 @@ class PackageConfig:
         self.config_raw = self.load(config_path)
         self.config = self.flatten_package(self.config_raw)
         self._env_vars = env_vars
+        self.warnings = None
 
         # # search paths for plugin HDAs (\otls)
         # # search paths for plugin HDAs (\otls)
