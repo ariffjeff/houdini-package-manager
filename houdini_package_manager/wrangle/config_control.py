@@ -274,12 +274,11 @@ class PackageConfig:
         Convert the package configuration and extracts any resolved paths from its values.
         """
 
-        package_data = [list(item) for item in self._env_vars.items()] + self.config  # prepend environment variables
-        package_data = self.resolve_vars(package_data)
-        self.config = package_data
-        self.plugin_paths = self.find_paths(package_data)
+        self.config = [list(item) for item in self._env_vars.items()] + self.config  # prepend environment variables
+        self.resolve_vars()
+        self.plugin_paths = self.find_paths(self.config)
 
-    def clean_paths(self, data: list[list]) -> list[list]:
+    def standard_paths(self, data: list[list]) -> list[list]:
         """
         Replace invalid double backslashes in paths with valid forward slashes.
         This ensures future regex operations do not encounter errors parsing escape characters.
@@ -292,7 +291,54 @@ class PackageConfig:
                 data[i][-1] = value
         return data
 
-    def resolve_vars(self, data: list[list]) -> list[list]:
+    def _replace_var_calls(self, data: list[list], var_calls: list, potential_var_names: list) -> None:
+        """
+        Continuously replace variable calls with their respective values until no variable calls remain.
+        Only replaces var calls if the variable exists to replace it with.
+        Catches circular referencing variable calls.
+        """
+
+        # get all var inits
+        # structure: [var name, var value, index of var initialization]
+        var_inits = []
+        known_vars = [call[0] for call in var_calls]
+        for i, path in enumerate(data):
+            if isinstance(path[-2], str) and path[-2].lower() in known_vars:
+                var_inits.append([path[-2], path[-1], i])
+
+        # replace var calls with var values
+        for call, call_i, processed_vars in var_calls:
+            # check for circular references
+            if call in processed_vars:
+                raise ValueError(f"Circular reference detected for variable '{call}'")
+            processed_vars.add(call)
+
+            # determine which var init to try to get value from first
+            # get value from var init closest to var call and before the var call, or after
+            var_init_indexes = [init[2] for init in var_inits if init[0].lower() == call]
+            var_init_priority = self._split_indexes(var_init_indexes, call_i)
+            var_index = var_init_priority[0][-1] if len(var_init_priority[0]) != 0 else var_init_priority[1][0]
+
+            var_init_indexes = [init[2] for init in var_inits]
+            var = var_inits[var_init_indexes.index(var_index)]
+
+            # case insensitive replace
+            compiled = re.compile(re.escape("$" + call), re.IGNORECASE)
+            data[call_i][-1] = compiled.sub(var[1], data[call_i][-1])
+
+            # check if the new value contains variable calls
+            new_value = data[call_i][-1]
+            if "$" in new_value:
+                new_var_calls = [
+                    [call, call_i, processed_vars.copy()]
+                    for call in (
+                        "".join(takewhile(str.isidentifier, call.lower())) for call in new_value.split("$")[1:]
+                    )
+                    if call and call in potential_var_names
+                ]
+                self._replace_var_calls(data, new_var_calls, potential_var_names)
+
+    def resolve_vars(self) -> None:
         """
         Replace every variable call in a package config with the variable's value.
 
@@ -303,22 +349,20 @@ class PackageConfig:
             declaration of variable (var names will always be the second last element).
         """
 
-        data = self.clean_paths(data)
+        self.config = self.standard_paths(self.config)
 
         while True:
             # get list of potential variables
-            # cannot be a dict in order to avoid var name collisions
-            # structure: [var name, var value]
             potential_var_names = []
             potential_var_names = [
                 path[-2].lower()
-                for path in data
+                for path in self.config
                 if isinstance(path[-2], str) and len(path) >= 2 and path[-2].lower() not in potential_var_names
             ]
 
             # find and extract variable calls
             var_calls = []
-            for i, path in enumerate(data):
+            for i, path in enumerate(self.config):
                 if isinstance(path[-1], str) and "$" in path[-1]:
                     var_calls.extend(
                         [call, i, set()]
@@ -332,35 +376,7 @@ class PackageConfig:
             if not var_calls:
                 break
 
-            # get all var inits
-            # structure: [var name, var value, index of var initialization]
-            var_inits = []
-            known_vars = [call[0] for call in var_calls]
-            for i, path in enumerate(data):
-                if isinstance(path[-2], str) and path[-2].lower() in known_vars:
-                    var_inits.append([path[-2], path[-1], i])
-
-            # replace var calls with var values
-            for call, call_i, processed_vars in var_calls:
-                # check for circular references
-                if call in processed_vars:
-                    raise ValueError(f"Circular reference detected for variable '{call}'")
-                processed_vars.add(call)
-
-                # determine which var init to try to get value from first
-                # get value from var init closest to var call and before the var call, or after
-                var_init_indexes = [init[2] for init in var_inits if init[0].lower() == call]
-                var_init_priority = self._split_indexes(var_init_indexes, call_i)
-                var_index = var_init_priority[0][-1] if len(var_init_priority[0]) != 0 else var_init_priority[1][0]
-
-                var_init_indexes = [init[2] for init in var_inits]
-                var = var_inits[var_init_indexes.index(var_index)]
-
-                # case insensitive replace
-                compiled = re.compile(re.escape("$" + call), re.IGNORECASE)
-                data[call_i][-1] = compiled.sub(var[1], data[call_i][-1])
-
-        return data
+            self._replace_var_calls(self.config, var_calls, potential_var_names)
 
     def _split_indexes(self, nums: list[int], split_num: int) -> list[list[int]]:
         index = len(nums)
