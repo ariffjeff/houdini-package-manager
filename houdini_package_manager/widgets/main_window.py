@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QStatusBar,
 )
 
-from .package_table import PackageTable
+from houdini_package_manager.widgets.package_table import PackageTable
 
 
 class MainWindow(QMainWindow):
