@@ -3,18 +3,18 @@ import os
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
-from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QMainWindow,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QWidget,
-)
+from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QPushButton, QTableWidget, QTableWidgetItem, QWidget
+
+from houdini_package_manager.wrangle.config_control import HouMeta
 
 
 class PackageTable(QWidget):
-    def __init__(self, window: QMainWindow):
+
+    """
+    The table widget that displays Houdini package configuration data and various buttons/options to navigate and manipulate them.
+    """
+
+    def __init__(self, window: QMainWindow, package_data: HouMeta):
         super().__init__()
         self.parent_window = window
 
@@ -37,6 +37,10 @@ class PackageTable(QWidget):
         self.setLayout(h_layout)
 
     def load(self, path) -> None:
+        """
+        Load json contents.
+        """
+
         # try:
         with open(path) as f:
             self.package_data = json.load(f)
