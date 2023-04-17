@@ -1,0 +1,11 @@
+{
+  "MAIN_VAR": "something - $abg",
+  "HELLO": "VARIABLE_VALUE, $MAIN_VAR, iojh, $PATH - 987y6",
+  "path": "C:\\Users\\User\\Documents\\Megascans Library\\support\\plugins\\houdini\\4.6\\MSLiveLink",
+  "res": 3,
+  "bool": false,
+  "fud": "D:/$HELLO/oc.pm3",
+  "fuhd": "D://$NOVAR/cdd//$HELLO.mp4",
+  "abg": "text - $FINAL",
+  "final": "the end"
+}
