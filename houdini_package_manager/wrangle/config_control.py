@@ -164,7 +164,7 @@ class HouMeta:
                     config_dirs.append(path)
         return config_dirs
 
-    def get_env_vars(self, hconfig_path: str, target_vars: str | list[str] = None) -> dict[str]:
+    def get_env_vars(self, hconfig_path: str, target_vars: list[str] = None) -> dict[str]:
         """
         Get the environment variables for a specific version of Houdini by executing hconfig.exe.
 
