@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.widgets.package_table import PackageTable
+from houdini_package_manager.wrangle import package_ingest
+from houdini_package_manager.wrangle.config_control import HouMeta
 
 
 class MainWindow(QMainWindow):
@@ -28,7 +30,12 @@ class MainWindow(QMainWindow):
         self.statusLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.statusLabel = self.status_bar.findChild(QLabel)
 
-        paklist = PackageTable(self)
+        package_data = HouMeta()
+
+        # setup headless houdini environment
+        package_ingest.setup_houdini_environment(package_data.dirs_apps["19.0"])
+
+        paklist = PackageTable(self, package_data)
 
         self.setCentralWidget(paklist)
 
