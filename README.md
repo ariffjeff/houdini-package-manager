@@ -17,6 +17,13 @@ GUI package manager for Houdini
 - **Github repository**: <https://github.com/ariffjeff/houdini-package-manager/>
 - **Documentation** <https://ariffjeff.github.io/houdini-package-manager/>
 
+## Requirements
+- Houdini
+- Bash
+  - Windows (Git Bash):
+      - Install bash through Git: https://git-scm.com/download/win
+      - Bash must be in the Path environment variable (like this for Git Bash): C:\Program Files\Git\bin
+
 ## Usage
 
 
