@@ -11,8 +11,9 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.12"
+python = ">=3.9.10,<3.10"
 pyside6 = "^6.4.2"
+pywin32 = "^306"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"
