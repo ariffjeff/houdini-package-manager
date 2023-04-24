@@ -264,11 +264,6 @@ class PackageConfig:
         self._env_vars = env_vars
         self.warnings = None
 
-        # # search paths for plugin HDAs (\otls)
-        # # search paths for plugin HDAs (\otls)
-        # # search paths for plugin HDAs (\otls)
-        # # search paths for plugin HDAs (\otls)
-
     def setup(self) -> None:
         """
         Convert the package configuration and extracts any resolved paths from its values.
