@@ -205,7 +205,7 @@ class Packages:
         for package in self.configs:
             self.package_plugin_matches[package] = self.match_plugins_to_package(package, env_vars)
 
-    def match_plugins_to_package(self, package_path: str, env_vars: dict[str]) -> list[str]:
+    def match_plugins_to_package(self, package_name: str, env_vars: dict[str]) -> list[str]:
         """
         Try to find which JSON packages are associated with which plugin paths.
         Since both are obtained separately (a matter of path of least resistance),
@@ -214,16 +214,16 @@ class Packages:
         existing plugin paths.
 
         Arguments:
-            package (str):
+            package_name (str):
                 The filename of the JSON package to be analyzed.
             env_vars (dict[str]):
                 The environment variables that apply to all the packages for an
                 installed Houdini version.
         """
 
-        package_path = os.path.join(self.directory, package_path)
+        package_name = os.path.join(self.directory, package_name)
 
-        config = self._load(package_path)
+        config = self._load(package_name)
 
         config = self._flatten_package(config)
         # use the global env vars to help resolve any variables in the package config
