@@ -53,8 +53,8 @@ class HouInstalls:
             i = 0
             while True:
                 # Get the name, data, and type of the next value
-                name, data, data_type = winreg.EnumValue(key, i)
-                name = self._major_minor_version(name)
+                name, data, _ = winreg.EnumValue(key, i)
+                name = self._houdini_version_name(name)
                 values[name] = data
                 i += 1
         except OSError:
@@ -63,17 +63,25 @@ class HouInstalls:
 
         return values
 
-    def _major_minor_version(self, version: str) -> str:
+    def _houdini_version_name(self, version: str) -> str:
         """
-        Get only the major and minor version from the full semantic version.
+        Get a combination of the major, minor, and patch version components from the full semantic version number
+        of an installed version of Houdini.
+        Removes the mystery 3rd middle version component that doesn't seem to matter or show up anywhere else.
         """
+
+        # which components of the version number to use.
+        # major, minor, mystery number, patch
+        version_components = [True, True, False, False]
 
         if any(char.isalpha() for char in version):
             return version
 
-        version = version.split(".")[0:2]
-        version = ".".join(version)
-        return version
+        version = version.split(".")
+        new_version = [item for item, bool_val in zip(version, version_components) if bool_val]
+        new_version = ".".join(new_version)
+
+        return new_version
 
     def only_houdini_locations(self) -> dict:
         """
