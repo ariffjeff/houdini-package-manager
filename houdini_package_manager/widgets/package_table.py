@@ -5,7 +5,7 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QPushButton, QTableWidget, QTableWidgetItem, QWidget
 
-from houdini_package_manager.wrangle.config_control import HouMeta
+from houdini_package_manager.wrangle.config_control import HoudiniManager
 
 
 class PackageTable(QWidget):
@@ -14,7 +14,7 @@ class PackageTable(QWidget):
     The table widget that displays Houdini package configuration data and various buttons/options to navigate and manipulate them.
     """
 
-    def __init__(self, window: QMainWindow, package_data: HouMeta):
+    def __init__(self, window: QMainWindow, houdini_data: HoudiniManager):
         super().__init__()
         self.parent_window = window
 
