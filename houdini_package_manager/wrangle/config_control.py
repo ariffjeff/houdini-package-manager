@@ -6,6 +6,7 @@ import re
 import subprocess
 import winreg
 from itertools import takewhile
+from pathlib import Path
 
 
 class HouInstalls:
@@ -55,6 +56,8 @@ class HouInstalls:
                 # Get the name, data, and type of the next value
                 name, data, _ = winreg.EnumValue(key, i)
                 name = self._houdini_version_name(name)
+                if isinstance(data, str):
+                    data = Path(data)
                 values[name] = data
                 i += 1
         except OSError:
