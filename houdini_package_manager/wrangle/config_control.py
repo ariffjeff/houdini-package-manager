@@ -9,17 +9,29 @@ from itertools import takewhile
 from pathlib import Path
 
 
-class HouInstalls:
+class HoudiniManager:
+    """
+    A class for managing data related to multiple installed versions of Houdini.
+
+    Attributes:
+        install_directories (Dict[str, Path]):
+            The directories containing the install locations of different Houdini versions.
+            The keys are the version numbers. The values are the directories.
+
+        hou_installs (Dict[HoudiniInstall]):
+            A dictionary of all the installed versions of Houdini and their data.
+    """
+
     def __init__(self, only_hou_installs=True) -> None:
-        self.install_dirs = self._get_houdini_paths()
+        self.install_directories = self._get_houdini_paths()
         if only_hou_installs:
-            self.install_dirs = self.only_houdini_locations()
+            self.install_directories = self.only_houdini_locations()
 
         self.hou_installs = {}
 
     def get_houdini_data(self):
-        for version, path in self.install_dirs.items():
-            self.hou_installs[version] = HouData(path)
+        for version, path in self.install_directories.items():
+            self.hou_installs[version] = HoudiniInstall(path)
 
     def _get_houdini_paths(self) -> dict:
         """
@@ -94,23 +106,23 @@ class HouInstalls:
         """
 
         keys_to_remove = []
-        for key in self.install_dirs:
+        for key in self.install_directories:
             key_split = key.split(".")
             try:
                 int(key_split[0])
             except Exception:
                 keys_to_remove.append(key)
 
-        install_dirs_copy = dict(self.install_dirs)
+        install_dirs_copy = dict(self.install_directories)
         for key in keys_to_remove:
             del install_dirs_copy[key]
 
         return install_dirs_copy
 
 
-class HouData:
+class HoudiniInstall:
     """
-    A manager of all the relevant data for a version of Houdini.
+    A manager of all the relevant data for a single installed version of Houdini.
     """
 
     def __init__(self, install_dir: str) -> None:
@@ -184,14 +196,14 @@ class Packages:
         self._env_vars = env_vars
 
         files = next(os.walk(self.directory))
-        self.packages = [name for name in files[2] if ".json" in name]  # only .json files
+        self.configs = [name for name in files[2] if ".json" in name]  # only .json files
 
         self.plugin_paths = self.extract_plugin_paths_from_HOUDINI_PATH(env_vars["HOUDINI_PATH"])
 
         # match plugins to packages since both sets of data are obtained separately
         # because that is the easiest method of getting them
         self.package_plugin_matches = {}
-        for package in self.packages:
+        for package in self.configs:
             self.package_plugin_matches[package] = self.match_plugins_to_package(package, env_vars)
 
     def match_plugins_to_package(self, package_path: str, env_vars: dict[str]) -> list[str]:
