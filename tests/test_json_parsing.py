@@ -13,6 +13,7 @@ class TestPackageVariableResolution:
         A simple test for variable resolution of a JSON package with a flat hierarchy.
         """
 
+        # the formatting is strange because of Black formatting for the line length rule
         expected_config_result = [
             ["MAIN_VAR", "something - text - the end"],
             [
