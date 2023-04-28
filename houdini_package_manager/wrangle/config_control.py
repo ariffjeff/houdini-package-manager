@@ -48,12 +48,13 @@ class HoudiniManager:
         else:
             raise Exception("Could not determine operating system.")
 
-        paths = {key: path for key, path in paths.items() if os.path.exists(path)}
+        paths = {key: path for key, path in paths.items() if path.exists()}
         return paths
 
     def _win_registry_values(self, key_path: str) -> dict:
         """
         Get the values of a Windows registry key.
+        Paths are converted to pathlib.Path objects.
         """
 
         try:
@@ -124,20 +125,33 @@ class HoudiniInstall:
     A manager of all the relevant data for a single installed version of Houdini.
     """
 
-    def __init__(self, install_dir: str) -> None:
-        self.HFS = os.path.normpath(install_dir)
-        self.HB = os.path.join(self.HFS, "bin")
-        self.version = HouVersion(self.HFS)
+    def __init__(self, install_dir: Path) -> None:
+        if install_dir and not isinstance(install_dir, Path):
+            raise TypeError("install_dir must be a pathlib.Path object.")
 
-        # get metadata from hconfig.exe
+        self.HFS = install_dir
+        self.HB = Path(self.HFS, "bin")
+        self.version = HouVersion(str(self.HFS))
+
+        # get metadata from hconfig
         self.env_vars = self.run_hconfig()
 
-        self.packages = Packages(os.path.join(self.env_vars["HOUDINI_USER_PREF_DIR"], "packages"), self.env_vars)
+        self.packages = PackageCollection(Path(self.env_vars["HOUDINI_USER_PREF_DIR"], "packages"), self.env_vars)
 
     def run_hconfig(self) -> list:
-        exe = os.path.join(self.HB, "hconfig.exe")
+        """
+        Execute Houdini's hconfig to generate the environment variables associated with an installed version of Houdini.
 
-        result = subprocess.run([exe], shell=True, capture_output=True, text=True)
+        Returns a list of the environment variables.
+        """
+
+        command = "hconfig"
+        if platform.system() == "Windows":
+            command += ".exe"
+
+        command = Path(self.HB, command)
+
+        result = subprocess.run([command], shell=True, capture_output=True, text=True)
         metadata = result.stdout.split("\n")
         metadata = dict(item.split(" := ") for item in metadata if len(item) > 0)
         # remove first and last quotes
@@ -154,6 +168,9 @@ class HouVersion:
     """
 
     def __init__(self, install_path: str) -> None:
+        if install_path and not isinstance(install_path, str):
+            raise TypeError("install_path must be a str.")
+
         self.full = self._extract_version(install_path)
         parts = self.full.split(".")
         self.major = parts[0]
@@ -170,40 +187,85 @@ class HouVersion:
         return ver
 
 
-class Packages:
+class PackageCollection:
     """
     Package JSON configurations and the associated plugin data the configs point to.
 
     Arguments:
-        directory (str):
+        packages_directory (str):
             The directory containing the JSON packages that Houdini references to find plugins.
 
-    self.plugin_paths are the paths from HOUDINI_PATH which is from hconfig.exe. These are all
-    the plugins paths from all the packages that hconfig.exe found for a single installed
-    version of Houdini.
+        env_vars (dict[str]):
+            The environment variables needed to help resolve variables found in package configuration
+            files. They are aggregated by hconfig
+
+        get_data (bool):
+            Whether or not to automatically get the package data and its respective plugin data upon
+            creation of the Packages object.
+            Default is True.
+
+    Attributes:
+        plugin_paths ():
+            The paths from HOUDINI_PATH which is from hconfig. These are all
+            the plugins paths from all the packages that hconfig found for a single installed
+            version of Houdini.
     """
 
-    def __init__(self, directory: str, env_vars: dict[str]) -> None:
-        self.directory = directory
-        self.parent = os.path.dirname(self.directory)
+    def __init__(self, packages_directory: Path = None, env_vars: dict[str] = None, get_data=True) -> None:
+        if packages_directory and not isinstance(packages_directory, Path):
+            raise TypeError("directory must be a pathlib.Path object.")
+
+        if not env_vars:
+            env_vars = {}
+        if not isinstance(env_vars, dict):
+            raise TypeError("env_vars must be a dict.")
+
+        if get_data and not isinstance(get_data, bool):
+            raise TypeError("get_data must be a bool.")
+
+        self.packages_directory = packages_directory
+        self.env_vars = env_vars
+        self.plugin_paths = []
+        self.configs = []
+        self.package_plugin_matches = {}
+
+        if get_data:
+            self.get_package_data()
+
+    @property
+    def parent_directory(self):
+        if not self.packages_directory:
+            return None
+        return self.packages_directory.parent
+
+    def get_package_data(self) -> None:
+        """
+        Finds the package configuration files for a version of Houdini and matches them to their respective plugin data.
+
+        Returns:
+            None
+        """
+
+        if not self.packages_directory:
+            raise AttributeError(
+                "directory is not set to any path. Make sure env_vars contains data as well if needed."
+            )
 
         # add the package directory as a needed environment variable
+        # which isn't automatically added by hconfig for some reason.
         HOUDINI_PACKAGE_PATH = "HOUDINI_PACKAGE_PATH"
-        if HOUDINI_PACKAGE_PATH not in env_vars:
-            env_vars.update({HOUDINI_PACKAGE_PATH: self.directory})
+        if HOUDINI_PACKAGE_PATH not in self.env_vars:
+            self.env_vars.update({HOUDINI_PACKAGE_PATH: str(self.packages_directory) or ""})
 
-        self._env_vars = env_vars
+        self.plugin_paths = self.extract_plugin_paths_from_HOUDINI_PATH(self.env_vars["HOUDINI_PATH"])
 
-        files = next(os.walk(self.directory))
+        files = next(os.walk(self.packages_directory))
         self.configs = [name for name in files[2] if ".json" in name]  # only .json files
-
-        self.plugin_paths = self.extract_plugin_paths_from_HOUDINI_PATH(env_vars["HOUDINI_PATH"])
 
         # match plugins to packages since both sets of data are obtained separately
         # because that is the easiest method of getting them
-        self.package_plugin_matches = {}
-        for package in self.configs:
-            self.package_plugin_matches[package] = self.match_plugins_to_package(package, env_vars)
+        for package_name in self.configs:
+            self.package_plugin_matches[package_name] = self.match_plugins_to_package(package_name, self.env_vars)
 
     def match_plugins_to_package(self, package_name: str, env_vars: dict[str]) -> list[str]:
         """
@@ -221,7 +283,8 @@ class Packages:
                 installed Houdini version.
         """
 
-        package_name = os.path.join(self.directory, package_name)
+        # search for other os.path uses
+        package_name = Path(self.packages_directory, package_name)
 
         config = self._load(package_name)
 
@@ -235,7 +298,7 @@ class Packages:
 
         plugin_paths_from_config = self._find_plugin_paths(config)
 
-        # now compare the manually extracted plugin paths to the ones produced by hconfig.exe
+        # now compare the manually extracted plugin paths to the ones produced by hconfig
         # in order to find which plugin directories match which package files
 
         matching_plugin_paths = []
@@ -256,11 +319,14 @@ class Packages:
 
         return plugin_paths
 
-    def _load(self, path: str) -> dict:
+    def _load(self, path: Path) -> dict:
         """
         Load json contents.
         Handles invalid json such as directory paths with single \\ character delimiters.
         """
+
+        if not isinstance(path, Path):
+            raise TypeError("path must be a pathlib.Path object.")
 
         # convert invalid json values that are paths with '\' to '\\' to prevent json loading error
         class JSONPathDecoder(json.JSONDecoder):
@@ -448,7 +514,7 @@ class Packages:
         # locate HOUDINI_PATH
         # Need to look for "path" (legacy of HOUDINI_PATH) as well since our manual reading of
         # the package config does not cause any paths in "path" to be automatically merged into HOUDINI_PATH,
-        # as apposed to when packages are read by hconfig.exe
+        # as apposed to when packages are read by hconfig
         # HOUDINI_PATH or "path" can be anywhere in the chain, not only just [-2]
         data = [path for path in data if "HOUDINI_PATH" in path or "path" in path]
         data = [path for path in data if isinstance(path[-1], str) and os.path.exists(path[-1])]
