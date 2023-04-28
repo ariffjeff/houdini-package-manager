@@ -226,7 +226,7 @@ class PackageCollection:
         self.packages_directory = packages_directory
         self.env_vars = env_vars
         self.plugin_paths = []
-        self.configs = []
+        self.configs = {}
         self.package_plugin_matches = {}
 
         if get_data:
@@ -260,16 +260,52 @@ class PackageCollection:
         self.plugin_paths = self.extract_plugin_paths_from_HOUDINI_PATH(self.env_vars["HOUDINI_PATH"])
 
         files = next(os.walk(self.packages_directory))
-        self.configs = [name for name in files[2] if ".json" in name]  # only .json files
+        files = [name for name in files[2] if ".json" in name]  # only .json files
+        for file in files:
+            self.configs[Path(file).stem] = Package(Path(self.packages_directory, file), self.plugin_paths)
 
         # match plugins to packages since both sets of data are obtained separately
         # because that is the easiest method of getting them
-        for package_name in self.configs:
-            self.package_plugin_matches[package_name] = self.match_plugins_to_package(package_name, self.env_vars)
+        for _, config in self.configs.items():
+            config.resolve(self.env_vars)
 
-    def match_plugins_to_package(self, package_name: str, env_vars: dict[str]) -> list[str]:
+    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> list[str]:
         """
-        Try to find which JSON packages are associated with which plugin paths.
+        Extract all the paths from the value of the HOUDINI_PATH environment variable.
+        The paths are the directories that Houdini will search for the plugin data (HDAs/OTLs).
+        """
+
+        plugin_paths = houdini_path.split(";")
+        plugin_paths = [path for path in plugin_paths if os.path.exists(path)]
+
+        return plugin_paths
+
+
+class Package:
+    def __init__(self, package_path: Path, all_plugin_paths: list) -> None:
+        if not isinstance(package_path, Path):
+            raise TypeError("package_path must be a pathlib.Path object.")
+
+        if not isinstance(all_plugin_paths, list):
+            raise TypeError("all_plugin_paths must be a list.")
+
+        self.path = package_path
+        self._all_plugin_paths = all_plugin_paths
+
+        self._load()
+
+        self.plugin_matches = []
+
+    @property
+    def name(self):
+        return self.path.stem
+
+    def resolve(self, env_vars: dict[str]) -> None:
+        """
+        Call all the methods necessary to convert the loaded package data into an easily
+        readable format by flattening it and resolving all possible variables.
+
+        Also tries to find which JSON packages are associated with which plugin paths.
         Since both are obtained separately (a matter of path of least resistance),
         they need to be associated with eachother. This is done by reading the
         package configs, extracting any paths within, and comparing them to the
@@ -283,49 +319,31 @@ class PackageCollection:
                 installed Houdini version.
         """
 
-        # search for other os.path uses
-        package_name = Path(self.packages_directory, package_name)
-
-        config = self._load(package_name)
-
-        config = self._flatten_package(config)
+        config = self._flatten_package(self.config)
         # use the global env vars to help resolve any variables in the package config
         env_vars = [list(item) for item in env_vars.items()]
         merged_config = env_vars + config  # prepend environment variables
         merged_config = self._resolve_vars(merged_config)
         # only get the original package config that is now variable-resolved.
         # no need to do anything: the original list is automatically updated since lists are mutable.
+        self.config = config
 
-        plugin_paths_from_config = self._find_plugin_paths(config)
+        plugin_paths_from_config = self._find_plugin_paths(self.config)
 
         # now compare the manually extracted plugin paths to the ones produced by hconfig
         # in order to find which plugin directories match which package files
 
-        matching_plugin_paths = []
         for path in plugin_paths_from_config:
-            if path in self.plugin_paths:
-                matching_plugin_paths.append(path)
+            if path in self._all_plugin_paths:
+                self.plugin_matches.append(path)
 
-        return matching_plugin_paths
-
-    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> list[str]:
-        """
-        Extract all the paths from the value of the HOUDINI_PATH environment variable.
-        The paths are the directories that Houdini will search for the plugin data (HDAs/OTLs).
-        """
-
-        plugin_paths = houdini_path.split(";")
-        plugin_paths = [path for path in plugin_paths if os.path.exists(path)]
-
-        return plugin_paths
-
-    def _load(self, path: Path) -> dict:
+    def _load(self) -> None:
         """
         Load json contents.
         Handles invalid json such as directory paths with single \\ character delimiters.
         """
 
-        if not isinstance(path, Path):
+        if not isinstance(self.path, Path):
             raise TypeError("path must be a pathlib.Path object.")
 
         # convert invalid json values that are paths with '\' to '\\' to prevent json loading error
@@ -339,10 +357,10 @@ class PackageCollection:
                     s = regex.sub(replacement, s)
                 return super().decode(s, **kwargs)
 
-        with open(path) as f:
+        with open(self.path) as f:
             data = json.load(f, cls=JSONPathDecoder)
 
-        return data
+        self.config = data
 
     def _flatten_package(self, data, prefix=None) -> list:
         """
