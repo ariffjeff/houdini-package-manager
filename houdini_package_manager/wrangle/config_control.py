@@ -205,7 +205,7 @@ class PackageCollection:
             Default is True.
 
     Attributes:
-        plugin_paths ():
+        plugin_paths (list):
             The paths from HOUDINI_PATH which is from hconfig. These are all
             the plugins paths from all the packages that hconfig found for a single installed
             version of Houdini.
