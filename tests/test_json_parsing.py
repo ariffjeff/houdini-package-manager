@@ -1,4 +1,6 @@
-from houdini_package_manager.wrangle.config_control import PackageConfig
+from pathlib import Path
+
+from houdini_package_manager.wrangle.config_control import Package
 
 
 class TestPackageVariableResolution:
@@ -11,7 +13,7 @@ class TestPackageVariableResolution:
         A simple test for variable resolution of a JSON package with a flat hierarchy.
         """
 
-        expected_key_vals = [
+        expected_config_result = [
             ["MAIN_VAR", "something - text - the end"],
             [
                 "HELLO",
@@ -41,17 +43,17 @@ class TestPackageVariableResolution:
             ["final", "the end"],
         ]
 
-        package_path = r"tests\test_packages\package_standard_simple.json"
-        config = PackageConfig(package_path)
-        config.resolve_vars()
-        assert config.config == expected_key_vals
+        package_path = Path(r"tests\test_packages\package_standard_simple.json")
+        package_data = Package(package_path, [])
+        package_data.resolve({})
+        assert package_data.config == expected_config_result
 
     def test_standard_package(self):
         """
         A more complicated test for variable resolution of a JSON package with a hierarchy of nested keys and values.
         """
 
-        expected_key_vals = [
+        expected_config_result = [
             ["path", "$HOUDINI_PACKAGE_PATH/../SideFXLabs/351-embedded/SideFXLabs18.5"],
             ["load_package_once", True],
             ["int", 0],
@@ -69,10 +71,10 @@ class TestPackageVariableResolution:
             ["B", "middle"],
         ]
 
-        package_path = r"tests\test_packages\package_standard.json"
-        config = PackageConfig(package_path)
-        config.resolve_vars()
-        assert config.config == expected_key_vals
+        package_path = Path(r"tests\test_packages\package_standard.json")
+        package_data = Package(package_path, [])
+        package_data.resolve({})
+        assert package_data.config == expected_config_result
 
 
 def test_flatten_package():
@@ -80,7 +82,7 @@ def test_flatten_package():
     Tests whether the 'flatten_package' method correctly flattens a given JSON object into a list of paths to each value.
     """
 
-    expected_paths = [
+    expected_config_result = [
         ["path", "$SIDEFXLABS"],
         ["load_package_once", True],
         ["int", 0],
@@ -98,6 +100,8 @@ def test_flatten_package():
         ["B", "middle"],
     ]
 
-    package_path = r"tests\test_packages\package_standard.json"
-    config = PackageConfig(package_path)
-    assert config.config == expected_paths
+    package_path = Path(r"tests\test_packages\package_standard.json")
+    package_data = Package(package_path, [])
+    config = package_data._flatten_package(package_data.config)
+
+    assert config == expected_config_result
