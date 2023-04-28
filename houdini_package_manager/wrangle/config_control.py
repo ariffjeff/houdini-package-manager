@@ -413,7 +413,8 @@ class PackageCollection:
         # get all var inits
         # structure: [var name, var value, index of var initialization]
         var_inits = []
-        known_vars = [call[0] for call in var_calls]
+        known_vars = []
+        [known_vars.append(call[0]) for call in var_calls if call[0] not in known_vars]
         for i, path in enumerate(data):
             if isinstance(path[-2], str) and path[-2].lower() in known_vars:
                 var_inits.append([path[-2], path[-1], i])
