@@ -1,12 +1,8 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QApplication,
-    QLabel,
-    QMainWindow,
-    QStatusBar,
-)
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QStatusBar
 
 from houdini_package_manager.widgets.package_table import PackageTable
+from houdini_package_manager.wrangle.config_control import HoudiniManager
 
 
 class MainWindow(QMainWindow):
@@ -28,7 +24,11 @@ class MainWindow(QMainWindow):
         self.statusLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.statusLabel = self.status_bar.findChild(QLabel)
 
-        paklist = PackageTable(self)
+        # get packages and their HOUDINI_PATH data for each installed Houdini version
+        houdini_data = HoudiniManager()
+        houdini_data.get_houdini_data()
+
+        paklist = PackageTable(self, houdini_data)
 
         self.setCentralWidget(paklist)
 
