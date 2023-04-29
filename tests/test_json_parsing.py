@@ -14,7 +14,7 @@ class TestPackageVariableResolution:
         """
 
         # the formatting is strange because of Black formatting for the line length rule
-        expected_config_result = [
+        expected_resolved_config = [
             ["MAIN_VAR", "something - text - the end"],
             [
                 "HELLO",
@@ -46,15 +46,14 @@ class TestPackageVariableResolution:
 
         package_path = Path(r"tests\test_packages\package_standard_simple.json")
         package_data = Package(package_path, [])
-        package_data.resolve({})
-        assert package_data.config == expected_config_result
+        assert package_data.config == expected_resolved_config
 
     def test_standard_package(self):
         """
         A more complicated test for variable resolution of a JSON package with a hierarchy of nested keys and values.
         """
 
-        expected_config_result = [
+        expected_resolved_config = [
             ["path", "$HOUDINI_PACKAGE_PATH/../SideFXLabs/351-embedded/SideFXLabs18.5"],
             ["load_package_once", True],
             ["int", 0],
@@ -74,8 +73,7 @@ class TestPackageVariableResolution:
 
         package_path = Path(r"tests\test_packages\package_standard.json")
         package_data = Package(package_path, [])
-        package_data.resolve({})
-        assert package_data.config == expected_config_result
+        assert package_data.config == expected_resolved_config
 
 
 def test_flatten_package():
@@ -83,7 +81,7 @@ def test_flatten_package():
     Tests whether the 'flatten_package' method correctly flattens a given JSON object into a list of paths to each value.
     """
 
-    expected_config_result = [
+    expected_flattened_config = [
         ["path", "$SIDEFXLABS"],
         ["load_package_once", True],
         ["int", 0],
@@ -103,6 +101,6 @@ def test_flatten_package():
 
     package_path = Path(r"tests\test_packages\package_standard.json")
     package_data = Package(package_path, [])
-    config = package_data._flatten_package(package_data.config)
+    config = package_data._flatten_package(package_data._raw_json)
 
-    assert config == expected_config_result
+    assert config == expected_flattened_config

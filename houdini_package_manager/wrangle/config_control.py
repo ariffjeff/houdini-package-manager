@@ -205,7 +205,7 @@ class PackageCollection:
             Default is True.
 
     Attributes:
-        plugin_paths (list):
+        hconfig_plugin_paths (list):
             The paths from HOUDINI_PATH which is from hconfig. These are all
             the plugins paths from all the packages that hconfig found for a single installed
             version of Houdini.
@@ -225,7 +225,7 @@ class PackageCollection:
 
         self.packages_directory = packages_directory
         self.env_vars = env_vars
-        self.plugin_paths = []
+        self.hconfig_plugin_paths = []
         self.configs = {}
         self.package_plugin_matches = {}
 
@@ -257,17 +257,14 @@ class PackageCollection:
         if HOUDINI_PACKAGE_PATH not in self.env_vars:
             self.env_vars.update({HOUDINI_PACKAGE_PATH: str(self.packages_directory) or ""})
 
-        self.plugin_paths = self.extract_plugin_paths_from_HOUDINI_PATH(self.env_vars["HOUDINI_PATH"])
+        self.hconfig_plugin_paths = self.extract_plugin_paths_from_HOUDINI_PATH(self.env_vars["HOUDINI_PATH"])
 
         files = next(os.walk(self.packages_directory))
         files = [name for name in files[2] if ".json" in name]  # only .json files
         for file in files:
-            self.configs[Path(file).stem] = Package(Path(self.packages_directory, file), self.plugin_paths)
-
-        # match plugins to packages since both sets of data are obtained separately
-        # because that is the easiest method of getting them
-        for _, config in self.configs.items():
-            config.resolve(self.env_vars)
+            self.configs[Path(file).stem] = Package(
+                Path(self.packages_directory, file), self.hconfig_plugin_paths, self.env_vars
+            )
 
     def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> list[str]:
         """
@@ -282,25 +279,107 @@ class PackageCollection:
 
 
 class Package:
-    def __init__(self, package_path: Path, all_plugin_paths: list) -> None:
-        if not isinstance(package_path, Path):
+    def __init__(self, config_path: Path, hconfig_plugin_paths: list = None, env_vars: dict[str] = None) -> None:
+        """
+        A single JSON package file and its configuration and related data.
+
+        If hconfig_plugin_paths is not given, manually determine which plugins the package are pointing to since
+        we cannot use all_plugin_paths as a helping guide which was extracted from hconfig.
+
+        Arguments:
+            config_path (pathlib.Path):
+                The file path of the package .json file.
+
+            hconfig_plugin_paths (list[str]):
+                The list of paths extracted from the HOUDINI_PATH environment variable produced by hconfig.
+                These paths are associated with all packages for an installed version of Houdini.
+
+            env_vars (dict[str]):
+                The environment variables that apply to all the packages for an
+                installed Houdini version.
+        """
+
+        if not isinstance(config_path, Path):
             raise TypeError("package_path must be a pathlib.Path object.")
 
-        if not isinstance(all_plugin_paths, list):
+        if not isinstance(hconfig_plugin_paths, list):
             raise TypeError("all_plugin_paths must be a list.")
 
-        self.path = package_path
-        self._all_plugin_paths = all_plugin_paths
+        if env_vars and not isinstance(env_vars, dict):
+            raise TypeError("env_vars must be a dict.")
+
+        self.config_path = config_path
+
+        self._hconfig_plugin_paths = hconfig_plugin_paths or []
+        self._env_vars = env_vars or {}
+        self._plugin_matches = []
 
         self._load()
+        self.config = self._flatten_package(self.config)
 
-        self.plugin_matches = []
+        self.resolve()
+        self.extract_data()
+
+        ###############################
+        # set data determined by config
+        ###############################
+
+        # enable
+        if "enable" in self.config_keys:
+            self._enable = self.config_values[self.config_keys.index("enable")]
+            if isinstance(self._enable, str) and self._enable.lower() == "false":  # account for user using wrong type
+                self._enable = False
+            else:
+                self._enable = True
+        else:
+            self._enable = True
+
+        self.plugin_path = None
+        self.version = None
+        self.author = None
+        self.date_installed = None
+
+    @property
+    def env_vars(self):
+        return self._env_vars
 
     @property
     def name(self):
-        return self.path.stem
+        return self.config_path.stem
 
-    def resolve(self, env_vars: dict[str]) -> None:
+    @property
+    def enable(self):
+        return self._enable
+
+    @enable.setter
+    def enable(self, toggle: bool):
+        if not isinstance(toggle, bool):
+            raise TypeError("enable must be a bool.")
+
+        self._enable = toggle
+
+        # set in self.config
+        if "enable" in self.config_keys:  # set existing key's value
+            i = self.config_keys.index("enable")
+            self.config[i][-1] = toggle
+        else:  # create new key
+            self.config.insert(0, ["enable", toggle])
+
+        # set in .json config
+        self._raw_json["enable"] = toggle  # enable is a top-level key, so this just works
+        with open(self.config_path, "w") as outfile:
+            json.dump(self._raw_json, outfile, indent=4)
+
+    # convenient way to access all the config key-value assignments
+    @property
+    def config_keys(self):
+        return [path[-2] for path in self.config]
+
+    @property
+    def config_values(self):
+        return [path[-1] for path in self.config]
+
+    def resolve(self) -> None:
         """
         Call all the methods necessary to convert the loaded package data into an easily
         readable format by flattening it and resolving all possible variables.
@@ -310,32 +389,31 @@ class Package:
         they need to be associated with eachother. This is done by reading the
         package configs, extracting any paths within, and comparing them to the
         existing plugin paths.
-
-        Arguments:
-            package_name (str):
-                The filename of the JSON package to be analyzed.
-            env_vars (dict[str]):
-                The environment variables that apply to all the packages for an
-                installed Houdini version.
         """
 
-        config = self._flatten_package(self.config)
+        config = self.config
         # use the global env vars to help resolve any variables in the package config
-        env_vars = [list(item) for item in env_vars.items()]
+        env_vars = [list(item) for item in self._env_vars.items()]
         merged_config = env_vars + config  # prepend environment variables
         merged_config = self._resolve_vars(merged_config)
         # only get the original package config that is now variable-resolved.
         # no need to do anything: the original list is automatically updated since lists are mutable.
         self.config = config
 
+    def extract_data(self):
+        """
+        Extract the relevant config data needed to populate the package manager Qt table.
+        """
+
         plugin_paths_from_config = self._find_plugin_paths(self.config)
 
         # now compare the manually extracted plugin paths to the ones produced by hconfig
-        # in order to find which plugin directories match which package files
-
+        # in order to find which plugin directories match which package files.
+        # plugin paths and packages are obtained separately because that
+        # is the easiest method of getting them.
         for path in plugin_paths_from_config:
-            if path in self._all_plugin_paths:
-                self.plugin_matches.append(path)
+            if path in self._hconfig_plugin_paths:
+                self._plugin_matches.append(path)
 
     def _load(self) -> None:
         """
@@ -343,7 +421,7 @@ class Package:
         Handles invalid json such as directory paths with single \\ character delimiters.
         """
 
-        if not isinstance(self.path, Path):
+        if not isinstance(self.config_path, Path):
             raise TypeError("path must be a pathlib.Path object.")
 
         # convert invalid json values that are paths with '\' to '\\' to prevent json loading error
@@ -357,9 +435,10 @@ class Package:
                     s = regex.sub(replacement, s)
                 return super().decode(s, **kwargs)
 
-        with open(self.path) as f:
+        with open(self.config_path) as f:
             data = json.load(f, cls=JSONPathDecoder)
 
+        self._raw_json = data
         self.config = data
 
     def _flatten_package(self, data, prefix=None) -> list:
