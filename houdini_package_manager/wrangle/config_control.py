@@ -266,20 +266,23 @@ class PackageCollection:
                 Path(self.packages_directory, file), self.hconfig_plugin_paths, self.env_vars
             )
 
-    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> list[str]:
+    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> list[Path]:
         """
         Extract all the paths from the value of the HOUDINI_PATH environment variable.
         The paths are the directories that Houdini will search for the plugin data (HDAs/OTLs).
+
+        Returns a list of pathlib.Path paths that exist.
         """
 
         plugin_paths = houdini_path.split(";")
-        plugin_paths = [path for path in plugin_paths if os.path.exists(path)]
+        plugin_paths = [Path(path) for path in plugin_paths]
+        plugin_paths = [path for path in plugin_paths if path.exists()]
 
         return plugin_paths
 
 
 class Package:
-    def __init__(self, config_path: Path, hconfig_plugin_paths: list = None, env_vars: dict[str] = None) -> None:
+    def __init__(self, config_path: Path, hconfig_plugin_paths: list[Path] = None, env_vars: dict[str] = None) -> None:
         """
         A single JSON package file and its configuration and related data.
 
@@ -302,8 +305,10 @@ class Package:
         if not isinstance(config_path, Path):
             raise TypeError("package_path must be a pathlib.Path object.")
 
-        if not isinstance(hconfig_plugin_paths, list):
-            raise TypeError("all_plugin_paths must be a list.")
+        if not isinstance(hconfig_plugin_paths, list) or not all(
+            isinstance(path, Path) for path in hconfig_plugin_paths
+        ):
+            raise TypeError("all_plugin_paths must be a list of pathlib.Path objects.")
 
         if env_vars and not isinstance(env_vars, dict):
             raise TypeError("env_vars must be a dict.")
@@ -312,7 +317,8 @@ class Package:
 
         self._hconfig_plugin_paths = hconfig_plugin_paths or []
         self._env_vars = env_vars or {}
-        self._plugin_matches = []
+        self._plugin_paths = []
+        self.date_installed = None
 
         self._load()
         self.config = self._flatten_package(self.config)
@@ -334,14 +340,16 @@ class Package:
         else:
             self._enable = True
 
-        self.plugin_path = None
         self.version = None
         self.author = None
-        self.date_installed = None
 
     @property
     def env_vars(self):
         return self._env_vars
+
+    @property
+    def plugin_paths(self):
+        return self._plugin_paths
 
     @property
     def name(self):
@@ -413,7 +421,7 @@ class Package:
         # is the easiest method of getting them.
         for path in plugin_paths_from_config:
             if path in self._hconfig_plugin_paths:
-                self._plugin_matches.append(path)
+                self._plugin_paths.append(path)
 
     def _load(self) -> None:
         """
@@ -603,18 +611,34 @@ class Package:
 
         return config
 
-    def _find_plugin_paths(self, data: list[list]) -> list[str]:
+    def _find_plugin_paths(self, paths: list[list]) -> list[str]:
         """
         Find all the plugin paths in the package.
         Returns a list of all the valid paths.
         """
+
+        def split_paths(string: str) -> list:
+            """
+            Split a combined string of multiple paths into individual paths.
+            Removes trailing separators.
+            """
+            if string[-2:] == ";&":
+                string = string[:-2]
+            elif string[-1] == ";":
+                string = string[:-1]
+            string = string.split(";")
+            return string
 
         # locate HOUDINI_PATH
         # Need to look for "path" (legacy of HOUDINI_PATH) as well since our manual reading of
         # the package config does not cause any paths in "path" to be automatically merged into HOUDINI_PATH,
         # as apposed to when packages are read by hconfig
         # HOUDINI_PATH or "path" can be anywhere in the chain, not only just [-2]
-        data = [path for path in data if "HOUDINI_PATH" in path or "path" in path]
-        data = [path for path in data if isinstance(path[-1], str) and os.path.exists(path[-1])]
-        data = [path[-1] for path in data]
-        return data
+        paths = [path for path in paths if "HOUDINI_PATH" in path or "path" in path or "hpath" in path]
+        paths = [path for path in paths if isinstance(path[-1], str)]
+        new_paths = []
+        [new_paths.extend(split_paths(path[-1])) for path in paths]
+        paths = new_paths
+        paths = [Path(path) for path in paths]
+        paths = [path for path in paths if path.exists()]
+        return paths
