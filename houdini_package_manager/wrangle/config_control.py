@@ -29,6 +29,10 @@ class HoudiniManager:
         self.hou_installs = {}
 
     def get_houdini_data(self):
+        """
+        Get the package data and various other data for each installed version of Houdini.
+        """
+
         for version, path in self.install_directories.items():
             self.hou_installs[version] = HoudiniInstall(path)
 
