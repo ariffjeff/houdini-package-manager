@@ -161,6 +161,21 @@ class HoudiniInstall:
 
         return metadata
 
+    def get_package_data(self, named=True) -> dict:
+        if named:
+            data = {}
+            for name, pkg in self.packages.configs.items():
+                data[name] = pkg.table_model
+        else:
+            data = []
+            for _name, pkg in self.packages.configs.items():
+                data.append(list(pkg.table_model.values()))
+        return data
+
+    def get_labels(self) -> list[str]:
+        for _, pkg in self.packages.configs.items():
+            return list(pkg.table_model.keys())
+
 
 class HouVersion:
     """
@@ -331,15 +346,7 @@ class Package:
         ###############################
 
         # enable
-        if "enable" in self.config_keys:
-            self._enable = self.config_values[self.config_keys.index("enable")]
-            if isinstance(self._enable, str) and self._enable.lower() == "false":  # account for user using wrong type
-                self._enable = False
-            else:
-                self._enable = True
-        else:
-            self._enable = True
-
+        self._enable = self.is_enabled()
         self.version = None
         self.author = None
 
@@ -386,6 +393,34 @@ class Package:
     @property
     def config_values(self):
         return [path[-1] for path in self.config]
+
+    @property
+    def table_model(self):
+        return {
+            "Enable": self.enable,
+            "Version": self.version,
+            "Name": self.name,
+            "Author": self.author,
+            "Date Installed": self.date_installed,
+            "Config": self.config_path,
+            "Plugins": self.plugin_paths,
+        }
+
+    def is_enabled(self) -> bool:
+        """
+        Returns True or False based on whether or not the package is
+        enabled according to its top-level "enable" variable.
+        """
+
+        if "enable" in self.config_keys:
+            enabled = self.config_values[self.config_keys.index("enable")]
+            # account for user using wrong type
+            if isinstance(enabled, str) and enabled.lower() == "false":
+                return False
+            elif isinstance(enabled, str) and enabled.lower() == "true":
+                return True
+            return enabled
+        return True
 
     def resolve(self) -> None:
         """
