@@ -60,22 +60,16 @@ class PackageTableModel3(QTableWidget):
                     item = QTableWidgetItem(value)
                     self.setItem(row, column, item)
                 elif self.horizontalHeaderItem(column).text() == "Config":
-                    # Config Path: push button that opens its file path when clicked
-                    widget = QWidget()
-                    layout = QHBoxLayout(widget)
+                    # Config: push button that opens its file path when clicked
                     button = QPushButton()
                     button.setIcon(QIcon("./houdini_package_manager/icons/file.svg"))
                     button.setToolTip(str(value))
                     button.setProperty("path", value)
                     button.clicked.connect(self.open_path)
 
-                    layout.addWidget(button)
-                    layout.setAlignment(Qt.AlignCenter)
-                    layout.setContentsMargins(0, 0, 0, 0)
-                    widget.setLayout(layout)
-                    self.setCellWidget(row, column, widget)
+                    self.setCellWidget(row, column, button)
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
-                    # Plugin Paths: a drop down of path buttons that can be clicked.
+                    # Plugins: a drop down of path buttons that can be clicked.
                     widget = QWidget()
                     layout = QHBoxLayout(widget)
                     combo = QComboBox()
@@ -87,32 +81,19 @@ class PackageTableModel3(QTableWidget):
                     for path in value:
                         model.invisibleRootItem().appendRow(QStandardItem(path))
 
-                    # create a delegate that handles the paint and editorEvent events for the items in the combo box
+                    # create a delegate that handles the paint and editorEvent events for the items in the combo box.
+                    # this allows the dropdown items to open their paths when they are clicked.
                     delegate = QStyledItemDelegate()
                     combo.setItemDelegate(delegate)
 
                     delegate = self.CustomItemDelegate()
                     combo.setItemDelegate(delegate)
-                    import random
-
-                    combo.activated.connect(
-                        lambda: self.parent_window.statusBar().showMessage(f"Opened: {random.random()}")
-                    )
-                    # need to get .activated to trigger when left clicked
-
-                    # combo.activated.connect(self.statusTip)
-                    # combo.activated.connect(print("CHANGED"))
-                    # combo.currentIndexChanged.connect(print("HELLO000000000000"))
 
                     layout.addWidget(combo)
                     layout.setAlignment(Qt.AlignBaseline)
                     layout.setContentsMargins(0, 0, 0, 0)
                     widget.setLayout(layout)
                     self.setCellWidget(row, column, widget)
-
-    def status_update(self) -> None:
-        print("CHANGED")
-        self.parent_window.statusBar().showMessage(f"Opened: {...}")
 
     def open_path(self) -> None:
         """
@@ -139,6 +120,7 @@ class PackageTableModel3(QTableWidget):
         triggering the packages enable attribute setter method, thus enabling or disabling
         the package.
         """
+
         checkbox = self.sender()
         toggle = checkbox.isChecked()
         row = self.indexAt(checkbox.parent().pos()).row()
@@ -163,7 +145,6 @@ class PackageTableModel3(QTableWidget):
         def editorEvent(self, event, model, option, index):
             if event.type() == QEvent.Type.MouseButtonPress and event.button() in [Qt.LeftButton, Qt.RightButton]:
                 QDesktopServices.openUrl(QUrl.fromLocalFile(index.data()))
-                # self.itemClicked.emit(index.data())
                 return True
             return super().editorEvent(event, model, option, index)
 
