@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from houdini_package_manager.styles.widget_styles import WidgetStyles
 from houdini_package_manager.wrangle.config_control import HoudiniInstall, HoudiniManager
 
 
@@ -40,21 +41,25 @@ class PackageTableModel3(QTableWidget):
         self.setSelectionMode(QTableWidget.NoSelection)
         self.setShowGrid(False)
 
+        header = self.horizontalHeader()
+        header.setStretchLastSection(True)
+
+        # expand vertical cell size
+        self.verticalHeader().setDefaultSectionSize(40)
+
+        # shrink cell contents back down to add appearance of vertical spacing
+        self.setStyleSheet("QTableView::item { padding-right: 10px; }")
+        self.setStyleSheet("QTableView::item {padding: 3.5px 0;}")
+
         for row, rowData in enumerate(self.table_data):
             for column, value in enumerate(rowData):
                 if self.horizontalHeaderItem(column).text() == "Enable":
                     # Enable: togglable checkbox
-                    widget = QWidget()
-                    layout = QHBoxLayout(widget)
                     checkbox = QCheckBox()
                     checkbox.clicked.connect(self.enable_package)
                     checkbox.setCheckState(Qt.Checked if self.table_data[row][column] else Qt.Unchecked)
 
-                    layout.addWidget(checkbox)
-                    layout.setAlignment(Qt.AlignCenter)
-                    layout.setContentsMargins(0, 0, 0, 0)
-                    widget.setLayout(layout)
-                    self.setCellWidget(row, column, widget)
+                    self.setCellWidget(row, column, self.center_widget(checkbox))
                 elif isinstance(value, str):
                     # Version, Name, Author, Date Installed: text
                     item = QTableWidgetItem(value)
@@ -62,12 +67,13 @@ class PackageTableModel3(QTableWidget):
                 elif self.horizontalHeaderItem(column).text() == "Config":
                     # Config: push button that opens its file path when clicked
                     button = QPushButton()
-                    button.setIcon(QIcon("./houdini_package_manager/icons/file.svg"))
                     button.setToolTip(str(value))
                     button.setProperty("path", value)
                     button.clicked.connect(self.open_path)
 
-                    self.setCellWidget(row, column, button)
+                    WidgetStyles.svg_QPushButton(button, 23, 30, "./houdini_package_manager/icons/file.svg")
+
+                    self.setCellWidget(row, column, self.center_widget(button))
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
                     # Plugins: a drop down of path buttons that can be clicked.
                     combo = QComboBox()
@@ -124,6 +130,20 @@ class PackageTableModel3(QTableWidget):
 
         message = "Enabled" if toggle else "Disabled"
         self.parent_window.statusBar().showMessage(f"{message} package: {package.name}")
+
+    def center_widget(self, widget) -> QWidget:
+        """
+        Create the layout that centers a desired widget in a QTableWidget cell.
+        Returns a QWidget that should be used as the third arg of: self.setCellWidget(row, column, widget)
+        """
+
+        layout_widget = QWidget()
+        layout = QHBoxLayout(layout_widget)
+        layout.addWidget(widget)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout_widget.setLayout(layout)
+        return layout_widget
 
     class CustomItemDelegate(QStyledItemDelegate):
         """
