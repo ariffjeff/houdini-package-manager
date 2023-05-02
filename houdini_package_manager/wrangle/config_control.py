@@ -400,10 +400,11 @@ class Package:
 
     @property
     def table_model(self):
+        # the order here is how the columns are ordered in the GUI
         return {
             "Enable": self.enable,
-            "Version": self.version,
             "Name": self.name,
+            "Version": self.version,
             "Author": self.author,
             "Date Installed": self.date_installed,
             "Config": self.config_path,
