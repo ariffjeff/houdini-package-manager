@@ -70,8 +70,6 @@ class PackageTableModel3(QTableWidget):
                     self.setCellWidget(row, column, button)
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
                     # Plugins: a drop down of path buttons that can be clicked.
-                    widget = QWidget()
-                    layout = QHBoxLayout(widget)
                     combo = QComboBox()
                     value = [str(path) for path in value]
 
@@ -89,11 +87,7 @@ class PackageTableModel3(QTableWidget):
                     delegate = self.CustomItemDelegate()
                     combo.setItemDelegate(delegate)
 
-                    layout.addWidget(combo)
-                    layout.setAlignment(Qt.AlignBaseline)
-                    layout.setContentsMargins(0, 0, 0, 0)
-                    widget.setLayout(layout)
-                    self.setCellWidget(row, column, widget)
+                    self.setCellWidget(row, column, combo)
 
     def open_path(self) -> None:
         """
