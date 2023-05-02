@@ -1,9 +1,7 @@
-import json
-import os
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -17,10 +15,14 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.styles.widget_styles import WidgetStyles
-from houdini_package_manager.wrangle.config_control import HoudiniInstall, HoudiniManager
+from houdini_package_manager.wrangle.config_control import HoudiniInstall
 
 
-class PackageTableModel3(QTableWidget):
+class PackageTableModel(QTableWidget):
+    """
+    The table widget that displays Houdini package configuration data and various buttons/options to navigate and manipulate them.
+    """
+
     def __init__(self, parent: QMainWindow, houdini_install: HoudiniInstall) -> None:
         super().__init__()
         self.parent_window = parent
@@ -161,175 +163,3 @@ class PackageTableModel3(QTableWidget):
                 QDesktopServices.openUrl(QUrl.fromLocalFile(index.data()))
                 return True
             return super().editorEvent(event, model, option, index)
-
-
-# class PackageTableModel(QAbstractTableModel):
-#     def __init__(self, houdini_install: HoudiniInstall, parent=None):
-#         super().__init__(parent)
-
-#         self.package_data = houdini_install.get_package_data(named=False)
-#         self.labels = houdini_install.get_labels()
-
-#         print("")
-
-#     def rowCount(self, parent=QModelIndex()):
-#         return len(self.package_data)
-
-#     def columnCount(self, parent=QModelIndex()):
-#         return len(self.package_data[0]) if self.package_data else 0
-
-#     def data(self, index, role=Qt.DisplayRole):
-#         if not index.isValid():
-#             return None
-
-#         row = index.row()
-#         column = index.column()
-
-#         if role == Qt.DisplayRole or role == Qt.EditRole:
-#             return str(self.package_data[row][column])
-#         elif role == Qt.CheckStateRole and self.headerData(column, Qt.Horizontal) == "Enable":
-#             return Qt.Checked if self.package_data[row][column] else Qt.Unchecked
-#         elif role == Qt.UserRole and column == 3:
-#             return row
-
-#     def setData(self, index, value, role=Qt.EditRole):
-#         if not index.isValid() or role != Qt.CheckStateRole or index.column() != 0:
-#             return False
-
-#         row = index.row()
-#         self.package_data[row][0] = True if value == Qt.Checked else False
-#         self.dataChanged.emit(index, index)
-#         return True
-
-#     def headerData(self, section, orientation, role=Qt.DisplayRole):
-#         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-#             return self.labels[section]
-#         return None
-
-#     def flags(self, index):
-#         if not index.isValid():
-#             return Qt.NoItemFlags
-
-#         flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-
-#         if self.headerData(index.column(), Qt.Horizontal) == "Enable":
-#             flags |= Qt.ItemIsUserCheckable
-
-#         if self.headerData(index.column(), Qt.Horizontal) == "Config Path":
-#             flags |= Qt.ItemIsEnabled | Qt.ItemIsSelectable
-
-#         return flags
-
-#     def createIndex(self, row, column, ptr=None):
-#         index = super().createIndex(row, column, ptr)
-#         index.internalPointer = self.package_data[row]
-#         return index
-
-#     def createEditor(self, parent, option, index):
-#         if self.headerData(index.column(), Qt.Horizontal) == "Config Path":
-#             editor = QPushButton(parent)
-#             editor.clicked.connect(self.openFile)
-#             return editor
-#         return super().createEditor(parent, option, index)
-
-#     def openFile(self):
-#         filename, _ = QFileDialog.getOpenFileName(None, "Open Configuration File", "", "Configuration Files (*.conf)")
-#         if filename:
-#             button = self.sender()
-#             index = self.index(button.property("row"), 2)
-#             self.package_data[button.property("row")][2] = filename
-#             self.dataChanged.emit(index, index)
-
-
-class PackageTable(QWidget):
-
-    """
-    The table widget that displays Houdini package configuration data and various buttons/options to navigate and manipulate them.
-    """
-
-    def __init__(self, window: QMainWindow, houdini_data: HoudiniManager):
-        super().__init__()
-        self.parent_window = window
-
-        self.package_data = self.load("./houdini_package_manager/package_data/package_data.json")
-
-        # CONVERT houdini_data TO REQUIRED JSON FORMAT
-        # CREATE DROP DOWN FOR CHOOSING HOUDINI VERSION TO MANAGE FIRST????
-
-        h_layout = QHBoxLayout()
-
-        # loader = QUiLoader()
-        # table = loader.load("./qt_designer/package_list.ui", self)
-
-        self.buttons = {}
-
-        labels = ["Version", "Package", "Author", "Date Installed", "Config", "Source", "Options"]
-        # labels = ["Enable", "Version", "Package", "Author", "Date Installed", "Config", "Source", "Options"] # FUTURE LAYOUT
-
-        table = QTableWidget(len(self.package_data["packages"]), len(labels), self)
-        table.setHorizontalHeaderLabels(labels)
-        self.set_table(table)
-
-        h_layout.addWidget(table)
-        self.setLayout(h_layout)
-
-    def load(self, path) -> None:
-        """
-        Load json contents.
-        """
-
-        # try:
-        with open(path) as f:
-            package_data = json.load(f)
-        # except Exception:
-        # print("Fail")
-        return package_data
-
-    def save(self) -> None:
-        with open("data.json", "w") as f:
-            json.dump(self.package_data, f)
-
-    def set_table(self, table: QTableWidget) -> None:
-        for i, row in enumerate(self.package_data["packages"]):
-            for j, col in enumerate(row):
-                value = row[col]
-                item = QTableWidgetItem(value)
-                if col == "Config" or col == "Source":
-                    if col == "Config":
-                        icon = "./houdini_package_manager/icons/file.svg"
-                    elif col == "Source":
-                        icon = "./houdini_package_manager/icons/folder.svg"
-                    btn = QPushButton(QIcon(icon), None)
-                    btn.setToolTip(value)
-                    btn.clicked.connect(self.open_path)
-                    # btn.enterEvent = self.value_to_status
-                    table.setCellWidget(i, j, btn)
-                    self.buttons[f"{str(i)}-{str(j)}"] = {"button": btn, "path": value}
-                else:
-                    table.setItem(i, j, item)
-
-        table.setEditTriggers(QTableWidget.NoEditTriggers)
-        table.setSelectionMode(QTableWidget.NoSelection)
-        table.setShowGrid(False)
-
-    def open_path(self) -> None:
-        """
-        Get the path that is associated with a button and open it
-        """
-        button = self.sender()
-        for _pos, data in self.buttons.items():
-            if data["button"] == button:
-                path = data["path"]
-                break
-
-        if not os.path.exists(path):
-            self.parent_window.statusBar().showMessage(f"Failed to open: {path}")
-            return
-
-        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
-        # self.parent_window.statusBar().showMessage(f"Opened {dir}")
-        self.parent_window.statusLabel.setText(f"Opened: {path}")
-
-    # def value_to_status(self, event) -> None:
-    #     sender = self.sender()
-    #     print(f'{sender.text()} entered')

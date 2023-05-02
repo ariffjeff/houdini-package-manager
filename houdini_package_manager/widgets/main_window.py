@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.styles.widget_styles import WidgetStyles
-from houdini_package_manager.widgets.package_table import PackageTableModel3
+from houdini_package_manager.widgets.package_table import PackageTableModel
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
 
@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
         button_copy = QPushButton("COPY")  # copy all the packages in the current table to another houdini version
 
         # TABLE - PACKAGE DATA
-        table = PackageTableModel3(self, self.houdini_data.hou_installs[self.versions[0]])
+        table = PackageTableModel(self, self.houdini_data.hou_installs[self.versions[0]])
         self.stacked_widget = QStackedWidget()
         self.stacked_widget.addWidget(table)
         # keep track of loaded package tables in the order they are added to stacked_widget
@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
             self.stacked_widget.setCurrentIndex(index)
             return
 
-        table = PackageTableModel3(self, self.houdini_data.hou_installs[selected_item_text])
+        table = PackageTableModel(self, self.houdini_data.hou_installs[selected_item_text])
         self.stacked_widget.addWidget(table)
         self.stacked_widget.setCurrentWidget(table)
         self.loaded_table_widgets.append(selected_item_text)
