@@ -85,25 +85,23 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout_main_vertical)
 
         layout_packages_vertical = QVBoxLayout()
-        # central_widget.setLayout(layout_packages_vertical)
-
-        layout_secondary = QHBoxLayout()
+        layout_secondary_header = QHBoxLayout()
         layout_package_options = QHBoxLayout()
 
         # SET LAYOUTS
-        layout_secondary.addWidget(label_version_dropdown)
-        layout_secondary.addWidget(button_add_package)
-
-        layout_package_options.addWidget(combo_version)
-        layout_package_options.addWidget(button_copy)
-
-        layout_packages_vertical.addLayout(layout_secondary)
-        layout_packages_vertical.addLayout(layout_package_options)
-        layout_packages_vertical.addWidget(self.stacked_widget)
+        layout_main_vertical.addWidget(tabs)
 
         tab_packages.setLayout(layout_packages_vertical)
 
-        layout_main_vertical.addWidget(tabs)
+        layout_packages_vertical.addLayout(layout_secondary_header)
+        layout_packages_vertical.addLayout(layout_package_options)
+        layout_packages_vertical.addWidget(self.stacked_widget)
+
+        layout_secondary_header.addWidget(label_version_dropdown)
+        layout_secondary_header.addWidget(button_add_package)
+
+        layout_package_options.addWidget(combo_version)
+        layout_package_options.addWidget(button_copy)
 
     def quit_app(self):
         self.app.quit()
