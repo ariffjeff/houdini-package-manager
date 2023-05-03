@@ -104,3 +104,18 @@ def test_flatten_package():
     config = package_data._flatten_package(package_data._raw_json)
 
     assert config == expected_flattened_config
+
+
+def test_invalid_slashes():
+    """
+    Test if invalid JSON single backslashes are parsed correctly by the JSONPathDecoder class.
+    """
+
+    expected_loaded_config = {
+        "env": [{"MOPS": "C:\\Users\\ariff\\Desktop\\dev\\DCCs\\houdini\\plugins\\MOPS-master"}],
+        "path": "$MOPS",
+    }
+
+    package_path = Path(r"tests\test_packages\package_invalid_slashes.json")
+    package_data = Package(package_path)
+    assert package_data._raw_json == expected_loaded_config
