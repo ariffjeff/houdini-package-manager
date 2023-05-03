@@ -47,7 +47,8 @@ class PackageTableModel(QTableWidget):
         header.setStretchLastSection(True)
 
         # expand vertical cell size
-        self.verticalHeader().setDefaultSectionSize(40)
+        self.verticalHeader().setDefaultSectionSize(40)  # cell height
+        self.verticalHeader().setMinimumWidth(22)  # default index column width
 
         # shrink cell contents back down to add appearance of vertical spacing
         self.setStyleSheet(
