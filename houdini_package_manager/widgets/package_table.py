@@ -166,7 +166,11 @@ class PackageTableModel(QTableWidget):
             super().paint(painter, option, index)
 
         def editorEvent(self, event, model, option, index):
-            if event.type() == QEvent.Type.MouseButtonPress and event.button() in [Qt.LeftButton, Qt.RightButton]:
+            if event.type() == QEvent.Type.MouseButtonPress and event.button() in [
+                Qt.LeftButton,
+                Qt.RightButton,
+                Qt.MiddleButton,
+            ]:
                 QDesktopServices.openUrl(QUrl.fromLocalFile(index.data()))
                 return True
             return super().editorEvent(event, model, option, index)
