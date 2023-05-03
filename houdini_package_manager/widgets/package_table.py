@@ -80,7 +80,13 @@ class PackageTableModel(QTableWidget):
                     button.setProperty("path", value)
                     button.clicked.connect(self.open_path)
 
-                    WidgetStyles.svg_QPushButton(button, 23, 30, "./houdini_package_manager/icons/file.svg")
+                    WidgetStyles.svg_QPushButton(
+                        button,
+                        23,
+                        30,
+                        "./houdini_package_manager/icons/file.svg",
+                        "./houdini_package_manager/icons/file_hover.svg",
+                    )
 
                     self.setCellWidget(row, column, self.center_widget(button))
                 elif self.horizontalHeaderItem(column).text() == "Plugins":

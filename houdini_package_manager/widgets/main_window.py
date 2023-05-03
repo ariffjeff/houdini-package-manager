@@ -60,7 +60,13 @@ class MainWindow(QMainWindow):
         # BUTTON - ADD PACKAGE
         button_add_package = QPushButton()
 
-        WidgetStyles.svg_QPushButton(button_add_package, 120, 36, "./houdini_package_manager/icons/add_packages.svg")
+        WidgetStyles.svg_QPushButton(
+            button_add_package,
+            120,
+            36,
+            "./houdini_package_manager/icons/add_packages.svg",
+            "./houdini_package_manager/icons/add_packages_hover.svg",
+        )
 
         # DROPDOWN - HOUDINI VERSION
         combo_version = QComboBox()
