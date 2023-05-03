@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.styles.widget_styles import WidgetStyles
-from houdini_package_manager.widgets.package_table import PackageTableModel
+from houdini_package_manager.widgets.widget_table_packages import PackageTableModel
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
 
