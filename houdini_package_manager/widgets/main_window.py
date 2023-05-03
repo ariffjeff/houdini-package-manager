@@ -105,6 +105,7 @@ class MainWindow(QMainWindow):
 
         layout_secondary_header.addWidget(label_version_dropdown)
         layout_secondary_header.addWidget(button_add_package)
+        layout_secondary_header.setAlignment(label_version_dropdown, Qt.AlignBottom)
 
         layout_package_options.addWidget(combo_version)
         layout_package_options.addWidget(button_copy)
