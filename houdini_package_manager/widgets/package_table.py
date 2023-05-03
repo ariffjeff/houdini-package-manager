@@ -50,8 +50,15 @@ class PackageTableModel(QTableWidget):
         self.verticalHeader().setDefaultSectionSize(40)
 
         # shrink cell contents back down to add appearance of vertical spacing
-        self.setStyleSheet("QTableView::item { padding-right: 10px; }")
-        self.setStyleSheet("QTableView::item {padding: 3.5px 0;}")
+        self.setStyleSheet(
+            """
+            QTableView::item {
+                padding-right: 10px;
+                padding: 3.5px 0;
+                
+            }
+            """
+        )
 
         for row, rowData in enumerate(self.table_data):
             for column, value in enumerate(rowData):
