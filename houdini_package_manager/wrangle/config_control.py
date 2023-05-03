@@ -324,6 +324,8 @@ class Package:
         if not isinstance(config_path, Path):
             raise TypeError("package_path must be a pathlib.Path object.")
 
+        if not hconfig_plugin_paths:
+            hconfig_plugin_paths = []
         if not isinstance(hconfig_plugin_paths, list) or not all(
             isinstance(path, Path) for path in hconfig_plugin_paths
         ):
@@ -334,7 +336,7 @@ class Package:
 
         self.config_path = config_path
 
-        self._hconfig_plugin_paths = hconfig_plugin_paths or []
+        self._hconfig_plugin_paths = hconfig_plugin_paths
         self._env_vars = env_vars or {}
         self._plugin_paths = []
         self.date_installed = None

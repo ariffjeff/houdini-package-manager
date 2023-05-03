@@ -45,7 +45,7 @@ class TestPackageVariableResolution:
         ]
 
         package_path = Path(r"tests\test_packages\package_standard_simple.json")
-        package_data = Package(package_path, [])
+        package_data = Package(package_path)
         assert package_data.config == expected_resolved_config
 
     def test_standard_package(self):
@@ -72,7 +72,7 @@ class TestPackageVariableResolution:
         ]
 
         package_path = Path(r"tests\test_packages\package_standard.json")
-        package_data = Package(package_path, [])
+        package_data = Package(package_path)
         assert package_data.config == expected_resolved_config
 
 
@@ -100,7 +100,7 @@ def test_flatten_package():
     ]
 
     package_path = Path(r"tests\test_packages\package_standard.json")
-    package_data = Package(package_path, [])
+    package_data = Package(package_path)
     config = package_data._flatten_package(package_data._raw_json)
 
     assert config == expected_flattened_config
