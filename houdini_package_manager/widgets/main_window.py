@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStackedWidget,
     QStatusBar,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -32,17 +33,6 @@ class MainWindow(QMainWindow):
         self.versions.reverse()  # latest houdini version on top
         combo_version_labels = ["Houdini " + version for version in self.versions]
 
-        # CREATE LAYOUTS
-        central_widget = QWidget(self)
-        self.setCentralWidget(central_widget)
-
-        layout_main_vertical = QVBoxLayout()
-        central_widget.setLayout(layout_main_vertical)
-
-        layout_secondary = QHBoxLayout()
-
-        layout_package_options = QHBoxLayout()
-
         # MENU BAR
         # menu_bar = self.menuBar()
         # file_menu = menu_bar.addMenu("File")
@@ -56,6 +46,13 @@ class MainWindow(QMainWindow):
         self.status_bar.addWidget(self.statusLabel)
         self.statusLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.statusLabel = self.status_bar.findChild(QLabel)
+
+        # TABS
+        tabs = QTabWidget()
+        tab_packages = QWidget()
+        tab_add_packages = QWidget()
+        tabs.addTab(tab_packages, "Packages")
+        tabs.addTab(tab_add_packages, "Add Local Packages")
 
         # LABEL - HOUDINI VERSION DROPDOWN
         label_version_dropdown = QLabel("HOUDINI VERSIONS")
@@ -80,6 +77,19 @@ class MainWindow(QMainWindow):
         # keep track of loaded package tables in the order they are added to stacked_widget
         self.loaded_table_widgets = [self.versions[0]]
 
+        # CREATE LAYOUTS
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+
+        layout_main_vertical = QVBoxLayout()  # includes the tabs
+        central_widget.setLayout(layout_main_vertical)
+
+        layout_packages_vertical = QVBoxLayout()
+        # central_widget.setLayout(layout_packages_vertical)
+
+        layout_secondary = QHBoxLayout()
+        layout_package_options = QHBoxLayout()
+
         # SET LAYOUTS
         layout_secondary.addWidget(label_version_dropdown)
         layout_secondary.addWidget(button_add_package)
@@ -87,9 +97,13 @@ class MainWindow(QMainWindow):
         layout_package_options.addWidget(combo_version)
         layout_package_options.addWidget(button_copy)
 
-        layout_main_vertical.addLayout(layout_secondary)
-        layout_main_vertical.addLayout(layout_package_options)
-        layout_main_vertical.addWidget(self.stacked_widget)
+        layout_packages_vertical.addLayout(layout_secondary)
+        layout_packages_vertical.addLayout(layout_package_options)
+        layout_packages_vertical.addWidget(self.stacked_widget)
+
+        tab_packages.setLayout(layout_packages_vertical)
+
+        layout_main_vertical.addWidget(tabs)
 
     def quit_app(self):
         self.app.quit()
