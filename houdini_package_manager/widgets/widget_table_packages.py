@@ -7,14 +7,13 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QMainWindow,
-    QPushButton,
     QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QWidget,
 )
 
-from houdini_package_manager.styles.widget_styles import WidgetStyles
+from houdini_package_manager.widgets.widgets_custom import SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniInstall
 
 
@@ -76,18 +75,15 @@ class PackageTableModel(QTableWidget):
                     self.setItem(row, column, item)
                 elif self.horizontalHeaderItem(column).text() == "Config":
                     # Config: push button that opens its file path when clicked
-                    button = QPushButton()
-                    button.setToolTip(str(value))
-                    button.setProperty("path", value)
-                    button.clicked.connect(self.open_path)
-
-                    WidgetStyles.svg_QPushButton(
-                        button,
+                    button = SvgPushButton(
                         23,
                         30,
                         "./houdini_package_manager/icons/file.svg",
                         "./houdini_package_manager/icons/file_hover.svg",
                     )
+                    button.setToolTip(str(value))
+                    button.setProperty("path", value)
+                    button.clicked.connect(self.open_path)
 
                     self.setCellWidget(row, column, self.center_widget(button))
                 elif self.horizontalHeaderItem(column).text() == "Plugins":

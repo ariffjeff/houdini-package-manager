@@ -9,8 +9,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from houdini_package_manager.styles.widget_styles import WidgetStyles
 from houdini_package_manager.widgets.widget_table_packages import PackageTableModel
+from houdini_package_manager.widgets.widgets_custom import SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
 
@@ -41,10 +41,7 @@ class PackagesWidget(QWidget):
         label_version_dropdown = QLabel("HOUDINI VERSIONS")
 
         # BUTTON - ADD PACKAGE
-        button_add_package = QPushButton()
-
-        WidgetStyles.svg_QPushButton(
-            button_add_package,
+        button_add_package = SvgPushButton(
             120,
             36,
             "./houdini_package_manager/icons/add_packages.svg",
