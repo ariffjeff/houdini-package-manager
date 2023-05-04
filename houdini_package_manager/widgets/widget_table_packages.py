@@ -56,7 +56,6 @@ class PackageTableModel(QTableWidget):
             QTableView::item {
                 padding-right: 10px;
                 padding: 3.5px 0;
-                
             }
             """
         )
