@@ -29,7 +29,6 @@ class MainWindow(QMainWindow):
         self.houdini_data = HoudiniManager()
         self.houdini_data.get_houdini_data()
         self.versions = [version.version.front for version in self.houdini_data.hou_installs.values()]
-        self.versions.reverse()  # latest houdini version on top
 
         # MENU BAR
         # menu_bar = self.menuBar()

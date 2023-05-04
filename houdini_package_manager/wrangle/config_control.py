@@ -54,7 +54,8 @@ class HoudiniManager:
 
         paths = {key: path for key, path in paths.items() if path.exists()}
         # check if is a houdini path
-        # sort paths by version number
+        # sort dict items by key version number in descending order (largest version number first)
+        paths = dict(sorted(paths.items(), key=lambda x: tuple(map(int, x[0].split("."))), reverse=True))
         return paths
 
     def _win_registry_values(self, key_path: str) -> dict:
