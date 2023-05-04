@@ -53,7 +53,11 @@ class HoudiniManager:
             raise Exception("Could not determine operating system.")
 
         paths = {key: path for key, path in paths.items() if path.exists()}
-        # check if is a houdini path
+
+        # only get houdini version paths
+        pattern = re.compile(r"^\d+\.\d+")  # match version numbers (19.0 & 19.5.123)
+        paths = {k: v for k, v in paths.items() if pattern.match(k)}
+
         # sort dict items by key version number in descending order (largest version number first)
         paths = dict(sorted(paths.items(), key=lambda x: tuple(map(int, x[0].split("."))), reverse=True))
         return paths
