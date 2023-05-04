@@ -77,7 +77,7 @@ class PackageTableModel(QTableWidget):
                     # Config: push button that opens its file path when clicked
                     button = SvgPushButton(
                         23,
-                        30,
+                        29,
                         "./houdini_package_manager/icons/file.svg",
                         "./houdini_package_manager/icons/file_hover.svg",
                     )
