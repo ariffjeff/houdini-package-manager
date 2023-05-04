@@ -176,6 +176,16 @@ class HoudiniInstall:
                 data.append(list(pkg.table_model.values()))
         return data
 
+    def get_package_warnings(self) -> list[str]:
+        """
+        Get the warnings for each package.
+        """
+
+        data = {}
+        for name, pkg in self.packages.configs.items():
+            data[name] = pkg.warnings
+        return data
+
     def get_labels(self) -> list[str]:
         for _, pkg in self.packages.configs.items():
             return list(pkg.table_model.keys())
@@ -340,6 +350,7 @@ class Package:
         self._env_vars = env_vars or {}
         self._plugin_paths = []
         self.date_installed = None
+        self.warnings = []
 
         self._load()
         self.config = self._flatten_package(self.config)
@@ -570,7 +581,8 @@ class Package:
         for call, call_i, processed_vars in var_calls:
             # check for circular references
             if call in processed_vars:
-                raise ValueError(f"Circular reference detected for variable '{call}'")
+                self.warnings.append(f"Can't process package! Circular reference detected for variable: '{call}'")
+                return
             processed_vars.add(call)
 
             # determine which var init to try to get value from first
@@ -645,8 +657,8 @@ class Package:
                         if call and call in potential_var_names
                     )
 
-            # break the loop if no more variable calls are found
-            if not var_calls:
+            # break the loop if no more variable calls are found or there are errors with the package that can't be parsed
+            if not var_calls or self.warnings:
                 break
 
             config = self._replace_var_calls(config, var_calls, potential_var_names)

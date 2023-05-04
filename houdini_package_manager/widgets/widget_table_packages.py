@@ -29,6 +29,7 @@ class PackageTableModel(QTableWidget):
         self.packages = houdini_install.packages.configs
         self.table_data = houdini_install.get_package_data(named=False)
         self.labels = houdini_install.get_labels()
+        self.warnings = houdini_install.get_package_warnings()
 
         self.setRowCount(len(self.table_data))
         self.setColumnCount(len(self.labels))
@@ -88,6 +89,7 @@ class PackageTableModel(QTableWidget):
                     self.setCellWidget(row, column, self.center_widget(button))
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
                     # Plugins: a drop down of path buttons that can be clicked.
+                    # A warning SVG replaces the dropdown if the package has errors that the user needs to resolve.
                     combo = QComboBox()
                     value = [str(path) for path in value]
 
@@ -105,7 +107,19 @@ class PackageTableModel(QTableWidget):
                     delegate = self.CustomItemDelegate()
                     combo.setItemDelegate(delegate)
 
-                    self.setCellWidget(row, column, combo)
+                    warnings = list(self.warnings.values())[row]
+                    warnings = "\n".join(warnings)
+                    if warnings:
+                        button_warning = SvgPushButton(
+                            32,
+                            29,
+                            "./houdini_package_manager/icons/warning.svg",
+                            "./houdini_package_manager/icons/warning_hover.svg",
+                        )
+                        button_warning.setToolTip(warnings)
+                        self.setCellWidget(row, column, button_warning)
+                    else:
+                        self.setCellWidget(row, column, combo)
 
     def open_path(self) -> None:
         """
