@@ -30,7 +30,6 @@ class MainWindow(QMainWindow):
         self.houdini_data.get_houdini_data()
         self.versions = [version.version.front for version in self.houdini_data.hou_installs.values()]
         self.versions.reverse()  # latest houdini version on top
-        combo_version_labels = ["Houdini " + version for version in self.versions]
 
         # MENU BAR
         # menu_bar = self.menuBar()
@@ -53,7 +52,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(tab_packages, "Packages")
         tabs.addTab(tab_add_packages, "Add Local Packages")
 
-        packages = PackagesWidget(self, self.houdini_data, self.versions, combo_version_labels)
+        packages = PackagesWidget(self, self.houdini_data, self.versions)
 
         # CREATE LAYOUTS
         central_widget = QWidget(self)

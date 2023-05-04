@@ -20,26 +20,24 @@ class PackagesWidget(QWidget):
     The packages layout that displays the main packages table and relevant dropdowns and buttons.
 
     Arguments:
+        main_window (QMainWindow):
+            The main window.
+
         table_data (HoudiniManager):
             The data set to populate the QWidgetTable. Data can consist of multiple sets of packages
             for different installed versions of Houdini.
 
         versions (list[str]):
             The list of ordered version numbers that will determine which set of package data is shown in the table.
-
-        header_labels (list[str]):
-            A list of ordered names for the column headers of the table. Determines how the columns are ordered.
     """
 
-    def __init__(
-        self, main_window: QMainWindow, table_data: HoudiniManager, versions: list[str], header_labels: list[str]
-    ) -> None:
+    def __init__(self, main_window: QMainWindow, table_data: HoudiniManager, versions: list[str]) -> None:
         super().__init__()
 
         self.main_window = main_window
         self.table_data = table_data
         self.versions = versions
-        self.header_labels = header_labels
+        self.version_labels = ["Houdini " + version for version in self.versions]
 
         # LABEL - HOUDINI VERSION DROPDOWN
         label_version_dropdown = QLabel("HOUDINI VERSIONS")
@@ -56,6 +54,7 @@ class PackagesWidget(QWidget):
         combo_version = QComboBox()
         combo_version.addItems(self.header_labels)
         combo_version.activated.connect(self.switch_package_table)
+        combo_version.addItems(self.version_labels)
 
         # BUTTONS - PACKAGE OPTIONS
         button_copy = QPushButton("COPY")  # copy all the packages in the current table to another houdini version

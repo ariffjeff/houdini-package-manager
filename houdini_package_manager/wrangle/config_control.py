@@ -53,6 +53,8 @@ class HoudiniManager:
             raise Exception("Could not determine operating system.")
 
         paths = {key: path for key, path in paths.items() if path.exists()}
+        # check if is a houdini path
+        # sort paths by version number
         return paths
 
     def _win_registry_values(self, key_path: str) -> dict:
