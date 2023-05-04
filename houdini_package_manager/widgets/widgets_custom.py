@@ -33,23 +33,43 @@ class SvgPushButton(QPushButton):
 
         self.render(self.svg_path)
 
-        self.enterEvent = lambda event: self.hover_enter(self.svg_path_hover)
-        self.leaveEvent = lambda event: self.hover_leave(self.svg_path)
+        self.enterEvent = lambda event: self.hover_enter(event, self.svg_path_hover)
+        self.leaveEvent = lambda event: self.hover_leave(event, self.svg_path)
+        self.mousePressEvent = lambda event: self.mouse_press(event, self.svg_path)
+        self.mouseReleaseEvent = lambda event: self.mouse_release(event, self.svg_path_hover)
 
-    def hover_enter(self, svg_path: str):
+    def mouse_release(self, event, svg_path: str):
+        """
+        The effects of click mouse release on the button.
+        """
+
+        super().mouseReleaseEvent(event)
+        self.render(svg_path)
+
+    def mouse_press(self, event, svg_path: str):
+        """
+        The effects of click mouse down on the button.
+        """
+
+        super().mousePressEvent(event)
+        self.render(svg_path)
+
+    def hover_enter(self, event, svg_path: str):
         """
         The effects of entering hover for the button.
         """
 
+        super().enterEvent(event)
         self.setCursor(QCursor(Qt.PointingHandCursor))
         if svg_path:
             self.render(svg_path)
 
-    def hover_leave(self, svg_path: str) -> None:
+    def hover_leave(self, event, svg_path: str) -> None:
         """
         The effects of leaving hover for the button.
         """
 
+        super().leaveEvent(event)
         if svg_path:
             self.render(svg_path)
 
