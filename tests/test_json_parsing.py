@@ -119,3 +119,18 @@ def test_invalid_slashes():
     package_path = Path(r"tests\test_packages\package_invalid_slashes.json")
     package_data = Package(package_path)
     assert package_data._raw_json == expected_loaded_config
+
+
+def test_handle_circular_referencing_vars():
+    expected_loaded_config = [
+        ["var_one", "$var_one"],
+        ["var_two", "$var_two"],
+        ["var_three", "something"],
+        ["other", "something"],
+    ]
+
+    package_path = Path(r"tests\test_packages\package_circular_reference.json")
+    package_data = Package(package_path)
+
+    assert package_data.config == expected_loaded_config
+    assert len(package_data.warnings) > 0
