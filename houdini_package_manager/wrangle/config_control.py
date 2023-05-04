@@ -166,6 +166,14 @@ class HoudiniInstall:
         return metadata
 
     def get_package_data(self, named=True) -> dict:
+        """
+        Get the ordered list of data for all the packages for a single version of Houdini.
+
+        Arguments:
+            named (bool):
+                Whether or not the returned data should be a dict with the data names as keys or a list of just the values.
+                Default is True.
+        """
         if named:
             data = {}
             for name, pkg in self.packages.configs.items():
@@ -461,9 +469,13 @@ class Package:
         # no need to do anything: the original list is automatically updated since lists are mutable.
         self.config = config
 
-    def extract_data(self):
+    def extract_data(self) -> None:
         """
         Extract the relevant config data needed to populate the package manager Qt table.
+
+        This operation can fail to get the data if the package has problems that the user needs to fix,
+        such as circular variable references that can't be resolved. If a path contains a circular
+        reference then this method will ignore it since it won't be a valid path.
         """
 
         plugin_paths_from_config = self._find_plugin_paths(self.config)
