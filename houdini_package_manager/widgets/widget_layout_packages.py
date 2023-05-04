@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QMainWindow,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -30,9 +31,12 @@ class PackagesWidget(QWidget):
             A list of ordered names for the column headers of the table. Determines how the columns are ordered.
     """
 
-    def __init__(self, table_data: HoudiniManager, versions: list[str], header_labels: list[str]) -> None:
+    def __init__(
+        self, main_window: QMainWindow, table_data: HoudiniManager, versions: list[str], header_labels: list[str]
+    ) -> None:
         super().__init__()
 
+        self.main_window = main_window
         self.table_data = table_data
         self.versions = versions
         self.header_labels = header_labels
@@ -57,7 +61,7 @@ class PackagesWidget(QWidget):
         button_copy = QPushButton("COPY")  # copy all the packages in the current table to another houdini version
 
         # TABLE - PACKAGE DATA
-        table = PackageTableModel(self, self.table_data.hou_installs[self.versions[0]])
+        table = PackageTableModel(self, self.main_window, self.table_data.hou_installs[self.versions[0]])
         self.stacked_widget = QStackedWidget()
         self.stacked_widget.addWidget(table)
         # keep track of loaded package tables in the order they are added to stacked_widget
@@ -95,7 +99,7 @@ class PackagesWidget(QWidget):
             self.stacked_widget.setCurrentIndex(index)
             return
 
-        table = PackageTableModel(self, self.table_data.hou_installs[selected_item_text])
+        table = PackageTableModel(self, self.main_window, self.table_data.hou_installs[selected_item_text])
         self.stacked_widget.addWidget(table)
         self.stacked_widget.setCurrentWidget(table)
         self.loaded_table_widgets.append(selected_item_text)

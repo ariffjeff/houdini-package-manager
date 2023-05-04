@@ -22,9 +22,11 @@ class PackageTableModel(QTableWidget):
     The table widget that displays Houdini package configuration data and various buttons/options to navigate and manipulate them.
     """
 
-    def __init__(self, parent: QMainWindow, houdini_install: HoudiniInstall) -> None:
+    def __init__(self, parent, main_window: QMainWindow, houdini_install: HoudiniInstall) -> None:
         super().__init__()
-        self.parent_window = parent
+
+        self.parent_window = parent  # required (for some reason) to allow switching between tables via combobox to work
+        self.main_window = main_window
 
         self.packages = houdini_install.packages.configs
         self.table_data = houdini_install.get_package_data(named=False)
@@ -132,11 +134,11 @@ class PackageTableModel(QTableWidget):
             path = Path(path)
 
         if not path.exists():
-            self.parent_window.statusBar().showMessage(f"Failed to open: {str(path)}")
+            self.main_window.statusBar().showMessage(f"Failed to open: {str(path)}")
             return
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
-        self.parent_window.statusBar().showMessage(f"Opened: {path}")
+        self.main_window.statusBar().showMessage(f"Opened: {path}")
 
     def enable_package(self) -> None:
         """
@@ -154,7 +156,7 @@ class PackageTableModel(QTableWidget):
         package.enable = toggle  # triggers setter method
 
         message = "Enabled" if toggle else "Disabled"
-        self.parent_window.statusBar().showMessage(f"{message} package: {package.name}")
+        self.main_window.statusBar().showMessage(f"{message} package: {package.name}")
 
     def center_widget(self, widget) -> QWidget:
         """
