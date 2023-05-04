@@ -80,8 +80,8 @@ class PackageTableModel(QTableWidget):
                     button = SvgPushButton(
                         23,
                         29,
-                        "./houdini_package_manager/icons/file.svg",
-                        "./houdini_package_manager/icons/file_hover.svg",
+                        "./houdini_package_manager/design/icons/file.svg",
+                        "./houdini_package_manager/design/icons/file_hover.svg",
                     )
                     button.setToolTip(str(value))
                     button.setProperty("path", value)
@@ -114,8 +114,8 @@ class PackageTableModel(QTableWidget):
                         button_warning = SvgPushButton(
                             32,
                             29,
-                            "./houdini_package_manager/icons/warning.svg",
-                            "./houdini_package_manager/icons/warning_hover.svg",
+                            "./houdini_package_manager/design/icons/warning.svg",
+                            "./houdini_package_manager/design/icons/warning_hover.svg",
                         )
                         button_warning.setToolTip(warnings)
                         self.setCellWidget(row, column, button_warning)

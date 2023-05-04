@@ -48,8 +48,8 @@ class PackagesWidget(QWidget):
         button_add_package = SvgPushButton(
             120,
             36,
-            "./houdini_package_manager/icons/add_packages.svg",
-            "./houdini_package_manager/icons/add_packages_hover.svg",
+            "./houdini_package_manager/design/icons/add_packages.svg",
+            "./houdini_package_manager/design/icons/add_packages_hover.svg",
         )
 
         # DROPDOWN - HOUDINI VERSION

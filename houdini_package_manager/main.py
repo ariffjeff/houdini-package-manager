@@ -26,7 +26,7 @@ def main(start: bool = True, headless: bool = False) -> QApplication:
     window = MainWindow(app)
     window.setWindowTitle(TITLE)
 
-    logo = QIcon("./houdini_package_manager/icons/hpm.svg")
+    logo = QIcon("./houdini_package_manager/design/icons/hpm.svg")
     window.setWindowIcon(logo)
 
     if not headless:
