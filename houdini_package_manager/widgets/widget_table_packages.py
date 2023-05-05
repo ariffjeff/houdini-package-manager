@@ -85,10 +85,12 @@ class PackageTableModel(QTableWidget):
                         29,
                         "./houdini_package_manager/design/icons/file.svg",
                         "./houdini_package_manager/design/icons/file_hover.svg",
+                        self.main_window,
                     )
                     button.setToolTip(str(value))
                     button.setProperty("path", value)
                     button.clicked.connect(self.open_path)
+                    button.set_hover_status_message(f"Open: {value}")
 
                     self.setCellWidget(row, column, self.center_widget(button))
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
