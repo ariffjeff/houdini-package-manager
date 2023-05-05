@@ -1,7 +1,7 @@
 from PySide6.QtCore import QFile, QSize, Qt
 from PySide6.QtGui import QCursor, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QMainWindow, QPushButton
 
 
 class SvgPushButton(QPushButton):
@@ -23,13 +23,17 @@ class SvgPushButton(QPushButton):
             Path to the SVG file to be the hover display state of the button.
     """
 
-    def __init__(self, width: int, height: int, svg_path: str, svg_path_hover: str = None) -> None:
+    def __init__(
+        self, width: int, height: int, svg_path: str, svg_path_hover: str = None, main_window: QMainWindow = None
+    ) -> None:
         super().__init__()
 
         self.btn_width = width
         self.btn_height = height
         self.svg_path = svg_path
         self.svg_path_hover = svg_path_hover
+        self._main_window = main_window
+        self._hover_message = None
 
         self.render(self.svg_path)
 
@@ -37,6 +41,14 @@ class SvgPushButton(QPushButton):
         self.leaveEvent = lambda event: self.hover_leave(event, self.svg_path)
         self.mousePressEvent = lambda event: self.mouse_press(event, self.svg_path)
         self.mouseReleaseEvent = lambda event: self.mouse_release(event, self.svg_path_hover)
+
+    @property
+    def main_window(self):
+        return self._main_window
+
+    @property
+    def hover_message(self):
+        return self._hover_message
 
     def mouse_release(self, event, svg_path: str):
         """
@@ -64,6 +76,9 @@ class SvgPushButton(QPushButton):
         if svg_path:
             self.render(svg_path)
 
+        if self.hover_message:
+            self._main_window.statusBar().showMessage(self.hover_message)
+
     def hover_leave(self, event, svg_path: str) -> None:
         """
         The effects of leaving hover for the button.
@@ -72,6 +87,18 @@ class SvgPushButton(QPushButton):
         super().leaveEvent(event)
         if svg_path:
             self.render(svg_path)
+
+        # if self._main_window:
+        #     self._main_window.statusBar().showMessage('')
+
+    def set_hover_status_message(self, message: str):
+        if not self._main_window:
+            raise AttributeError(
+                "Unable to locate status bar because self.main_window was never initialized when this"
+                f" {__class__.__name__} instance was created."
+            )
+
+        self._hover_message = message
 
     def render(self, svg_path: str) -> None:
         """

@@ -6,6 +6,7 @@ import subprocess
 import winreg
 from itertools import takewhile
 from pathlib import Path
+from typing import Union
 
 
 class HoudiniManager:
@@ -28,13 +29,32 @@ class HoudiniManager:
 
         self.hou_installs = {}
 
-    def get_houdini_data(self):
+    def get_houdini_data(self, versions: Union[str, list[str]] = None) -> None:
         """
         Get the package data and various other data for each installed version of Houdini.
+
+        Arguments:
+            version (Union[str, list[str]]):
+                Get all data for only the given Houdini version(s). If the data already exists
+                for a version then it is replaced by a new set of data.
         """
 
-        for version, path in self.install_directories.items():
-            self.hou_installs[version] = HoudiniInstall(path)
+        if isinstance(versions, str):
+            versions = [versions]
+
+        # replace only the data for the given versions
+        if versions:
+            for ver in versions:
+                try:
+                    self.hou_installs[ver] = HoudiniInstall(self.install_directories[ver])
+                except KeyError as e:
+                    raise KeyError(
+                        f"Houdini version {e} is not in the dict of known Houdini install directories."
+                    ) from e
+            return
+
+        for ver, path in self.install_directories.items():
+            self.hou_installs[ver] = HoudiniInstall(path)
 
     def _get_houdini_paths(self) -> dict:
         """
