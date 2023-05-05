@@ -66,36 +66,17 @@ class PackageTableModel(QTableWidget):
             """
         )
 
+        # set table data with widgets
         for row, rowData in enumerate(self.table_data):
             for column, value in enumerate(rowData):
                 if self.horizontalHeaderItem(column).text() == "Enable":
-                    # Enable: togglable checkbox
-                    checkbox = QCheckBox()
-                    checkbox.clicked.connect(self.enable_package)
-                    checkbox.setCheckState(Qt.Checked if self.table_data[row][column] else Qt.Unchecked)
-
-                    self.setCellWidget(row, column, self.center_widget(checkbox))
-                elif isinstance(value, str):
-                    # Version, Name, Author, Date Installed: text
-                    item = QTableWidgetItem(value)
-                    self.setItem(row, column, item)
+                    _CellWidget.checkbox(self, row, column, value)
                 elif self.horizontalHeaderItem(column).text() == "Config":
-                    # Config: push button that opens its file path when clicked
-                    button = SvgPushButton(
-                        23,
-                        29,
-                        "./houdini_package_manager/design/icons/file.svg",
-                        "./houdini_package_manager/design/icons/file_hover.svg",
-                        self.main_window,
-                    )
-                    button.setToolTip(str(value))
-                    button.setProperty("path", value)
-                    button.clicked.connect(self.open_path)
-                    button.set_hover_status_message(f"Open: {value}")
-
-                    self.setCellWidget(row, column, self.center_widget(button))
+                    _CellWidget.config(self, row, column, value)
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
                     _CellWidget.plugins(self, row, column, value)
+                elif isinstance(value, str):
+                    _CellWidget.text(self, row, column, value)
 
     def open_path(self) -> None:
         """
@@ -154,7 +135,7 @@ class _CellWidget:
     This class is only really meant to be used with PackageTableModel.
     """
 
-    def plugins(self: PackageTableModel, row: int, column: int, value):
+    def plugins(self: PackageTableModel, row: int, column: int, value) -> None:
         # Plugins: a drop down of path buttons that can be clicked.
         # A warning SVG replaces the dropdown if the package has errors that the user needs to resolve.
         # A label replaces the dropdown if there is no plugin data.
@@ -197,6 +178,35 @@ class _CellWidget:
         combo.setItemDelegate(delegate)
 
         self.setCellWidget(row, column, combo)
+
+    def config(self: PackageTableModel, row: int, column: int, value) -> None:
+        # Config: push button that opens its file path when clicked
+        button = SvgPushButton(
+            23,
+            29,
+            "./houdini_package_manager/design/icons/file.svg",
+            "./houdini_package_manager/design/icons/file_hover.svg",
+            self.main_window,
+        )
+        button.setToolTip(str(value))
+        button.setProperty("path", value)
+        button.clicked.connect(self.open_path)
+        button.set_hover_status_message(f"Open: {value}")
+
+        self.setCellWidget(row, column, self.center_widget(button))
+
+    def text(self: PackageTableModel, row: int, column: int, value) -> None:
+        # Version, Name, Author, Date Installed: text
+        item = QTableWidgetItem(value)
+        self.setItem(row, column, item)
+
+    def checkbox(self: PackageTableModel, row: int, column: int, value) -> None:
+        # Enable: togglable checkbox
+        checkbox = QCheckBox()
+        checkbox.clicked.connect(self.enable_package)
+        checkbox.setCheckState(Qt.Checked if value else Qt.Unchecked)
+
+        self.setCellWidget(row, column, self.center_widget(checkbox))
 
 
 class CustomItemDelegate(QStyledItemDelegate):
