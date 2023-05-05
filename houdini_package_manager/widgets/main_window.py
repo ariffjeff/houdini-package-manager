@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from houdini_package_manager.widgets.widget_layout_packages import PackagesWidget
+from houdini_package_manager.widgets.packages_layout import PackagesWidget
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
 
