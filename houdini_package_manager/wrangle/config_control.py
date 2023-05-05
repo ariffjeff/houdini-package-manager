@@ -31,7 +31,8 @@ class HoudiniManager:
 
     def get_houdini_data(self, versions: Union[str, list[str]] = None) -> None:
         """
-        Get the package data and various other data for each installed version of Houdini.
+        Get the package data and relevant meta data for each installed version of Houdini.
+        If an install has no package data then the config will simply be empty.
 
         Arguments:
             version (Union[str, list[str]]):

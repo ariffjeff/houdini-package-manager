@@ -25,6 +25,9 @@ class PackageTableModel(QTableWidget):
     def __init__(self, parent, main_window: QMainWindow, houdini_install: HoudiniInstall) -> None:
         super().__init__()
 
+        if not houdini_install.packages.configs:
+            raise ValueError(f"No package data found for Houdini {houdini_install.version.full}")
+
         self.parent_window = parent  # required (for some reason) to allow switching between tables via combobox to work
         self.main_window = main_window
 
