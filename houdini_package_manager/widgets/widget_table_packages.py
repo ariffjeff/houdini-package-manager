@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QHBoxLayout,
+    QLabel,
     QMainWindow,
     QStyledItemDelegate,
     QTableWidget,
@@ -94,38 +95,7 @@ class PackageTableModel(QTableWidget):
 
                     self.setCellWidget(row, column, self.center_widget(button))
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
-                    # Plugins: a drop down of path buttons that can be clicked.
-                    # A warning SVG replaces the dropdown if the package has errors that the user needs to resolve.
-                    combo = QComboBox()
-                    value = [str(path) for path in value]
-
-                    model = QStandardItemModel()
-                    combo.setModel(model)
-
-                    for path in value:
-                        model.invisibleRootItem().appendRow(QStandardItem(path))
-
-                    # create a delegate that handles the paint and editorEvent events for the items in the combo box.
-                    # this allows the dropdown items to open their paths when they are clicked.
-                    delegate = QStyledItemDelegate()
-                    combo.setItemDelegate(delegate)
-
-                    delegate = self.CustomItemDelegate()
-                    combo.setItemDelegate(delegate)
-
-                    warnings = list(self.warnings.values())[row]
-                    warnings = "\n".join(warnings)
-                    if warnings:
-                        button_warning = SvgPushButton(
-                            32,
-                            29,
-                            "./houdini_package_manager/design/icons/warning.svg",
-                            "./houdini_package_manager/design/icons/warning_hover.svg",
-                        )
-                        button_warning.setToolTip(warnings)
-                        self.setCellWidget(row, column, button_warning)
-                    else:
-                        self.setCellWidget(row, column, combo)
+                    _CellWidget.plugins(self, row, column, value)
 
     def open_path(self) -> None:
         """
@@ -177,23 +147,75 @@ class PackageTableModel(QTableWidget):
         layout_widget.setLayout(layout)
         return layout_widget
 
-    class CustomItemDelegate(QStyledItemDelegate):
-        """
-        CustomItemDelegate is a custom QStyledItemDelegate that handles the paint and
-        editorEvent events for the items in a QComboBox. It overrides the paint and editorEvent
-        methods of the QStyledItemDelegate to customize the appearance and behavior of the items.
-        """
 
-        def paint(self, painter, option, index):
-            option.text = index.data()
-            super().paint(painter, option, index)
+class _CellWidget:
+    """
+    Dynamic widgets whose data changes depending on certain requirements.
+    This class is only really meant to be used with PackageTableModel.
+    """
 
-        def editorEvent(self, event, model, option, index):
-            if event.type() == QEvent.Type.MouseButtonPress and event.button() in [
-                Qt.LeftButton,
-                Qt.RightButton,
-                Qt.MiddleButton,
-            ]:
-                QDesktopServices.openUrl(QUrl.fromLocalFile(index.data()))
-                return True
-            return super().editorEvent(event, model, option, index)
+    def plugins(self: PackageTableModel, row: int, column: int, value):
+        # Plugins: a drop down of path buttons that can be clicked.
+        # A warning SVG replaces the dropdown if the package has errors that the user needs to resolve.
+        # A label replaces the dropdown if there is no plugin data.
+
+        # if the package config has problems
+        warnings = list(self.warnings.values())[row]
+        warnings = "\n".join(warnings)
+        if warnings:
+            button_warning = SvgPushButton(
+                32,
+                29,
+                "./houdini_package_manager/design/icons/warning.svg",
+                "./houdini_package_manager/design/icons/warning_hover.svg",
+            )
+            button_warning.setToolTip(warnings)
+            self.setCellWidget(row, column, button_warning)
+            return
+
+        # if there's no plugin data
+        if not value:
+            widget = QLabel("No plugin data")
+            self.setCellWidget(row, column, widget)
+            return
+
+        combo = QComboBox()
+        value = [str(path) for path in value]
+
+        model = QStandardItemModel()
+        combo.setModel(model)
+
+        for path in value:
+            model.invisibleRootItem().appendRow(QStandardItem(path))
+
+        # create a delegate that handles the paint and editorEvent events for the items in the combo box.
+        # this allows the dropdown items to open their paths when they are clicked.
+        delegate = QStyledItemDelegate()
+        combo.setItemDelegate(delegate)
+
+        delegate = CustomItemDelegate()
+        combo.setItemDelegate(delegate)
+
+        self.setCellWidget(row, column, combo)
+
+
+class CustomItemDelegate(QStyledItemDelegate):
+    """
+    CustomItemDelegate is a custom QStyledItemDelegate that handles the paint and
+    editorEvent events for the items in a QComboBox. It overrides the paint and editorEvent
+    methods of the QStyledItemDelegate to customize the appearance and behavior of the items.
+    """
+
+    def paint(self, painter, option, index):
+        option.text = index.data()
+        super().paint(painter, option, index)
+
+    def editorEvent(self, event, model, option, index):
+        if event.type() == QEvent.Type.MouseButtonPress and event.button() in [
+            Qt.LeftButton,
+            Qt.RightButton,
+            Qt.MiddleButton,
+        ]:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(index.data()))
+            return True
+        return super().editorEvent(event, model, option, index)
