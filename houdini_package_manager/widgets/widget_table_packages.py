@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.widgets.widgets_custom import SvgPushButton
-from houdini_package_manager.wrangle.config_control import HoudiniInstall
+from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
 
 
 class PackageTableModel(QTableWidget):
@@ -128,6 +128,16 @@ class PackageTableModel(QTableWidget):
         layout_widget.setLayout(layout)
         return layout_widget
 
+    def _current_package(self, row: int) -> Package:
+        """
+        Return the current Package that's data is being worked upon while the table cells are being set.
+
+        Arguments:
+            row (int):
+                The index of the row that the table cell-setting for loop is currently on.
+        """
+        return list(self.packages.values())[row]
+
 
 class _CellWidget:
     """
@@ -149,8 +159,13 @@ class _CellWidget:
                 29,
                 "./houdini_package_manager/design/icons/warning.svg",
                 "./houdini_package_manager/design/icons/warning_hover.svg",
+                self.main_window,
             )
             button_warning.setToolTip(warnings)
+            pkg_name = self._current_package(row).name
+            if pkg_name[-5:] != ".json":
+                pkg_name += ".json"
+            button_warning.set_hover_status_message(f"Can't process package, error(s) in config: {pkg_name}")
             self.setCellWidget(row, column, button_warning)
             return
 
