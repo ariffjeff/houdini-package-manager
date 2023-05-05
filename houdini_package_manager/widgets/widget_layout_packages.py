@@ -69,12 +69,27 @@ class PackagesWidget(QWidget):
         self.button_refresh.setToolTip("Refresh packages for current table")
         self.button_refresh.clicked.connect(self.refresh_table)
 
+        self.button_refresh_all = SvgPushButton(
+            28,
+            28,
+            "./houdini_package_manager/design/icons/refresh_all.svg",
+            "./houdini_package_manager/design/icons/refresh_all_hover.svg",
+            self.main_window,
+        )
+        self.button_refresh_all.set_hover_status_message("Refresh all packages for all installed versions of Houdini.")
+        self.button_refresh_all.setToolTip("Refresh all packages for all installed versions of Houdini.")
+        self.button_refresh_all.clicked.connect(self.refresh_all_tables)
+
         # TABLE - PACKAGE DATA
         table = PackageTableModel(self, self.main_window, self.table_data.hou_installs[self.versions[0]])
+        table.setStyleSheet("QTableWidget {border: none;}")
+
         self.stacked_widget = QStackedWidget()
         self.stacked_widget.addWidget(table)
+        self.stacked_widget.setStyleSheet("QStackedWidget {border: 1px solid grey;}")
+
         # keep track of loaded package tables in the order they are added to stacked_widget
-        self.loaded_table_widgets = [self.versions[0]]
+        self.loaded_stacked_widgets_in_order_loaded = [self.versions[0]]
 
         # CREATE LAYOUTS
         self.layout_main = QVBoxLayout()
@@ -93,6 +108,7 @@ class PackagesWidget(QWidget):
         layout_package_options.addWidget(self.combo_version)
         layout_package_options.addWidget(button_copy)
         layout_package_options.addWidget(self.button_refresh)
+        layout_package_options.addWidget(self.button_refresh_all)
 
     @property
     def table_version(self):
@@ -109,15 +125,10 @@ class PackagesWidget(QWidget):
         self.button_refresh.set_hover_status_message(f"Refresh Houdini {self.table_version} packages.")
 
         configs = self.table_data.hou_installs[self.table_version].packages.configs
-        # ensure border is identical for whatever widget is displayed in the stacked widget
-        if configs:
-            self.stacked_widget.setStyleSheet("QStackedWidget {border: None;}")
-        else:
-            self.stacked_widget.setStyleSheet("QStackedWidget {border: 1px solid grey;}")
 
         # if the table widget has already been added, switch to it
-        if self.table_version in self.loaded_table_widgets:
-            index = self.loaded_table_widgets.index(self.table_version)
+        if self.table_version in self.loaded_stacked_widgets_in_order_loaded:
+            index = self.loaded_stacked_widgets_in_order_loaded.index(self.table_version)
             self.stacked_widget.setCurrentIndex(index)
             return
 
@@ -125,38 +136,83 @@ class PackagesWidget(QWidget):
             widget_contents = PackageTableModel(
                 self, self.main_window, self.table_data.hou_installs[self.table_version]
             )
+            widget_contents.setStyleSheet("QTableWidget {border: none;}")
         else:
             widget_contents = QLabel("No packages found")
             widget_contents.setAlignment(Qt.AlignCenter)
 
         self.stacked_widget.addWidget(widget_contents)
         self.stacked_widget.setCurrentWidget(widget_contents)
-        self.loaded_table_widgets.append(self.table_version)
+        self.loaded_stacked_widgets_in_order_loaded.append(self.table_version)
 
-    def refresh_table(self) -> None:
+    def refresh_table(self, version: str = None, status: bool = True) -> None:
         """
         Refresh all the package data for the currently displayed table.
+
+        Arguments:
+            version (str):
+                The version number from the QComboBox list of the package table to refresh.
+                If version is None, the currently displayed package data and table in the QStackedWidget will be refreshed.
+                If version is a valid version, that loaded package data and table will be refreshed.
+
+            status (bool):
+                Whether the status bar should print a successful package refresh message.
+                Suppressing this is useful when multiple package tables need to be refreshed all at once.
+                Default is True.
         """
 
-        hou_version = self.table_version
-        # refresh config data for current package set
-        self.table_data.get_houdini_data(hou_version)
+        refresh_version = version if version else self.table_version
 
-        configs = self.table_data.hou_installs[self.table_version].packages.configs
+        # refresh config data for current package set
+        self.table_data.get_houdini_data(refresh_version)
+
+        configs = self.table_data.hou_installs[refresh_version].packages.configs
         if configs:
-            widget_contents = PackageTableModel(self, self.main_window, self.table_data.hou_installs[hou_version])
-            self.stacked_widget.setStyleSheet("QStackedWidget {border: None;}")
+            widget_contents = PackageTableModel(self, self.main_window, self.table_data.hou_installs[refresh_version])
+            widget_contents.setStyleSheet("QTableWidget {border: none;}")
         else:
-            self.main_window.statusBar().showMessage(f"No packages found for Houdini {hou_version}")
+            if status:
+                self.main_window.statusBar().showMessage(f"No packages found for Houdini {refresh_version}.")
             widget_contents = QLabel("No packages found")
             widget_contents.setAlignment(Qt.AlignCenter)
-            self.stacked_widget.setStyleSheet("QStackedWidget {border: 1px solid grey;}")
 
         current_index = self.stacked_widget.currentIndex()
-        current_widget = self.stacked_widget.currentWidget()
 
-        self.stacked_widget.insertWidget(current_index, widget_contents)
-        self.stacked_widget.removeWidget(current_widget)
+        target_index = self.loaded_stacked_widgets_in_order_loaded.index(
+            refresh_version
+        )  # index position in self.stacked_widget, NOT the QComboBox
+        target_widget = self.stacked_widget.widget(target_index)
+
+        self.stacked_widget.insertWidget(target_index, widget_contents)
+        self.stacked_widget.removeWidget(target_widget)
         self.stacked_widget.setCurrentIndex(current_index)
 
-        self.main_window.statusBar().showMessage(f"Refreshed packages for Houdini {hou_version}")
+        if status:
+            self.main_window.statusBar().showMessage(f"Refreshed packages for Houdini {refresh_version}.")
+
+    def refresh_all_tables(self) -> None:
+        """
+        Refresh the package data for all versions of Houdini.
+        First refresh the data for every loaded table, then reload the rest
+        of package config data that hasn't yet been converted to a table. This
+        is to prevent having to load tables for the entire list of Houdini installs.
+        """
+
+        # # lazy method - refresh everything (less efficient)
+        # # refresh all config data
+        # self.table_data.get_houdini_data()
+        # # refresh all loaded widgets in QStackedWidget
+        # # DOESNT WORK CURRENTLY ANYWAYS SINCE CAN'T REFRESH A NON-LOADED WIDGET
+        # for version in self.versions:
+        #     self.refresh_table(version)
+
+        # refresh loaded tables
+        for version in self.loaded_stacked_widgets_in_order_loaded:
+            self.refresh_table(version)
+
+        # reload package config data for packages not loaded into tables.
+        not_loaded_versions = list(set(self.versions).difference(set(self.loaded_stacked_widgets_in_order_loaded)))
+        for version in not_loaded_versions:
+            self.table_data.get_houdini_data(version)
+
+        self.main_window.statusBar().showMessage("Refreshed all package data and tables.")

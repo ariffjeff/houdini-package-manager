@@ -32,6 +32,7 @@ class PackageTableModel(QTableWidget):
         self.parent_window = parent  # required (for some reason) to allow switching between tables via combobox to work
         self.main_window = main_window
 
+        self.version = houdini_install.version
         self.packages = houdini_install.packages.configs
         self.table_data = houdini_install.get_package_data(named=False)
         self.labels = houdini_install.get_labels()
