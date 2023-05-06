@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QStyledItemDelegate,
     QTableWidget,
-    QTableWidgetItem,
     QWidget,
 )
 
@@ -54,30 +53,34 @@ class PackageTableModel(QTableWidget):
         header.setStretchLastSection(True)
 
         # expand vertical cell size
-        self.verticalHeader().setDefaultSectionSize(40)  # cell height
         self.verticalHeader().setMinimumWidth(22)  # default index column width
-
-        # shrink cell contents back down to add appearance of vertical spacing
-        self.setStyleSheet(
-            """
-            QTableView::item {
-                padding-right: 10px;
-                padding: 3.5px 0;
-            }
-            """
-        )
+        self.verticalHeader().setDefaultSectionSize(36)  # cell height
 
         # set table data with widgets
         for row, rowData in enumerate(self.table_data):
             for column, value in enumerate(rowData):
                 if self.horizontalHeaderItem(column).text() == "Enable":
-                    _CellWidget.checkbox(self, row, column, value)
+                    checkbox_widget = CellWidgets.checkbox_enable(self, value)
+                    self.setCellWidget(row, column, self.align_widget(checkbox_widget))
+
                 elif self.horizontalHeaderItem(column).text() == "Config":
-                    _CellWidget.config(self, row, column, value)
+                    config_widget = CellWidgets.button_config(self, value)
+                    self.setCellWidget(row, column, self.align_widget(config_widget))
+
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
-                    _CellWidget.plugins(self, row, column, value)
+                    warnings = "\n".join(list(self.warnings.values())[row])
+                    if warnings:
+                        plugin_widget = CellWidgets.button_warning(self, row, warnings)
+                    elif not value:
+                        plugin_widget = CellWidgets.label_no_plugin_data()
+                    else:
+                        plugin_widget = CellWidgets.combo_plugins(value)
+                    plugin_widget.setMinimumHeight(29)
+                    self.setCellWidget(row, column, self.align_widget(plugin_widget, Qt.AlignLeft))
+
                 elif isinstance(value, str):
-                    _CellWidget.text(self, row, column, value)
+                    text_widget = CellWidgets.label_text(value)
+                    self.setCellWidget(row, column, self.align_widget(text_widget, Qt.AlignLeft))
 
     def open_path(self) -> None:
         """
@@ -115,16 +118,20 @@ class PackageTableModel(QTableWidget):
         message = "Enabled" if toggle else "Disabled"
         self.main_window.statusBar().showMessage(f"{message} package: {package.name}")
 
-    def center_widget(self, widget) -> QWidget:
+    def align_widget(self, widget, align: Qt.AlignmentFlag = None) -> QWidget:
         """
-        Create the layout that centers a desired widget in a QTableWidget cell.
+        Create a QWidget that lays out a desired widget in a QTableWidget cell.
+        Mainly prevents the table cell from collapsing in on the cell contents.
         Returns a QWidget that should be used as the third arg of: self.setCellWidget(row, column, widget)
         """
+
+        if not align:
+            align = Qt.AlignCenter
 
         layout_widget = QWidget()
         layout = QHBoxLayout(layout_widget)
         layout.addWidget(widget)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(align)
         layout.setContentsMargins(0, 0, 0, 0)
         layout_widget.setLayout(layout)
         return layout_widget
@@ -140,42 +147,41 @@ class PackageTableModel(QTableWidget):
         return list(self.packages.values())[row]
 
 
-class _CellWidget:
+class CellWidgets:
     """
-    Dynamic widgets whose data changes depending on certain requirements.
-    This class is only really meant to be used with PackageTableModel.
+    Various widget presets such as buttons, dropdowns, and labels for a packages table.
     """
 
-    def plugins(self: PackageTableModel, row: int, column: int, value) -> None:
+    def button_warning(parent: PackageTableModel, row: int, warnings: str) -> SvgPushButton:
         # Plugins: a drop down of path buttons that can be clicked.
         # A warning SVG replaces the dropdown if the package has errors that the user needs to resolve.
         # A label replaces the dropdown if there is no plugin data.
 
         # if the package config has problems
-        warnings = list(self.warnings.values())[row]
-        warnings = "\n".join(warnings)
-        if warnings:
-            button_warning = SvgPushButton(
-                32,
-                29,
-                "./houdini_package_manager/design/icons/warning.svg",
-                "./houdini_package_manager/design/icons/warning_hover.svg",
-                self.main_window,
-            )
-            button_warning.setToolTip(warnings)
-            pkg_name = self._current_package(row).name
-            if pkg_name[-5:] != ".json":
-                pkg_name += ".json"
-            button_warning.set_hover_status_message(f"Can't process package, error(s) in config: {pkg_name}")
-            self.setCellWidget(row, column, button_warning)
-            return
+        button_warning = SvgPushButton(
+            32,
+            29,
+            "./houdini_package_manager/design/icons/warning.svg",
+            "./houdini_package_manager/design/icons/warning_hover.svg",
+            parent.main_window,
+        )
 
+        pkg_name = parent._current_package(row).name
+        if pkg_name[-5:] != ".json":
+            pkg_name += ".json"
+        button_warning.set_hover_status_message(f"Can't process package, error(s) in config: {pkg_name}")
+        button_warning.setToolTip(warnings)
+
+        # parent.setCellWidget(row, column, parent.center_widget(button_warning))
+
+        return button_warning
+
+    def label_no_plugin_data() -> QLabel:
         # if there's no plugin data
-        if not value:
-            widget = QLabel("No plugin data")
-            self.setCellWidget(row, column, widget)
-            return
+        label = QLabel("No plugin data")
+        return label
 
+    def combo_plugins(value) -> QComboBox:
         combo = QComboBox()
         value = [str(path) for path in value]
 
@@ -192,37 +198,34 @@ class _CellWidget:
 
         delegate = CustomItemDelegate()
         combo.setItemDelegate(delegate)
+        return combo
 
-        self.setCellWidget(row, column, combo)
-
-    def config(self: PackageTableModel, row: int, column: int, value) -> None:
+    def button_config(parent: PackageTableModel, value) -> SvgPushButton:
         # Config: push button that opens its file path when clicked
-        button = SvgPushButton(
+        config_button = SvgPushButton(
             23,
             29,
             "./houdini_package_manager/design/icons/file.svg",
             "./houdini_package_manager/design/icons/file_hover.svg",
-            self.main_window,
+            parent.main_window,
         )
-        button.setToolTip(str(value))
-        button.setProperty("path", value)
-        button.clicked.connect(self.open_path)
-        button.set_hover_status_message(f"Open: {value}")
+        config_button.setToolTip(str(value))
+        config_button.setProperty("path", value)
+        config_button.clicked.connect(parent.open_path)
+        config_button.set_hover_status_message(f"Open: {value}")
+        return config_button
 
-        self.setCellWidget(row, column, self.center_widget(button))
-
-    def text(self: PackageTableModel, row: int, column: int, value) -> None:
+    def label_text(value) -> QLabel:
         # Version, Name, Author, Date Installed: text
-        item = QTableWidgetItem(value)
-        self.setItem(row, column, item)
+        item = QLabel(value)
+        return item
 
-    def checkbox(self: PackageTableModel, row: int, column: int, value) -> None:
+    def checkbox_enable(parent: PackageTableModel, value) -> QCheckBox:
         # Enable: togglable checkbox
         checkbox = QCheckBox()
-        checkbox.clicked.connect(self.enable_package)
+        checkbox.clicked.connect(parent.enable_package)
         checkbox.setCheckState(Qt.Checked if value else Qt.Unchecked)
-
-        self.setCellWidget(row, column, self.center_widget(checkbox))
+        return checkbox
 
 
 class CustomItemDelegate(QStyledItemDelegate):
