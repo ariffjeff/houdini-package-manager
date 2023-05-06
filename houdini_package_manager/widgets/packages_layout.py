@@ -77,7 +77,7 @@ class PackagesWidget(QWidget):
             self.main_window,
         )
         self.button_refresh_all.set_hover_status_message("Refresh all packages for all installed versions of Houdini.")
-        self.button_refresh_all.setToolTip("Refresh all packages for all installed versions of Houdini.")
+        self.button_refresh_all.setToolTip("Refresh all packages for all installed versions of Houdini")
         self.button_refresh_all.clicked.connect(self.refresh_all_tables)
 
         # TABLE - PACKAGE DATA
