@@ -174,11 +174,13 @@ class CellWidgets:
 
         return button_warning
 
+    @staticmethod
     def label_no_plugin_data() -> QLabel:
         # if there's no plugin data
         label = QLabel("No plugin data")
         return label
 
+    @staticmethod
     def combo_plugins(value) -> QComboBox:
         combo = QComboBox()
         value = [str(path) for path in value]
@@ -214,11 +216,13 @@ class CellWidgets:
         config_button.set_hover_status_message(f"Open: {value}")
         return config_button
 
+    @staticmethod
     def label_text(value) -> QLabel:
         # Version, Name, Author, Date Installed: text
         item = QLabel(value)
         return item
 
+    @staticmethod
     def checkbox_enable(parent: PackageTableModel, value) -> QCheckBox:
         # Enable: togglable checkbox
         checkbox = QCheckBox()
