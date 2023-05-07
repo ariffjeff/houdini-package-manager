@@ -671,7 +671,7 @@ class Package:
 
         def is_variable(char: str) -> bool:
             """
-            Check if a string is a valid character in a variable name.
+            Check if a string is a valid character that would make up a standard variable name.
             """
 
             return char.isalpha() or char.isdigit() or char == "_"
