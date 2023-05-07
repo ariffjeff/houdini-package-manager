@@ -37,8 +37,8 @@ class PackagesWidget(QWidget):
             The list of ordered version numbers that will determine which set of package data is shown in the table.
     """
 
-    def __init__(self, main_window: QMainWindow, table_data: HoudiniManager, versions: list[str]) -> None:
-        super().__init__()
+    def __init__(self, parent, main_window: QMainWindow, table_data: HoudiniManager, versions: list[str]) -> None:
+        super().__init__(parent)
 
         self.main_window = main_window
         self.table_data = table_data
@@ -100,8 +100,12 @@ class PackagesWidget(QWidget):
         self.button_refresh_all.clicked.connect(self.refresh_all_tables)
 
         # TABLE - PACKAGE DATA
-        table = PackageTableModel(self, self.main_window, self.table_data.hou_installs[self.versions[0]])
-        table.setStyleSheet("QTableWidget {border: none;}")
+        current_hou_version = self.table_data.hou_installs[self.versions[0]]
+        if current_hou_version.packages.configs:
+            table = PackageTableModel(self, self.main_window, current_hou_version)
+            table.setStyleSheet("QTableWidget {border: none;}")
+        else:
+            table = self._no_packages_found()
 
         self.stacked_widget = QStackedWidget()
         self.stacked_widget.addWidget(table)
@@ -197,8 +201,7 @@ class PackagesWidget(QWidget):
         else:
             if status:
                 self.main_window.statusBar().showMessage(f"No packages found for Houdini {refresh_version}.")
-            widget_contents = QLabel("No packages found")
-            widget_contents.setAlignment(Qt.AlignCenter)
+            widget_contents = self._no_packages_found()
 
         current_index = self.stacked_widget.currentIndex()
 
@@ -217,6 +220,12 @@ class PackagesWidget(QWidget):
 
         if status:
             self.main_window.statusBar().showMessage(f"Refreshed packages for Houdini {refresh_version}.")
+
+    def _no_packages_found(self):
+        # Return a label meant to replace a table when there is no package data to fill it.
+        label = QLabel("No packages found")
+        label.setAlignment(Qt.AlignCenter)
+        return label
 
     def refresh_all_tables(self) -> None:
         """
