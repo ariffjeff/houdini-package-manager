@@ -67,7 +67,9 @@ class PackageTableModel(QTableWidget):
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
                     warnings = "\n".join(list(self.warnings.values())[row])
                     if warnings:
-                        plugin_widget = CellWidgets.button_warning(self, row, warnings)
+                        plugin_widget = CellWidgets.button_warning(
+                            self, row, warnings, self._current_package(row).config_path
+                        )
                     elif not value:
                         plugin_widget = CellWidgets.label_no_plugin_data()
                     else:
@@ -150,7 +152,7 @@ class CellWidgets:
     """
 
     @staticmethod
-    def button_warning(parent: PackageTableModel, row: int, warnings: str) -> SvgPushButton:
+    def button_warning(parent: PackageTableModel, row: int, warnings: str, config_path: Path) -> SvgPushButton:
         # Plugins: a drop down of path buttons that can be clicked.
         # A warning SVG replaces the dropdown if the package has errors that the user needs to resolve.
         # A label replaces the dropdown if there is no plugin data.
@@ -169,7 +171,8 @@ class CellWidgets:
             pkg_name += ".json"
         button_warning.set_hover_status_message(f"Can't process package, error(s) in config: {pkg_name}")
         button_warning.setToolTip(warnings)
-
+        button_warning.setProperty("path", config_path)
+        button_warning.clicked.connect(parent.open_path)
         # parent.setCellWidget(row, column, parent.center_widget(button_warning))
 
         return button_warning
