@@ -1,10 +1,16 @@
+import shutil
+from pathlib import Path
+from typing import Union
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -12,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.widgets.packages_table import PackageTableModel
-from houdini_package_manager.wrangle.config_control import HoudiniManager
+from houdini_package_manager.wrangle.config_control import HoudiniManager, Package
 
 
 class PackagesWidget(QWidget):
@@ -55,9 +61,22 @@ class PackagesWidget(QWidget):
         self.combo_version = QComboBox()
         self.combo_version.addItems(self.version_labels)
         self.combo_version.activated.connect(self.switch_package_table)
+        self.combo_version.setMinimumHeight(29)
+        self.combo_version.setMinimumWidth(120)
 
         # BUTTONS - PACKAGE OPTIONS
-        button_copy = QPushButton("COPY")  # copy all the packages in the current table to another houdini version
+        # copy all the packages in the current table to another houdini version
+        self.button_copy = SvgPushButton(
+            28,
+            28,
+            "./houdini_package_manager/design/icons/migrate.svg",
+            "./houdini_package_manager/design/icons/migrate_hover.svg",
+            self.main_window,
+        )
+        self.button_copy.set_hover_status_message("Copy selected packages to other installed Houdini versions.")
+        self.button_copy.setToolTip("Copy selected packages to other installed Houdini versions")
+        self.button_copy.clicked.connect(self.migrate_packages)
+
         self.button_refresh = SvgPushButton(
             28,
             28,
@@ -95,6 +114,7 @@ class PackagesWidget(QWidget):
         self.layout_main = QVBoxLayout()
         layout_secondary_header = QHBoxLayout()
         layout_package_options = QHBoxLayout()
+        layout_package_buttons = QHBoxLayout()
 
         # SET LAYOUTS
         self.layout_main.addLayout(layout_secondary_header)
@@ -106,9 +126,12 @@ class PackagesWidget(QWidget):
         layout_secondary_header.setAlignment(label_version_dropdown, Qt.AlignBottom)
 
         layout_package_options.addWidget(self.combo_version)
-        layout_package_options.addWidget(button_copy)
-        layout_package_options.addWidget(self.button_refresh)
-        layout_package_options.addWidget(self.button_refresh_all)
+        layout_package_options.addLayout(layout_package_buttons)
+        layout_package_buttons.addWidget(self.button_copy)
+        layout_package_buttons.addWidget(self.button_refresh)
+        layout_package_buttons.addWidget(self.button_refresh_all)
+        layout_package_options.setAlignment(self.combo_version, Qt.AlignLeft)
+        layout_package_options.setAlignment(layout_package_buttons, Qt.AlignRight)
 
     @property
     def table_version(self):
@@ -147,7 +170,8 @@ class PackagesWidget(QWidget):
 
     def refresh_table(self, version: str = None, status: bool = True) -> None:
         """
-        Refresh all the package data for the currently displayed table.
+        Refresh all the package data for the desired table.
+        If version is specified, the currently displayed table's data will be refreshed.
 
         Arguments:
             version (str):
@@ -177,6 +201,10 @@ class PackagesWidget(QWidget):
             widget_contents.setAlignment(Qt.AlignCenter)
 
         current_index = self.stacked_widget.currentIndex()
+
+        # refresh QStackWidget widget (if it has been created)
+        if refresh_version not in self.loaded_stacked_widgets_in_order_loaded:
+            return
 
         target_index = self.loaded_stacked_widgets_in_order_loaded.index(
             refresh_version
@@ -216,3 +244,196 @@ class PackagesWidget(QWidget):
             self.table_data.get_houdini_data(version)
 
         self.main_window.statusBar().showMessage("Refreshed all package data and tables.")
+
+    def migrate_packages(self) -> None:
+        """
+        Make copies of all the packages in the currently displayed table and put them
+        in the target packages directory of the target installed versions of Houdini.
+        """
+
+        checkbox_version_options = list(self.versions)
+        checkbox_version_options.remove(self.table_version)
+        checkbox_version_options = [f"Houdini {version}" for version in checkbox_version_options]
+
+        # identify any potential file overwrite conflicts for different houdini versions
+        current_package_paths = [package.config_path for package in self.current_packages()]
+        if not current_package_paths:
+            self.main_window.statusBar().showMessage(f"No packages in {self.current_table_version()} to copy.")
+            return
+
+        file_conflicts = self.find_file_conflicts()
+        dialog = CheckboxDialog(checkbox_version_options, len(current_package_paths), file_conflicts)
+        result = dialog.exec_()
+        if result == 0:
+            return
+
+        target_versions = dialog.enabled_checkboxes()
+        target_versions = [version.split(" ")[-1] for version in target_versions]
+        target_packages_dirs = [
+            self.table_data.hou_installs[version].packages.packages_directory for version in target_versions
+        ]
+
+        # copy files
+        for dest in target_packages_dirs:
+            for file_path in current_package_paths:
+                shutil.copy(file_path, dest)
+
+        self.main_window.statusBar().showMessage(
+            f"Copied {len(current_package_paths)} packages from {self.combo_version.currentText()} to"
+            f" {len(target_packages_dirs)} other Houdini installs."
+        )
+
+        # refresh packages table for target houdini versions
+        for version in target_versions:
+            self.refresh_table(version, status=False)
+
+    def find_file_conflicts(self) -> dict[list[Path]]:
+        """
+        Search for file conflicts in other Houdini packages directories by comparing
+        all the Package configs in the current houdini version with all the other houdini version Package configs.
+        This is useful for if config files from one houdini version need to be moved to another.
+
+        Returns a dict of all other houdini versions where each value is a list of package Paths.
+        """
+
+        # check the package tables that aren't the one that's currently loaded
+        other_versions = list(self.versions)
+        other_versions.remove(self.table_version)
+
+        # identify any potential file overwrite conflicts for different houdini versions
+        current_package_paths = [package.config_path for package in self.current_packages()]
+        other_package_paths = {}
+        for version, pkgs in self.get_packages(other_versions).items():  # sort package paths to each houdini version
+            pkg_paths = []
+            for pkg in pkgs.values():
+                pkg_paths.append(pkg.config_path)
+            pkg_paths = [path.name for path in pkg_paths]
+            other_package_paths[version] = pkg_paths
+
+        file_conflicts = {}
+        for version, paths in other_package_paths.items():
+            file_conflicts[version] = []
+            for pkg_path in current_package_paths:
+                if pkg_path.name in paths:
+                    file_conflicts[version].append(pkg_path)
+
+        return file_conflicts
+
+    def current_packages(self) -> list[Package]:
+        """
+        Return a list of the Package objects assosciated with the currently loaded table.
+        """
+
+        current_table = self.stacked_widget.currentWidget()
+        if not hasattr(current_table, "packages"):
+            return []
+        packages = list(current_table.packages.values())
+        return packages
+
+    def current_table_version(self) -> str:
+        """
+        Return the houdini version number of the current displayed package table.
+        """
+
+        return self.combo_version.currentText()
+
+    def get_packages(self, versions: Union[str, list[str]] = None) -> dict[Package]:
+        """
+        Return a dict of the package data for the all the tables.
+        The key is the Houdini version number.
+        The value is the Package object.
+
+        Arguments:
+            versions (Union(str, list[str])):
+                The Houdini versions to get packages from.
+                If no version is provided, the packages for all Houdini versions will be returned.
+        """
+
+        all_versions = self.table_data.hou_installs
+        if not versions:
+            return all_versions
+
+        if isinstance(versions, str):
+            versions = [versions]
+
+        #  isolate target versions
+        target_versions = {}
+        for key, value in all_versions.items():
+            if key in versions:
+                target_versions[key] = value
+
+        # get the package data for each houdini install version
+        package_data = {}
+        for key, houInstall in target_versions.items():
+            package_data[key] = houInstall.packages.configs
+
+        return package_data
+
+
+class CheckboxDialog(QDialog):
+    def __init__(self, checkbox_data, package_count, file_conflicts, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Copy packages")
+
+        self.file_conflicts = file_conflicts  # all possible conflicts
+        self.checked_file_conflicts = 0  # accumulated number of conflicts from only checked houdini versions
+        self.checkboxes = []
+
+        label_pkg_num = QLabel(f"Copy {package_count} packages to:")
+        self.label_file_overwrites = QLabel(f"{self.checked_file_conflicts} files will be overwritten.")
+
+        layout_versions = QVBoxLayout()
+        self.checkboxes = []
+        for option in checkbox_data:
+            checkbox = QCheckBox(option)
+            checkbox.clicked.connect(self.update_file_conflicts)
+            hbox = QHBoxLayout()
+            hbox.addWidget(checkbox)
+            hbox.setContentsMargins(0, 0, 0, 0)
+            hbox.setAlignment(Qt.AlignLeft)
+            layout_versions.addLayout(hbox)
+            self.checkboxes.append(checkbox)
+        layout_versions.setContentsMargins(0, 10, 0, 10)
+
+        # button box
+        button_box = QDialogButtonBox(Qt.Horizontal)
+        button_box.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+        layout_main = QVBoxLayout()
+        layout_main.addWidget(label_pkg_num)
+        layout_main.addLayout(layout_versions)
+        layout_main.addWidget(self.label_file_overwrites)
+        layout_main.addWidget(button_box)
+        layout_main.setAlignment(button_box, Qt.AlignCenter)
+        self.setLayout(layout_main)
+
+    def update_file_conflicts(self) -> None:
+        # Get the total number of file conflicts for each houdini version's checkbox that is enabled.
+        self.checked_file_conflicts = 0
+        data = self.get_checkbox_data()
+
+        i = 0
+        for paths in self.file_conflicts.values():
+            if data[i]:
+                self.checked_file_conflicts += len(paths)
+            i += 1
+
+        self.label_file_overwrites.setText(f"{self.checked_file_conflicts} files will be overwritten.")
+
+    def get_checkbox_data(self):
+        # Return a list of tuples containing the checkbox labels and whether they are checked
+        return [checkbox.isChecked() for checkbox in self.checkboxes]
+
+    def enabled_checkboxes(self) -> list[str]:
+        """
+        Return a list of the enabled checkbox labels.
+        """
+
+        selected_checkboxes = []
+        for checkbox in self.checkboxes:
+            if checkbox.isChecked():
+                selected_checkboxes.append(checkbox.text())
+
+        return selected_checkboxes
