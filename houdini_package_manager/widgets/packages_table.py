@@ -173,7 +173,6 @@ class CellWidgets:
         button_warning.setToolTip(warnings)
         button_warning.setProperty("path", config_path)
         button_warning.clicked.connect(parent.open_path)
-        # parent.setCellWidget(row, column, parent.center_widget(button_warning))
 
         return button_warning
 
