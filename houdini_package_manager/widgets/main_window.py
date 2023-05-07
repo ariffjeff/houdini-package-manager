@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(tab_packages, "Packages")
         tabs.addTab(tab_add_packages, "Add Local Packages")
 
-        packages = PackagesWidget(self, self, self.houdini_data, self.versions)
+        packages = PackagesWidget(self, self.houdini_data, self.versions)
 
         # CREATE LAYOUTS
         central_widget = QWidget(self)

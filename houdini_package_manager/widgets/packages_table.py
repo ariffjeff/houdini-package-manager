@@ -7,12 +7,12 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QMainWindow,
     QStyledItemDelegate,
     QTableWidget,
     QWidget,
 )
 
+from houdini_package_manager.meta.meta_tools import StatusBar
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
 
@@ -22,14 +22,11 @@ class PackageTableModel(QTableWidget):
     The table widget that displays Houdini package configuration data and various buttons/options to navigate and manipulate them.
     """
 
-    def __init__(self, parent, main_window: QMainWindow, houdini_install: HoudiniInstall) -> None:
-        super().__init__()
+    def __init__(self, parent, houdini_install: HoudiniInstall) -> None:
+        super().__init__(parent)
 
         if not houdini_install.packages.configs:
             raise ValueError(f"No package data found for Houdini {houdini_install.version.full}")
-
-        self.parent_window = parent  # required (for some reason) to allow switching between tables via combobox to work
-        self.main_window = main_window
 
         self.version = houdini_install.version
         self.packages = houdini_install.packages.configs
@@ -94,11 +91,11 @@ class PackageTableModel(QTableWidget):
             path = Path(path)
 
         if not path.exists():
-            self.main_window.statusBar().showMessage(f"Failed to open: {str(path)}")
+            StatusBar.message(f"Failed to open: {str(path)}")
             return
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
-        self.main_window.statusBar().showMessage(f"Opened: {path}")
+        StatusBar.message(f"Opened: {path}")
 
     def enable_package(self) -> None:
         """
@@ -116,7 +113,7 @@ class PackageTableModel(QTableWidget):
         package.enable = toggle  # triggers setter method
 
         message = "Enabled" if toggle else "Disabled"
-        self.main_window.statusBar().showMessage(f"{message} package: {package.name}")
+        StatusBar.message(f"{message} package: {package.name}")
 
     def align_widget(self, widget, align: Qt.AlignmentFlag = None) -> QWidget:
         """
@@ -152,6 +149,7 @@ class CellWidgets:
     Various widget presets such as buttons, dropdowns, and labels for a packages table.
     """
 
+    @staticmethod
     def button_warning(parent: PackageTableModel, row: int, warnings: str) -> SvgPushButton:
         # Plugins: a drop down of path buttons that can be clicked.
         # A warning SVG replaces the dropdown if the package has errors that the user needs to resolve.
@@ -159,11 +157,11 @@ class CellWidgets:
 
         # if the package config has problems
         button_warning = SvgPushButton(
+            parent,
             32,
             29,
             "./houdini_package_manager/design/icons/warning.svg",
             "./houdini_package_manager/design/icons/warning_hover.svg",
-            parent.main_window,
         )
 
         pkg_name = parent._current_package(row).name
@@ -200,14 +198,15 @@ class CellWidgets:
         combo.setItemDelegate(delegate)
         return combo
 
+    @staticmethod
     def button_config(parent: PackageTableModel, value) -> SvgPushButton:
         # Config: push button that opens its file path when clicked
         config_button = SvgPushButton(
+            parent,
             23,
             29,
             "./houdini_package_manager/design/icons/file.svg",
             "./houdini_package_manager/design/icons/file_hover.svg",
-            parent.main_window,
         )
         config_button.setToolTip(str(value))
         config_button.setProperty("path", value)
