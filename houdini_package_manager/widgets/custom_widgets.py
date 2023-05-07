@@ -38,8 +38,9 @@ class SvgPushButton(QPushButton):
 
         self.enterEvent = lambda event: self.hover_enter(event, self.svg_path_hover)
         self.leaveEvent = lambda event: self.hover_leave(event, self.svg_path)
-        self.mousePressEvent = lambda event: self.mouse_press(event, self.svg_path)
-        self.mouseReleaseEvent = lambda event: self.mouse_release(event, self.svg_path_hover)
+        if self.svg_path_hover:
+            self.mousePressEvent = lambda event: self.mouse_press(event, self.svg_path)
+            self.mouseReleaseEvent = lambda event: self.mouse_release(event, self.svg_path_hover)
 
     @property
     def hover_message(self):
@@ -67,7 +68,8 @@ class SvgPushButton(QPushButton):
         """
 
         super().enterEvent(event)
-        self.setCursor(QCursor(Qt.PointingHandCursor))
+        if self.svg_path_hover:
+            self.setCursor(QCursor(Qt.PointingHandCursor))
         if svg_path:
             self.render(svg_path)
 
