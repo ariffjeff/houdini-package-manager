@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from houdini_package_manager.widgets.add_packages_layout import LocalPackageAdderWidget
 from houdini_package_manager.widgets.packages_layout import PackagesWidget
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
@@ -89,6 +90,7 @@ class MainWindow(QMainWindow):
         )
 
         packages = PackagesWidget(self, self.houdini_data, self.versions)
+        add_packages = LocalPackageAdderWidget(self, self.houdini_data, self.versions)
 
         # CREATE LAYOUTS
         central_widget = QWidget(self)
@@ -101,6 +103,7 @@ class MainWindow(QMainWindow):
         layout_main_vertical.addWidget(tabs)
 
         tab_packages.setLayout(packages.layout_main)
+        tab_add_packages.setLayout(add_packages.layout_main)
 
     def quit_app(self):
         self.app.quit()
