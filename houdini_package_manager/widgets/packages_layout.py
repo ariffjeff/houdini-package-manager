@@ -2,7 +2,8 @@ import shutil
 from pathlib import Path
 from typing import Union
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -62,7 +63,35 @@ class PackagesWidget(QWidget):
         self.combo_version.addItems(self.version_labels)
         self.combo_version.activated.connect(self.switch_package_table)
         self.combo_version.setMinimumHeight(29)
-        self.combo_version.setMinimumWidth(120)
+        self.combo_version.setMinimumWidth(155)
+
+        self.combo_version.setStyleSheet(
+            """
+        QComboBox {
+            text-align: left;
+            background-color: #303030;
+            border: none;
+            padding: 5px;
+        }
+
+        QComboBox:hover { background-color: #404040; }
+        QComboBox::drop-down { subcontrol-position: left; }
+        """
+        )
+
+        # BUTTON - HOUDINI VERSION FOLDER
+        self.button_version = SvgPushButton(
+            self,
+            38,
+            24,
+            "./houdini_package_manager/design/icons/folder.svg",
+            "./houdini_package_manager/design/icons/folder_hover.svg",
+        )
+        path = self.current_packages_directory()
+        self.button_version.set_hover_status_message(f"Open: {path}")
+        self.button_version.setToolTip("Open packages folder")
+        self.button_version.setProperty("path", path)
+        self.button_version.clicked.connect(self.open_path)
 
         # BUTTONS - PACKAGE OPTIONS
         # copy all the packages in the current table to another houdini version
@@ -117,30 +146,51 @@ class PackagesWidget(QWidget):
         # CREATE LAYOUTS
         self.layout_main = QVBoxLayout()
         layout_secondary_header = QHBoxLayout()
-        layout_package_options = QHBoxLayout()
+        layout_table_options = QHBoxLayout()
+        layout_version_buttons = QHBoxLayout()
         layout_package_buttons = QHBoxLayout()
 
         # SET LAYOUTS
         self.layout_main.addLayout(layout_secondary_header)
-        self.layout_main.addLayout(layout_package_options)
+        self.layout_main.addLayout(layout_table_options)
         self.layout_main.addWidget(self.stacked_widget)
 
         layout_secondary_header.addWidget(label_version_dropdown)
         layout_secondary_header.addWidget(button_add_package)
         layout_secondary_header.setAlignment(label_version_dropdown, Qt.AlignBottom)
 
-        layout_package_options.addWidget(self.combo_version)
-        layout_package_options.addLayout(layout_package_buttons)
+        layout_table_options.addLayout(layout_version_buttons)
+        layout_version_buttons.addWidget(self.combo_version)
+        layout_version_buttons.addWidget(self.button_version)
+        layout_table_options.addLayout(layout_package_buttons)
         layout_package_buttons.addWidget(self.button_copy)
         layout_package_buttons.addWidget(self.button_refresh)
         layout_package_buttons.addWidget(self.button_refresh_all)
-        layout_package_options.setAlignment(self.combo_version, Qt.AlignLeft)
-        layout_package_options.setAlignment(layout_package_buttons, Qt.AlignRight)
+        layout_version_buttons.setAlignment(Qt.AlignLeft)
+        layout_table_options.setAlignment(layout_package_buttons, Qt.AlignRight)
 
     @property
     def table_version(self):
         self._table_version = self.combo_version.currentText().split(" ")[-1]
         return self._table_version
+
+    def open_path(self) -> None:
+        """
+        Get the path that is associated with a button and open it.
+        """
+
+        button = self.sender()
+        path = button.property("path")
+
+        if not isinstance(path, Path):
+            path = Path(path)
+
+        if not path.exists():
+            StatusBar.message(f"Failed to open: {str(path)}")
+            return
+
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+        StatusBar.message(f"Opened: {path}")
 
     def switch_package_table(self) -> None:
         """
@@ -148,10 +198,12 @@ class PackagesWidget(QWidget):
         If the set of data was already loaded then switch to it instead of loading it again.
         """
 
+        # MANUAL UPDATING OF PACKAGE TABLE INDEPENDENT WIDGETS
         # update refresh button hover status bar message
         self.button_refresh.set_hover_status_message(f"Refresh Houdini {self.table_version} packages.")
-
-        configs = self.table_data.hou_installs[self.table_version].packages.configs
+        # update houdini packages folder button location
+        self.button_version.setProperty("path", self.current_packages_directory())
+        self.button_version.set_hover_status_message(f"Open: {self.current_packages_directory()}")
 
         # if the table widget has already been added, switch to it
         if self.table_version in self.loaded_stacked_widgets_in_order_loaded:
@@ -159,6 +211,7 @@ class PackagesWidget(QWidget):
             self.stacked_widget.setCurrentIndex(index)
             return
 
+        configs = self.table_data.hou_installs[self.table_version].packages.configs
         if configs:
             widget_contents = PackageTableModel(self, self.table_data.hou_installs[self.table_version])
             widget_contents.setStyleSheet("QTableWidget {border: none;}")
@@ -265,7 +318,7 @@ class PackagesWidget(QWidget):
         # identify any potential file overwrite conflicts for different houdini versions
         current_package_paths = [package.config_path for package in self.current_packages()]
         if not current_package_paths:
-            StatusBar.message(f"No packages in {self.current_table_version()} to copy.")
+            StatusBar.message(f"No packages in Houdini {self.current_table_version()} to copy.")
             return
 
         file_conflicts = self.find_file_conflicts()
@@ -342,7 +395,9 @@ class PackagesWidget(QWidget):
         Return the houdini version number of the current displayed package table.
         """
 
-        return self.combo_version.currentText()
+        label = self.combo_version.currentText()
+        label = label.split(" ")[-1]
+        return label
 
     def get_packages(self, versions: Union[str, list[str]] = None) -> dict[Package]:
         """
@@ -375,6 +430,15 @@ class PackagesWidget(QWidget):
             package_data[key] = houInstall.packages.configs
 
         return package_data
+
+    def current_packages_directory(self) -> Path:
+        """
+        Return the packages directory of the currently loaded houdini version.
+        """
+
+        current_version = self.current_table_version()
+        path = self.table_data.hou_installs[current_version].packages.packages_directory
+        return path
 
 
 class CheckboxDialog(QDialog):

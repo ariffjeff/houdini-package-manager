@@ -17,6 +17,13 @@ class StatusBar:
         """
 
         status_bar = cls.status_bar()
+        status_bar.setStyleSheet(
+            """
+            font-family: Lato;
+            font-weight: 100;
+            font-size: 12px;
+            """
+        )
         status_bar.showMessage(message)
 
     @staticmethod

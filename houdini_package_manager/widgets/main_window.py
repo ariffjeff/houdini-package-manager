@@ -22,7 +22,26 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.app = app  # declare an app member
 
-        self.setMinimumSize(800, 400)
+        self.setMinimumSize(1000, 500)
+
+        self.setStyleSheet(
+            """
+                background-color: #202020;
+                color: white;
+                font-size: 16px;
+                font-family: Lato;
+                font-weight: 100;
+            """
+        )
+
+        # for some reason this makes the above styles start affecting tooltips
+        self.app.setStyleSheet(
+            """
+            QToolTip {
+                border: 1px solid #3A3939;
+            }
+        """
+        )
 
         # MANAGE HOUDINI DATA
         # get packages and their HOUDINI_PATH data for each installed Houdini version
@@ -49,7 +68,25 @@ class MainWindow(QMainWindow):
         tab_packages = QWidget()
         tab_add_packages = QWidget()
         tabs.addTab(tab_packages, "Packages")
-        tabs.addTab(tab_add_packages, "Add Local Packages")
+        tabs.addTab(tab_add_packages, "Add Local Plugins")
+
+        tabs.setStyleSheet(
+            """
+            QTabWidget::pane {
+                background-color: #303030;
+            }
+
+            QTabBar::tab {
+                background-color: #303030;
+                color: lightgrey;
+                font-weight: bold;
+                height: 40px;
+            }
+
+            QTabBar::tab:hover { background-color: #666666; }
+            QTabBar::tab:selected { background-color: #4d4d4d; }
+        """
+        )
 
         packages = PackagesWidget(self, self.houdini_data, self.versions)
 

@@ -3,10 +3,13 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
+    QSizePolicy,
     QStyledItemDelegate,
     QTableWidget,
     QWidget,
@@ -34,14 +37,45 @@ class PackageTableModel(QTableWidget):
         self.labels = houdini_install.get_labels()
         self.warnings = houdini_install.get_package_warnings()
 
+        self.setup_table_data()
+        self.fill_table_contents()
+
+    def setup_table_data(self) -> None:
+        """
+        Prepare the table data before it gets entered into the packages table.
+        """
+
+        # insert custom index column
+        self.labels.insert(0, "")
+        for i, _row in enumerate(self.table_data):
+            self.table_data[i].insert(0, str(i + 1))
+        # remove default index column since it contains the corner part that can't be styled
+        for i in range(self.rowCount()):
+            item = self.item(i, 0)
+            item.setTextAlignment(Qt.AlignCenter)
+        self.verticalHeader().setVisible(False)
+
         self.setRowCount(len(self.table_data))
         self.setColumnCount(len(self.labels))
 
         self.setHorizontalHeaderLabels(self.labels)
-        self.resizeColumnsToContents()
-        self.setColumnWidth(self.labels.index("Name"), 150)
+        self.resizeColumnsToContents()  # before manual width adjustments
+        self.setColumnWidth(self.labels.index("Name"), 180)
         self.setColumnWidth(self.labels.index("Plugins"), 200)
+        # self.setColumnWidth(0, 26)  # doesnt seem to work with small numbers
 
+        style = """
+            ::section {
+                background-color: #3d3d3d;
+                border: none;
+                border-left: 1px solid #202020;
+                border-right: 1px solid #202020;
+            }
+        """
+        self.horizontalHeader().setStyleSheet(style)
+        self.verticalHeader().setStyleSheet(style)
+
+        self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setEditTriggers(QTableWidget.NoEditTriggers)
         self.setSelectionMode(QTableWidget.NoSelection)
         self.setShowGrid(False)
@@ -50,8 +84,13 @@ class PackageTableModel(QTableWidget):
         header.setStretchLastSection(True)
 
         # expand vertical cell size
-        self.verticalHeader().setMinimumWidth(22)  # default index column width
+        # self.verticalHeader().setMinimumWidth(26) # default index column width
         self.verticalHeader().setDefaultSectionSize(36)  # cell height
+
+    def fill_table_contents(self) -> None:
+        """
+        Enter the packages data into the packages table.
+        """
 
         # set table data with widgets
         for row, rowData in enumerate(self.table_data):
@@ -72,14 +111,20 @@ class PackageTableModel(QTableWidget):
                         )
                     elif not value:
                         plugin_widget = CellWidgets.label_no_plugin_data()
+                    elif len(value) > 1:
+                        plugin_widget = CellWidgets.combo_plugins(self, value)
                     else:
-                        plugin_widget = CellWidgets.combo_plugins(value)
+                        plugin_widget = CellWidgets.button_plugins(self, value[0])
+                        plugin_widget.clicked.connect(self.open_path)
+
                     plugin_widget.setMinimumHeight(29)
                     self.setCellWidget(row, column, self.align_widget(plugin_widget, Qt.AlignLeft))
 
                 elif isinstance(value, str):
                     text_widget = CellWidgets.label_text(value)
-                    self.setCellWidget(row, column, self.align_widget(text_widget, Qt.AlignLeft))
+                    self.setCellWidget(
+                        row, column, self.align_widget(text_widget, Qt.AlignCenter if column == 0 else Qt.AlignLeft)
+                    )
 
     def open_path(self) -> None:
         """
@@ -183,8 +228,8 @@ class CellWidgets:
         return label
 
     @staticmethod
-    def combo_plugins(value) -> QComboBox:
-        combo = QComboBox()
+    def combo_plugins(parent, value) -> QComboBox:
+        combo = DropDown(parent)
         value = [str(path) for path in value]
 
         model = QStandardItemModel()
@@ -200,7 +245,48 @@ class CellWidgets:
 
         delegate = CustomItemDelegate()
         combo.setItemDelegate(delegate)
+        combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        combo.setStyleSheet(
+            """
+        QComboBox {
+            text-align: left;
+            background-color: #303030;
+            border: none;
+            padding: 5px;
+        }
+
+        QComboBox::drop-down { subcontrol-position: left; }
+        QComboBox:hover { background-color: #404040; }
+        """
+        )
+
         return combo
+
+    @staticmethod
+    def button_plugins(parent, value) -> QPushButton:
+        button = QPushButton(text=str(value), parent=parent)
+        button.setProperty("path", value)
+        button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        button.setStyleSheet(
+            """
+        QPushButton {
+            text-align: left;
+            background-color: #303030;
+            border: none;
+            padding: 5px;
+        }
+
+        QPushButton:hover {
+            background-color: #404040;
+        }
+
+        QPushButton:pressed { background-color: #303030; }
+        """
+        )
+
+        return button
 
     @staticmethod
     def button_config(parent: PackageTableModel, value) -> SvgPushButton:
@@ -231,6 +317,16 @@ class CellWidgets:
         checkbox.clicked.connect(parent.enable_package)
         checkbox.setCheckState(Qt.Checked if value else Qt.Unchecked)
         return checkbox
+
+
+class DropDown(QComboBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setStyleSheet("QComboBox:focus { border: 2px solid #100000; }")
+
+    def wheelEvent(self, event):
+        event.ignore()
 
 
 class CustomItemDelegate(QStyledItemDelegate):
