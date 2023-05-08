@@ -48,6 +48,7 @@ class PackagesWidget(QWidget):
 
         # LABEL - HOUDINI VERSION DROPDOWN
         label_version_dropdown = QLabel("HOUDINI VERSIONS")
+        label_version_dropdown.setStyleSheet("QLabel { color: #ff6600 }")
 
         # BUTTON - ADD PACKAGE
         button_add_package = SvgPushButton(
