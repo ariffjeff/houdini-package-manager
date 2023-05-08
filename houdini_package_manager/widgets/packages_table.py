@@ -60,7 +60,7 @@ class PackageTableModel(QTableWidget):
 
         self.setHorizontalHeaderLabels(self.labels)
         self.resizeColumnsToContents()  # before manual width adjustments
-        self.setColumnWidth(self.labels.index("Name"), 180)
+        self.setColumnWidth(self.labels.index("Package"), 180)
         self.setColumnWidth(self.labels.index("Plugins"), 200)
         # self.setColumnWidth(0, 26)  # doesnt seem to work with small numbers
 
