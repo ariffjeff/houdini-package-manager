@@ -270,7 +270,7 @@ class PackagesWidget(QWidget):
 
         file_conflicts = self.find_file_conflicts()
         dialog = CheckboxDialog(checkbox_version_options, len(current_package_paths), file_conflicts)
-        result = dialog.exec_()
+        result = dialog.exec()
         if result == 0:
             return
 
