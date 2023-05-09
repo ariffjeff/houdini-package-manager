@@ -453,9 +453,11 @@ class Package:
         return {
             "Enable": self.enable,
             "Package": self.name,
-            "Version": self.version,
-            "Author": self.author,
-            "Date Installed": self.date_installed,
+            # commented out because these values are really only able
+            # to be gotten from a package index service
+            # "Version": self.version,
+            # "Author": self.author,
+            # "Date Installed": self.date_installed,
             "Config": self.config_path,
             "Plugins": self.plugin_paths,
         }
