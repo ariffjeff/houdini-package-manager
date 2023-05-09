@@ -46,8 +46,6 @@ class LocalPackageAdderWidget(QWidget):
         self.versions = versions
         self.tool_widgets = PresetWidgets()
 
-        # LABEL - HOUDINI VERSION DROPDOWN
-
         # BUTTON - ADD PACKAGE
         # button_add_package = SvgPushButton(
         #     self,
