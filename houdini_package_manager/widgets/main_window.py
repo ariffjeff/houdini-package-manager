@@ -65,13 +65,15 @@ class MainWindow(QMainWindow):
         self.statusLabel = self.status_bar.findChild(QLabel)
 
         # TABS
-        tabs = QTabWidget()
+        self.tabs = QTabWidget()
         tab_packages = QWidget()
+        tab_packages.setProperty("id", "package_table")
         tab_add_packages = QWidget()
-        tabs.addTab(tab_packages, "Packages")
-        tabs.addTab(tab_add_packages, "Add Local Plugins")
+        tab_add_packages.setProperty("id", "local_plugin_adder")
+        self.tabs.addTab(tab_packages, "Packages")
+        self.tabs.addTab(tab_add_packages, "Add Local Plugins")
 
-        tabs.setStyleSheet(
+        self.tabs.setStyleSheet(
             """
             QTabWidget::pane {
                 background-color: #303030;
@@ -81,7 +83,8 @@ class MainWindow(QMainWindow):
                 background-color: #303030;
                 color: lightgrey;
                 font-weight: bold;
-                height: 40px;
+                margin-bottom: 20px;
+                padding: 15px 20px;
             }
 
             QTabBar::tab:hover { background-color: #666666; }
@@ -89,7 +92,7 @@ class MainWindow(QMainWindow):
         """
         )
 
-        packages = PackagesWidget(self, self.houdini_data, self.versions)
+        packages = PackagesWidget(self, self.houdini_data, self.versions, self.tabs)
         add_packages = LocalPackageAdderWidget(self, self.houdini_data, self.versions)
 
         # CREATE LAYOUTS
@@ -100,7 +103,7 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout_main_vertical)
 
         # SET LAYOUTS
-        layout_main_vertical.addWidget(tabs)
+        layout_main_vertical.addWidget(self.tabs)
 
         tab_packages.setLayout(packages.layout_main)
         tab_add_packages.setLayout(add_packages.layout_main)

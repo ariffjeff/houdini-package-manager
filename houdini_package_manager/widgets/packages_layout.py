@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QStackedWidget,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -36,11 +37,15 @@ class PackagesWidget(QWidget):
 
         versions (list[str]):
             The list of ordered version numbers that will determine which set of package data is shown in the table.
+
+        tabs (QTabWidget):
+            The parent QTabWidget. Used for switching tabs based on widget interaction in this QWidget.
     """
 
-    def __init__(self, parent, table_data: HoudiniManager, versions: list[str]) -> None:
+    def __init__(self, parent, table_data: HoudiniManager, versions: list[str], tabs: QTabWidget) -> None:
         super().__init__(parent)
 
+        self.parent_tabs = tabs
         self.table_data = table_data
         self.versions = versions
         self.version_labels = ["Houdini " + version for version in self.versions]
@@ -58,6 +63,7 @@ class PackagesWidget(QWidget):
             "./houdini_package_manager/design/icons/add_packages.svg",
             "./houdini_package_manager/design/icons/add_packages_hover.svg",
         )
+        button_add_package.clicked.connect(self.add_packages)
 
         # DROPDOWN - HOUDINI VERSION
         self.combo_version = QComboBox()
@@ -174,6 +180,22 @@ class PackagesWidget(QWidget):
     def table_version(self):
         self._table_version = self.combo_version.currentText().split(" ")[-1]
         return self._table_version
+
+    def add_packages(self) -> None:
+        """
+        Switch to the tab for creating packages from local plugins.
+        Choosing the tab index to switch to is determined by a tab's
+        matching "id" property.
+        """
+
+        target_id = "local_plugin_adder"
+        tab_widget_id = []
+        for i in range(self.parent_tabs.count()):
+            tab_widget_id.append(self.parent_tabs.widget(i).property("id"))
+
+        target_index = tab_widget_id.index(target_id)
+
+        self.parent_tabs.setCurrentIndex(target_index)
 
     def open_path(self) -> None:
         """
