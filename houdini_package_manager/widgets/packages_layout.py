@@ -346,6 +346,14 @@ class PackagesWidget(QWidget):
 
         file_conflicts = self.find_file_conflicts()
         dialog = CheckboxDialog(checkbox_version_options, len(current_package_paths), file_conflicts)
+        dialog.setStyleSheet(
+            """
+            * {
+                background-color: #303030;
+                color: white;
+            }
+        """
+        )
         result = dialog.exec()
         if result == 0:
             return
