@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -26,6 +26,12 @@ class MainWindow(QMainWindow):
     def __init__(self, app: QApplication) -> None:
         super().__init__()
         self.app = app  # declare an app member
+
+        TITLE = "Houdini Package Manager"
+        self.setWindowTitle(TITLE)
+
+        logo = QIcon("./houdini_package_manager/design/icons/hpm.svg")
+        self.setWindowIcon(logo)
 
         self.setMinimumSize(1000, 550)
 
