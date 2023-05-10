@@ -95,7 +95,6 @@ class MainWindow(QMainWindow):
                 background-color: #303030;
                 color: lightgrey;
                 font-weight: bold;
-                margin-bottom: 20px;
                 padding: 15px 20px;
             }
 
