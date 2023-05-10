@@ -8,7 +8,7 @@ run-exe: ## Run exe build
 
 .PHONY: build-exe
 build-exe: ## Build app executable from python
-	@pyinstaller --onefile -w --name="Houdini Package Manager" houdini_package_manager\main.py
+	@pyinstaller --onefile -w --name="Houdini Package Manager" --icon="houdini_package_manager/design/icons/hpm.ico" houdini_package_manager/main.py
 
 .PHONY: install
 install: ## Install the poetry environment and install the pre-commit hooks
