@@ -17,11 +17,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from constants import epath
 from houdini_package_manager.meta.meta_tools import StatusBar, TextColor
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.widgets.packages_table import PackageTableModel
 from houdini_package_manager.wrangle.config_control import HoudiniManager, Package
+from utils import epath
 
 
 class PackagesWidget(QWidget):

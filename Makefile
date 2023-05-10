@@ -11,6 +11,12 @@ build-exe: ## Build app executable from python
 	@pyinstaller -w --name="Houdini_Package_Manager" --icon="resources/icons/hpm.ico" main.py
 	@python -c "import shutil; shutil.copytree('resources', 'dist/Houdini_Package_Manager/resources')"
 
+.PHONY: zip
+zip:
+	@echo "Zipping build"
+	@python -c "import shutil; shutil.make_archive('dist/Houdini_Package_Manager', 'zip', 'dist/Houdini_Package_Manager')"
+	@echo ".zip created"
+
 .PHONY: install
 install: ## Install the poetry environment and install the pre-commit hooks
 	@echo "🚀 Creating virtual environment using pyenv and poetry"
