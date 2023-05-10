@@ -48,6 +48,15 @@ class MainWindow(QMainWindow):
         # get packages and their HOUDINI_PATH data for each installed Houdini version
         self.houdini_data = HoudiniManager()
         self.houdini_data.get_houdini_data()
+
+        # if no package data (PackageCollection object) for a houdini install, then there's no way to know where
+        # the Houdini /packages directory is, so remove the whole houdini install from the data
+        valid_installs = {}
+        for version, hou_install in self.houdini_data.hou_installs.items():
+            if hou_install.packages:
+                valid_installs[version] = hou_install
+        self.houdini_data.hou_installs = valid_installs
+
         self.versions = [version.version.front for version in self.houdini_data.hou_installs.values()]
 
         # MENU BAR

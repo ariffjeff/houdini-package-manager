@@ -168,7 +168,14 @@ class HoudiniInstall:
         # get metadata from hconfig
         self.env_vars = self.run_hconfig()
 
-        self.packages = PackageCollection(Path(self.env_vars["HOUDINI_USER_PREF_DIR"], "packages"), self.env_vars)
+        PREF_DIR_KEY = "HOUDINI_USER_PREF_DIR"
+
+        # if hconfig.exe failed to produce the "HOUDINI_USER_PREF_DIR" env var or any env var data
+        # because maybe the houdini install is corrupted somehow, then no package data can be retrieved.
+        if PREF_DIR_KEY not in self.env_vars:
+            self.packages = None
+        else:
+            self.packages = PackageCollection(Path(self.env_vars[PREF_DIR_KEY], "packages"), self.env_vars)
 
     def run_hconfig(self) -> list:
         """
