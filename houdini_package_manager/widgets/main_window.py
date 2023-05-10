@@ -27,7 +27,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.app = app  # declare an app member
 
-        self.setMinimumSize(1000, 500)
+        self.setMinimumSize(1000, 550)
 
         self.setStyleSheet(
             """
