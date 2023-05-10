@@ -1,4 +1,5 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QLabel,
@@ -9,7 +10,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from houdini_package_manager.meta.meta_tools import StatusBar
 from houdini_package_manager.widgets.add_packages_layout import LocalPackageAdderWidget
+from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.widgets.packages_layout import PackagesWidget
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
@@ -101,6 +104,20 @@ class MainWindow(QMainWindow):
         """
         )
 
+        # SETTINGS BUTTONS
+        button_repo = SvgPushButton(
+            self,
+            28,
+            28,
+            "./houdini_package_manager/design/icons/repo.svg",
+            "./houdini_package_manager/design/icons/repo_hover.svg",
+        )
+        self.REPOSITORY_URL = "https://github.com/ariffjeff/houdini-package-manager"
+        button_repo.clicked.connect(self.open_repo)
+        button_repo.set_hover_status_message(f"Open project repository: {self.REPOSITORY_URL}")
+        button_repo.setToolTip("Open project repository")
+
+        # TAB DATA
         packages = PackagesWidget(self, self.houdini_data, self.versions, self.tabs)
         add_packages = LocalPackageAdderWidget(self, self.houdini_data, self.versions)
 
@@ -112,10 +129,20 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout_main_vertical)
 
         # SET LAYOUTS
+        layout_main_vertical.addWidget(button_repo, Qt.AlignRight)
         layout_main_vertical.addWidget(self.tabs)
 
         tab_packages.setLayout(packages.layout_main)
         tab_add_packages.setLayout(add_packages.layout_main)
+
+    def open_repo(self):
+        """
+        Open the repository for this project.
+        """
+
+        url = QUrl(self.REPOSITORY_URL)
+        QDesktopServices.openUrl(url)
+        StatusBar.message(f"Opened: {self.REPOSITORY_URL}")
 
     def quit_app(self):
         self.app.quit()
