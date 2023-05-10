@@ -1,4 +1,17 @@
+from enum import Enum
+
 from PySide6.QtWidgets import QApplication, QMainWindow, QStatusBar
+
+
+class TextColor(Enum):
+    """
+    Text colors determined by CSS style text color.
+    """
+
+    DEFAULT = "color: white;"
+    ERROR = "color: red;"
+    SUCCESS = "color: green;"
+    WARNING = "color: yellow;"
 
 
 class StatusBar:
@@ -8,22 +21,24 @@ class StatusBar:
     """
 
     @classmethod
-    def message(cls, message: str) -> None:
+    def message(cls, message: str, text_color: TextColor = None) -> None:
         """
         Print a message to the main window's status bar.
 
-        Arguments (str):
-            The string to print to the status bar.
+        Arguments:
+            message (str):
+                The string to print to the status bar.
+
+            text_color (TextColor):
+                The text color enum that sets the color the status bar message text.
+                Default is white.
         """
 
+        if not text_color:
+            text_color = TextColor.DEFAULT
+
         status_bar = cls.status_bar()
-        status_bar.setStyleSheet(
-            """
-            font-family: Lato;
-            font-weight: 100;
-            font-size: 12px;
-            """
-        )
+        status_bar.setStyleSheet(text_color.value)
         status_bar.showMessage(message)
 
     @staticmethod
