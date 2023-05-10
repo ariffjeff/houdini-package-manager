@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from houdini_package_manager.meta.meta_tools import StatusBar
+from houdini_package_manager.meta.meta_tools import StatusBar, TextColor
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.widgets.packages_table import PackageTableModel
 from houdini_package_manager.wrangle.config_control import HoudiniManager, Package
@@ -333,6 +333,10 @@ class PackagesWidget(QWidget):
         Make copies of all the packages in the currently displayed table and put them
         in the target packages directory of the target installed versions of Houdini.
         """
+
+        if len(self.versions) <= 1:
+            StatusBar.message("No other Houdini versions to copy packages to.", TextColor.ERROR)
+            return
 
         checkbox_version_options = list(self.versions)
         checkbox_version_options.remove(self.table_version)
