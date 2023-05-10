@@ -1,0 +1,29 @@
+{
+    "path": "$SIDEFXLABS", 
+    "load_package_once": true,
+    "int": 0,
+    "enable": "houdini_version >= '18.5' and houdini_version < '18.6'", 
+    "version": "18.5.351", 
+    "C": "WRONG-VALUE!!!",
+    "env": [
+        {
+            "sidefxlabs_current_version": "351-embedded",
+            "C": "last"
+        }, 
+        {
+            "SIDEFXLABS": "$HOUDINI_PACKAGE_PATH/../SideFXLabs/351-embedded\\SideFXLabs18.5"
+        }, 
+        {
+            "PATH": {
+                "method": "prepend", 
+                "value": [
+                    "$SIDEFXLABS/bin",
+                    "test"
+                ]
+            }
+        }
+    ],
+    "a": "first",
+    "other": "$A and $B, ($NOVAR) & $C",
+    "B": "middle"
+}

@@ -1,0 +1,6 @@
+{
+  "var_one": "$var_two",
+  "var_two": "$var_one",
+  "var_three": "something",
+  "other": "$var_three"
+}

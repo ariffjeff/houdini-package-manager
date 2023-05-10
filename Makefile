@@ -1,3 +1,15 @@
+.PHONY: run
+run: ## main app
+	@python .\houdini_package_manager\main.py
+
+.PHONY: run-exe
+run-exe: ## Run exe build
+	.\dist\Houdini Package Manager.exe
+
+.PHONY: build-exe
+build-exe: ## Build app executable from python
+	@pyinstaller --onefile -w --name="Houdini Package Manager" houdini_package_manager\main.py
+
 .PHONY: install
 install: ## Install the poetry environment and install the pre-commit hooks
 	@echo "🚀 Creating virtual environment using pyenv and poetry"

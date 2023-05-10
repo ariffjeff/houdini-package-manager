@@ -1,0 +1,8 @@
+{
+	"env": [
+		{
+			"MOPS": "C:\Users\ariff\Desktop\dev\DCCs\houdini\plugins\MOPS-master"
+		},
+	],
+	"path": "$MOPS"
+}

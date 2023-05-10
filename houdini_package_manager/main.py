@@ -1,11 +1,14 @@
 # for processing cli args
 import sys
 
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
+
+from houdini_package_manager.widgets.main_window import MainWindow
 
 
 def main(start: bool = True, headless: bool = False) -> QApplication:
-    """Start package manager app
+    """Start the Houdini package manager app
 
     Create and open the Houdini package manager window
 
@@ -20,8 +23,11 @@ def main(start: bool = True, headless: bool = False) -> QApplication:
     app = QApplication(sys.argv)
 
     TITLE = "Houdini Package Manager"
-    window = QWidget()
+    window = MainWindow(app)
     window.setWindowTitle(TITLE)
+
+    logo = QIcon("./houdini_package_manager/design/icons/hpm.svg")
+    window.setWindowIcon(logo)
 
     if not headless:
         window.show()
