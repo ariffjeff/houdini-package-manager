@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from constants import epath
 from houdini_package_manager.meta.meta_tools import StatusBar, TextColor
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniManager
@@ -106,8 +107,8 @@ class LocalPackageAdderWidget(QWidget):
             self,
             120,
             36,
-            "./houdini_package_manager/design/icons/add_packages_confirm.svg",
-            "./houdini_package_manager/design/icons/add_packages_confirm_hover.svg",
+            epath("resources/icons/add_packages_confirm.svg"),
+            epath("resources/icons/add_packages_confirm_hover.svg"),
         )
         button_add_package.set_hover_status_message(
             "Create packages for the selected plugins for the selected Houdini versions."
@@ -485,8 +486,8 @@ class PluginListItem(QWidget):
             self,
             16,
             16,
-            "./houdini_package_manager/design/icons/remove.svg",
-            "./houdini_package_manager/design/icons/remove_hover.svg",
+            epath("resources/icons/remove.svg"),
+            epath("resources/icons/remove_hover.svg"),
         )
         self.button_remove.set_hover_status_message("Remove item.")
         self.button_remove.setToolTip("Remove item")
@@ -558,8 +559,8 @@ class PresetWidgets:
         add_items = SvgPushButton(
             parent,
             *cls.size_long.toTuple(),
-            "./houdini_package_manager/design/icons/add.svg",
-            "./houdini_package_manager/design/icons/add_hover.svg",
+            epath("resources/icons/add.svg"),
+            epath("resources/icons/add_hover.svg"),
         )
         add_items.set_hover_status_message("Select plugins.")
         add_items.setToolTip("Select plugins")
@@ -570,8 +571,8 @@ class PresetWidgets:
         invert_selection = SvgPushButton(
             parent,
             *cls.size_default.toTuple(),
-            "./houdini_package_manager/design/icons/invert_selection.svg",
-            "./houdini_package_manager/design/icons/invert_selection_hover.svg",
+            epath("resources/icons/invert_selection.svg"),
+            epath("resources/icons/invert_selection_hover.svg"),
         )
         invert_selection.set_hover_status_message("Invert selection.")
         invert_selection.setToolTip("Invert selection")
@@ -582,8 +583,8 @@ class PresetWidgets:
         clear_selection = SvgPushButton(
             parent,
             *cls.size_default.toTuple(),
-            "./houdini_package_manager/design/icons/clear_selection.svg",
-            "./houdini_package_manager/design/icons/clear_selection_hover.svg",
+            epath("resources/icons/clear_selection.svg"),
+            epath("resources/icons/clear_selection_hover.svg"),
         )
         clear_selection.set_hover_status_message("Clear selection.")
         clear_selection.setToolTip("Clear selection")
@@ -594,8 +595,8 @@ class PresetWidgets:
         remove_item = SvgPushButton(
             parent,
             *cls.size_default.toTuple(),
-            "./houdini_package_manager/design/icons/remove.svg",
-            "./houdini_package_manager/design/icons/remove_hover.svg",
+            epath("resources/icons/remove.svg"),
+            epath("resources/icons/remove_hover.svg"),
         )
         remove_item.set_hover_status_message("Remove selected items.")
         remove_item.setToolTip("Remove selected items")
@@ -606,8 +607,8 @@ class PresetWidgets:
         remove_all_items = SvgPushButton(
             parent,
             *cls.size_default.toTuple(),
-            "./houdini_package_manager/design/icons/remove_all_items.svg",
-            "./houdini_package_manager/design/icons/remove_all_items_hover.svg",
+            epath("resources/icons/remove_all_items.svg"),
+            epath("resources/icons/remove_all_items_hover.svg"),
         )
         remove_all_items.set_hover_status_message("Remove all items.")
         remove_all_items.setToolTip("Remove all items")

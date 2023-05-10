@@ -1,14 +1,15 @@
 .PHONY: run
 run: ## main app
-	@python .\houdini_package_manager\main.py
+	@python main.py
 
 .PHONY: run-exe
 run-exe: ## Run exe build
-	.\dist\Houdini Package Manager.exe
+	.\dist\Houdini_Package_Manager\Houdini_Package_Manager.exe
 
 .PHONY: build-exe
 build-exe: ## Build app executable from python
-	@pyinstaller --onefile -w --name="Houdini Package Manager" --icon="houdini_package_manager/design/icons/hpm.ico" houdini_package_manager/main.py
+	@pyinstaller -w --name="Houdini_Package_Manager" --icon="resources/icons/hpm.ico" main.py
+	@python -c "import shutil; shutil.copytree('resources', 'dist/Houdini_Package_Manager/resources')"
 
 .PHONY: install
 install: ## Install the poetry environment and install the pre-commit hooks
