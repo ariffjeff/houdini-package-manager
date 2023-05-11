@@ -17,7 +17,7 @@ class HoudiniManager:
             The directories containing the install locations of different Houdini versions.
             The keys are the version numbers. The values are the directories.
 
-        hou_installs (Dict[HoudiniInstall]):
+        hou_installs (Dict[str, HoudiniInstall]):
             A dictionary of all the installed versions of Houdini and their data.
     """
 
@@ -268,7 +268,7 @@ class PackageCollection:
         packages_directory (str):
             The directory containing the JSON packages that Houdini references to find plugins.
 
-        env_vars (Dict[str]):
+        env_vars (Dict[str, str]):
             The environment variables needed to help resolve variables found in package configuration
             files. They are aggregated by hconfig
 
@@ -284,7 +284,7 @@ class PackageCollection:
             version of Houdini.
     """
 
-    def __init__(self, packages_directory: Path = None, env_vars: Dict[str] = None, get_data=True) -> None:
+    def __init__(self, packages_directory: Path = None, env_vars: Dict[str, str] = None, get_data=True) -> None:
         if packages_directory and not isinstance(packages_directory, Path):
             raise TypeError("directory must be a pathlib.Path object.")
 
@@ -359,7 +359,9 @@ class PackageCollection:
 
 
 class Package:
-    def __init__(self, config_path: Path, hconfig_plugin_paths: List[Path] = None, env_vars: Dict[str] = None) -> None:
+    def __init__(
+        self, config_path: Path, hconfig_plugin_paths: List[Path] = None, env_vars: Dict[str, str] = None
+    ) -> None:
         """
         A single JSON package file and its configuration and related data.
 
@@ -374,7 +376,7 @@ class Package:
                 The list of paths extracted from the HOUDINI_PATH environment variable produced by hconfig.
                 These paths are associated with all packages for an installed version of Houdini.
 
-            env_vars (Dict[str]):
+            env_vars (Dict[str, str]):
                 The environment variables that apply to all the packages for an
                 installed Houdini version.
         """

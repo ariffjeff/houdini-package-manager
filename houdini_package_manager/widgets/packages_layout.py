@@ -383,7 +383,7 @@ class PackagesWidget(QWidget):
         for version in target_versions:
             self.refresh_table(version, status=False)
 
-    def find_file_conflicts(self) -> Dict[List[Path]]:
+    def find_file_conflicts(self) -> Dict[str, List[Path]]:
         """
         Search for file conflicts in other Houdini packages directories by comparing
         all the Package configs in the current houdini version with all the other houdini version Package configs.
@@ -435,7 +435,7 @@ class PackagesWidget(QWidget):
         label = label.split(" ")[-1]
         return label
 
-    def get_packages(self, versions: Union[str, List[str]] = None) -> Dict[Package]:
+    def get_packages(self, versions: Union[str, List[str]] = None) -> Dict[str, Package]:
         """
         Return a dict of the package data for the all the tables.
         The key is the Houdini version number.
