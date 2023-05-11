@@ -324,6 +324,10 @@ class PackageCollection:
                 "directory is not set to any path. Make sure env_vars contains data as well if needed."
             )
 
+        if not self.packages_directory.exists():
+            self.packages_directory.mkdir(parents=True)
+            print(f"Created missing packages folder: {self.packages_directory}")
+
         # add the package directory as a needed environment variable
         # which isn't automatically added by hconfig for some reason.
         HOUDINI_PACKAGE_PATH = "HOUDINI_PACKAGE_PATH"
