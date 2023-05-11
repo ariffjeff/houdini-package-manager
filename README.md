@@ -17,6 +17,12 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 - **PyPI repository**: <https://pypi.org/project/houdini-package-manager>
 
 
+## Install
+1. Download the latest version from https://houpm.com
+2. Unzip and store the folder anywhere you want.
+3. Create a shortcut of the Houdini_Package_Manager-x.y.z.exe file from the folder.
+4. Now you can run HPM from the shortcut, that's all there is to it!
+
 ## Building the project yourself
 1. Make your code changes.
 2. Version bump the project with `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate.
