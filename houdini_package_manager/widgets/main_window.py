@@ -1,7 +1,8 @@
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QStatusBar,
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import StatusBar
+from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.add_packages_layout import LocalPackageAdderWidget
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.widgets.packages_layout import PackagesWidget
@@ -26,7 +28,12 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.app = app  # declare an app member
 
-        self.setMinimumSize(1000, 500)
+        TITLE = "Houdini Package Manager"
+        self.setWindowTitle(TITLE)
+
+        self.setWindowIcon(QIcon(epath("resources/icons/hpm_icon.svg", True)))
+
+        self.setMinimumSize(1000, 550)
 
         self.setStyleSheet(
             """
@@ -76,6 +83,8 @@ class MainWindow(QMainWindow):
         self.statusLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.statusLabel = self.status_bar.findChild(QLabel)
 
+        logo = SvgPushButton(self, 56, 28, epath("resources/icons/hpm.svg"))
+
         # TABS
         self.tabs = QTabWidget()
         tab_packages = QWidget()
@@ -95,7 +104,6 @@ class MainWindow(QMainWindow):
                 background-color: #303030;
                 color: lightgrey;
                 font-weight: bold;
-                margin-bottom: 20px;
                 padding: 15px 20px;
             }
 
@@ -105,17 +113,42 @@ class MainWindow(QMainWindow):
         )
 
         # SETTINGS BUTTONS
+        self.REPOSITORY_URL = "https://github.com/ariffjeff/houdini-package-manager"
+        self.REPOSITORY_ISSUES_URL = "https://github.com/ariffjeff/houdini-package-manager/issues"
+        self.PACKAGES_DOCS_URL = "https://www.sidefx.com/docs/houdini/ref/plugins.html"
+
         button_repo = SvgPushButton(
             self,
             28,
             28,
-            "./houdini_package_manager/design/icons/repo.svg",
-            "./houdini_package_manager/design/icons/repo_hover.svg",
+            epath("resources/icons/repo.svg"),
+            epath("resources/icons/repo_hover.svg"),
         )
-        self.REPOSITORY_URL = "https://github.com/ariffjeff/houdini-package-manager"
-        button_repo.clicked.connect(self.open_repo)
+        button_repo.clicked.connect(lambda: self.open_url(self.REPOSITORY_URL))
         button_repo.set_hover_status_message(f"Open project repository: {self.REPOSITORY_URL}")
-        button_repo.setToolTip("Open project repository")
+        button_repo.setToolTip("Project repository")
+
+        button_bug_report = SvgPushButton(
+            self,
+            28,
+            28,
+            epath("resources/icons/bug.svg"),
+            epath("resources/icons/bug_hover.svg"),
+        )
+        button_bug_report.clicked.connect(lambda: self.open_url(self.REPOSITORY_ISSUES_URL))
+        button_bug_report.set_hover_status_message(f"Open feature request/bug report: {self.REPOSITORY_ISSUES_URL}")
+        button_bug_report.setToolTip("Feature request/bug report")
+
+        button_pkg_docs = SvgPushButton(
+            self,
+            24,
+            28,
+            epath("resources/icons/docs.svg"),
+            epath("resources/icons/docs_hover.svg"),
+        )
+        button_pkg_docs.clicked.connect(lambda: self.open_url(self.PACKAGES_DOCS_URL))
+        button_pkg_docs.set_hover_status_message(f"Open Houdini packages docs: {self.PACKAGES_DOCS_URL}")
+        button_pkg_docs.setToolTip("Houdini packages docs")
 
         # TAB DATA
         packages = PackagesWidget(self, self.houdini_data, self.versions, self.tabs)
@@ -126,23 +159,32 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         layout_main_vertical = QVBoxLayout()  # includes the tabs
-        central_widget.setLayout(layout_main_vertical)
+        layout_main_header = QHBoxLayout()
+        layout_urls = QHBoxLayout()
 
         # SET LAYOUTS
-        layout_main_vertical.addWidget(button_repo, Qt.AlignRight)
+        central_widget.setLayout(layout_main_vertical)
+
+        layout_main_vertical.addLayout(layout_main_header)
+        layout_main_header.addWidget(logo)
+        layout_main_header.addLayout(layout_urls)
+        layout_urls.addWidget(button_repo)
+        layout_urls.addWidget(button_bug_report)
+        layout_urls.addWidget(button_pkg_docs)
+        layout_urls.setAlignment(Qt.AlignRight)
         layout_main_vertical.addWidget(self.tabs)
 
         tab_packages.setLayout(packages.layout_main)
         tab_add_packages.setLayout(add_packages.layout_main)
 
-    def open_repo(self):
+    def open_url(self, url: str):
         """
         Open the repository for this project.
         """
 
-        url = QUrl(self.REPOSITORY_URL)
+        url = QUrl(url)
         QDesktopServices.openUrl(url)
-        StatusBar.message(f"Opened: {self.REPOSITORY_URL}")
+        StatusBar.message(f"Opened: {url}")
 
     def quit_app(self):
         self.app.quit()

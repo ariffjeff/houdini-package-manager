@@ -16,7 +16,7 @@
       "name": "Python: main.py",
       "type": "python",
       "request": "launch",
-      "program": "houdini_package_manager/main.py",
+      "program": "main.py",
       "console": "integratedTerminal",
       "justMyCode": true
     }

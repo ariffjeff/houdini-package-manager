@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import StatusBar
+from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
 
@@ -207,8 +208,8 @@ class CellWidgets:
             parent,
             32,
             29,
-            "./houdini_package_manager/design/icons/warning.svg",
-            "./houdini_package_manager/design/icons/warning_hover.svg",
+            epath("resources/icons/warning.svg"),
+            epath("resources/icons/warning_hover.svg"),
         )
 
         pkg_name = parent._current_package(row).name
@@ -295,8 +296,8 @@ class CellWidgets:
             parent,
             23,
             29,
-            "./houdini_package_manager/design/icons/file.svg",
-            "./houdini_package_manager/design/icons/file_hover.svg",
+            epath("resources/icons/file.svg"),
+            epath("resources/icons/file_hover.svg"),
         )
         config_button.setToolTip(str(value))
         config_button.setProperty("path", value)
