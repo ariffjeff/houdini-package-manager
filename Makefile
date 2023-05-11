@@ -7,15 +7,24 @@ run-exe: ## Run exe build
 	.\dist\Houdini_Package_Manager\Houdini_Package_Manager.exe
 
 .PHONY: build-exe
+build-exe: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
+build-exe: NAME := Houdini_Package_Manager
+build-exe: EXECUTABLE := $(NAME)-$(VERSION)
+
 build-exe: ## Build app executable from python
-	@pyinstaller -w --name="Houdini_Package_Manager" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
-	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/Houdini_Package_Manager/resources')"
+	@pyinstaller -w --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
+	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources')"
+	@echo "Built: ${EXECUTABLE}" 
 
 .PHONY: zip
+zip: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
+zip: NAME := Houdini_Package_Manager
+zip: FILENAME := $(NAME)-$(VERSION)
+
 zip:
-	@echo "Zipping build"
-	@python -c "import shutil; shutil.make_archive('dist/Houdini_Package_Manager', 'zip', 'dist/Houdini_Package_Manager')"
-	@echo ".zip created"
+	@echo "Zipping build: ${FILENAME}"
+	@python -c "import shutil; shutil.make_archive('dist/${FILENAME}', 'zip', 'dist/${FILENAME}')"
+	@echo ".zip created: ${FILENAME}"
 
 .PHONY: install
 install: ## Install the poetry environment and install the pre-commit hooks
