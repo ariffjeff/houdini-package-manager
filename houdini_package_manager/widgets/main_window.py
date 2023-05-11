@@ -12,11 +12,11 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import StatusBar
+from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.add_packages_layout import LocalPackageAdderWidget
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.widgets.packages_layout import PackagesWidget
 from houdini_package_manager.wrangle.config_control import HoudiniManager
-from utils import epath
 
 
 class MainWindow(QMainWindow):

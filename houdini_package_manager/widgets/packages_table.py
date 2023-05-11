@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import StatusBar
+from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
-from utils import epath
 
 
 class PackageTableModel(QTableWidget):

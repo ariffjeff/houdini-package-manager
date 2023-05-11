@@ -8,8 +8,8 @@ run-exe: ## Run exe build
 
 .PHONY: build-exe
 build-exe: ## Build app executable from python
-	@pyinstaller -w --name="Houdini_Package_Manager" --icon="resources/icons/hpm.ico" main.py
-	@python -c "import shutil; shutil.copytree('resources', 'dist/Houdini_Package_Manager/resources')"
+	@pyinstaller --name="Houdini_Package_Manager" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
+	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/Houdini_Package_Manager/resources')"
 
 .PHONY: zip
 zip:
