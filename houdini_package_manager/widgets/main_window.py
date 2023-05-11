@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from houdini_package_manager import __version__
 from houdini_package_manager.meta.meta_tools import StatusBar
 from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.add_packages_layout import LocalPackageAdderWidget
@@ -28,7 +29,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.app = app  # declare an app member
 
-        TITLE = "Houdini Package Manager"
+        TITLE = f"Houdini Package Manager {__version__}"
         self.setWindowTitle(TITLE)
 
         self.setWindowIcon(QIcon(epath("resources/icons/hpm_icon.svg", True)))

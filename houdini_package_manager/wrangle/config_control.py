@@ -3,7 +3,6 @@ import os
 import platform
 import re
 import subprocess
-import winreg
 from itertools import takewhile
 from pathlib import Path
 from typing import Union
@@ -88,6 +87,8 @@ class HoudiniManager:
         Get the values of a Windows registry key.
         Paths are converted to pathlib.Path objects.
         """
+
+        import winreg
 
         try:
             # Open the registry key
