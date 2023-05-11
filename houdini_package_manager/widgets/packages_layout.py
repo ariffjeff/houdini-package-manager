@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from typing import Union
+from typing import Dict, List, Union
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
@@ -36,14 +36,14 @@ class PackagesWidget(QWidget):
             The data set to populate the QWidgetTable. Data can consist of multiple sets of packages
             for different installed versions of Houdini.
 
-        versions (list[str]):
+        versions (List[str]):
             The list of ordered version numbers that will determine which set of package data is shown in the table.
 
         tabs (QTabWidget):
             The parent QTabWidget. Used for switching tabs based on widget interaction in this QWidget.
     """
 
-    def __init__(self, parent, table_data: HoudiniManager, versions: list[str], tabs: QTabWidget) -> None:
+    def __init__(self, parent, table_data: HoudiniManager, versions: List[str], tabs: QTabWidget) -> None:
         super().__init__(parent)
 
         self.parent_tabs = tabs
@@ -383,7 +383,7 @@ class PackagesWidget(QWidget):
         for version in target_versions:
             self.refresh_table(version, status=False)
 
-    def find_file_conflicts(self) -> dict[list[Path]]:
+    def find_file_conflicts(self) -> Dict[List[Path]]:
         """
         Search for file conflicts in other Houdini packages directories by comparing
         all the Package configs in the current houdini version with all the other houdini version Package configs.
@@ -415,7 +415,7 @@ class PackagesWidget(QWidget):
 
         return file_conflicts
 
-    def current_packages(self) -> list[Package]:
+    def current_packages(self) -> List[Package]:
         """
         Return a list of the Package objects assosciated with the currently loaded table.
         """
@@ -435,14 +435,14 @@ class PackagesWidget(QWidget):
         label = label.split(" ")[-1]
         return label
 
-    def get_packages(self, versions: Union[str, list[str]] = None) -> dict[Package]:
+    def get_packages(self, versions: Union[str, List[str]] = None) -> Dict[Package]:
         """
         Return a dict of the package data for the all the tables.
         The key is the Houdini version number.
         The value is the Package object.
 
         Arguments:
-            versions (Union(str, list[str])):
+            versions (Union(str, List[str])):
                 The Houdini versions to get packages from.
                 If no version is provided, the packages for all Houdini versions will be returned.
         """
@@ -533,7 +533,7 @@ class CheckboxDialog(QDialog):
         # Return a list of tuples containing the checkbox labels and whether they are checked
         return [checkbox.isChecked() for checkbox in self.checkboxes]
 
-    def enabled_checkboxes(self) -> list[str]:
+    def enabled_checkboxes(self) -> List[str]:
         """
         Return a list of the enabled checkbox labels.
         """

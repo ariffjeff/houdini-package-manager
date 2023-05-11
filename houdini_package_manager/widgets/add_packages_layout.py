@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import List
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
@@ -39,11 +40,11 @@ class LocalPackageAdderWidget(QWidget):
             The data set to populate the QWidgetTable. Data can consist of multiple sets of packages
             for different installed versions of Houdini.
 
-        versions (list[str]):
+        versions (List[str]):
             The list of ordered version numbers that will determine which set of package data is shown in the table.
     """
 
-    def __init__(self, parent, table_data: HoudiniManager, versions: list[str]) -> None:
+    def __init__(self, parent, table_data: HoudiniManager, versions: List[str]) -> None:
         super().__init__(parent)
 
         self.table_data = table_data
@@ -185,7 +186,7 @@ class LocalPackageAdderWidget(QWidget):
 
         self.label_file_overwrite.setText(f"{existing_paths} existing config files will be overwritten.")
 
-    def _selected_versions(self) -> list[str]:
+    def _selected_versions(self) -> List[str]:
         """
         Return a list of the selected houdini version numbers from the version list.
         """
@@ -198,7 +199,7 @@ class LocalPackageAdderWidget(QWidget):
 
         return widgets
 
-    def _create_config_data(self, plugin_paths: list[Path]) -> dict:
+    def _create_config_data(self, plugin_paths: List[Path]) -> dict:
         """
         Create the structured config data from a package template for each plugin path.
         """
