@@ -3,8 +3,12 @@ run: ## main app
 	@python main.py
 
 .PHONY: run-exe
+run-exe: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
+run-exe: NAME := Houdini_Package_Manager
+run-exe: EXECUTABLE := $(NAME)-$(VERSION)
+
 run-exe: ## Run exe build
-	.\dist\Houdini_Package_Manager\Houdini_Package_Manager.exe
+	.\dist\${EXECUTABLE}\${EXECUTABLE}.exe
 
 .PHONY: build-exe
 build-exe: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")

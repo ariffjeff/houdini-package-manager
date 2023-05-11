@@ -5,7 +5,7 @@ import re
 import subprocess
 from itertools import takewhile
 from pathlib import Path
-from typing import Union
+from typing import Dict, List, Union
 
 
 class HoudiniManager:
@@ -17,7 +17,7 @@ class HoudiniManager:
             The directories containing the install locations of different Houdini versions.
             The keys are the version numbers. The values are the directories.
 
-        hou_installs (Dict[HoudiniInstall]):
+        hou_installs (Dict[str, HoudiniInstall]):
             A dictionary of all the installed versions of Houdini and their data.
     """
 
@@ -28,13 +28,13 @@ class HoudiniManager:
 
         self.hou_installs = {}
 
-    def get_houdini_data(self, versions: Union[str, list[str]] = None) -> None:
+    def get_houdini_data(self, versions: Union[str, List[str]] = None) -> None:
         """
         Get the package data and relevant meta data for each installed version of Houdini.
         If an install has no package data then the config will simply be empty.
 
         Arguments:
-            version (Union[str, list[str]]):
+            version (Union[str, List[str]]):
                 Get all data for only the given Houdini version(s). If the data already exists
                 for a version then it is replaced by a new set of data.
         """
@@ -220,7 +220,7 @@ class HoudiniInstall:
                 data.append(list(pkg.table_model.values()))
         return data
 
-    def get_package_warnings(self) -> list[str]:
+    def get_package_warnings(self) -> List[str]:
         """
         Get the warnings for each package.
         """
@@ -230,7 +230,7 @@ class HoudiniInstall:
             data[name] = pkg.warnings
         return data
 
-    def get_labels(self) -> list[str]:
+    def get_labels(self) -> List[str]:
         for _, pkg in self.packages.configs.items():
             return list(pkg.table_model.keys())
 
@@ -268,7 +268,7 @@ class PackageCollection:
         packages_directory (str):
             The directory containing the JSON packages that Houdini references to find plugins.
 
-        env_vars (dict[str]):
+        env_vars (Dict[str, str]):
             The environment variables needed to help resolve variables found in package configuration
             files. They are aggregated by hconfig
 
@@ -284,7 +284,7 @@ class PackageCollection:
             version of Houdini.
     """
 
-    def __init__(self, packages_directory: Path = None, env_vars: dict[str] = None, get_data=True) -> None:
+    def __init__(self, packages_directory: Path = None, env_vars: Dict[str, str] = None, get_data=True) -> None:
         if packages_directory and not isinstance(packages_directory, Path):
             raise TypeError("directory must be a pathlib.Path object.")
 
@@ -324,6 +324,10 @@ class PackageCollection:
                 "directory is not set to any path. Make sure env_vars contains data as well if needed."
             )
 
+        if not self.packages_directory.exists():
+            self.packages_directory.mkdir(parents=True)
+            print(f"Created missing packages folder: {self.packages_directory}")
+
         # add the package directory as a needed environment variable
         # which isn't automatically added by hconfig for some reason.
         HOUDINI_PACKAGE_PATH = "HOUDINI_PACKAGE_PATH"
@@ -339,7 +343,7 @@ class PackageCollection:
                 Path(self.packages_directory, file), self.hconfig_plugin_paths, self.env_vars
             )
 
-    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> list[Path]:
+    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> List[Path]:
         """
         Extract all the paths from the value of the HOUDINI_PATH environment variable.
         The paths are the directories that Houdini will search for the plugin data (HDAs/OTLs).
@@ -355,7 +359,9 @@ class PackageCollection:
 
 
 class Package:
-    def __init__(self, config_path: Path, hconfig_plugin_paths: list[Path] = None, env_vars: dict[str] = None) -> None:
+    def __init__(
+        self, config_path: Path, hconfig_plugin_paths: List[Path] = None, env_vars: Dict[str, str] = None
+    ) -> None:
         """
         A single JSON package file and its configuration and related data.
 
@@ -366,11 +372,11 @@ class Package:
             config_path (pathlib.Path):
                 The file path of the package .json file.
 
-            hconfig_plugin_paths (list[str]):
+            hconfig_plugin_paths (List[str]):
                 The list of paths extracted from the HOUDINI_PATH environment variable produced by hconfig.
                 These paths are associated with all packages for an installed version of Houdini.
 
-            env_vars (dict[str]):
+            env_vars (Dict[str, str]):
                 The environment variables that apply to all the packages for an
                 installed Houdini version.
         """
@@ -587,7 +593,7 @@ class Package:
             flat.append([*prefix, data])
         return flat
 
-    def _standard_paths(self, data: list[list]) -> list[list]:
+    def _standard_paths(self, data: List[list]) -> List[list]:
         """
         Replace invalid double backslashes in paths with valid forward slashes.
         This ensures future regex operations do not encounter errors parsing escape characters.
@@ -600,7 +606,7 @@ class Package:
                 data[i][-1] = value
         return data
 
-    def _split_indexes(self, nums: list[int], split_num: int) -> list[list[int]]:
+    def _split_indexes(self, nums: List[int], split_num: int) -> List[List[int]]:
         index = len(nums)
         for i, num in enumerate(nums):
             if num > split_num:
@@ -611,7 +617,7 @@ class Package:
         end = nums[index:]
         return [start, end]
 
-    def _replace_var_calls(self, data: list[list], var_calls: list, potential_var_names: list) -> list[list]:
+    def _replace_var_calls(self, data: List[list], var_calls: list, potential_var_names: list) -> List[list]:
         """
         Continuously replace variable calls with their respective values until no variable calls remain.
         Only replaces var calls if the variable exists to replace it with.
@@ -662,7 +668,7 @@ class Package:
 
         return data
 
-    def _resolve_vars(self, config: list[list]) -> None:
+    def _resolve_vars(self, config: List[list]) -> None:
         """
         Replace every variable call in a package config with the variable's value.
 
@@ -715,7 +721,7 @@ class Package:
 
         return config
 
-    def _find_plugin_paths(self, paths: list[list]) -> list[str]:
+    def _find_plugin_paths(self, paths: List[list]) -> List[str]:
         """
         Find all the plugin paths in the package.
         Returns a list of all the valid paths.
