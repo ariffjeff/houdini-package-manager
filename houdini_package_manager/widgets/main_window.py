@@ -114,9 +114,21 @@ class MainWindow(QMainWindow):
         )
 
         # SETTINGS BUTTONS
+        self.DOWNLOAD_URL = "https://houpm.com"
         self.REPOSITORY_URL = "https://github.com/ariffjeff/houdini-package-manager"
         self.REPOSITORY_ISSUES_URL = "https://github.com/ariffjeff/houdini-package-manager/issues"
         self.PACKAGES_DOCS_URL = "https://www.sidefx.com/docs/houdini/ref/plugins.html"
+
+        button_houpm = SvgPushButton(
+            self,
+            56,
+            28,
+            epath("resources/icons/hpm_grey.svg"),
+            epath("resources/icons/hpm_grey_hover.svg"),
+        )
+        button_houpm.clicked.connect(lambda: self.open_url(self.DOWNLOAD_URL))
+        button_houpm.set_hover_status_message(f"Open project download site: {self.DOWNLOAD_URL}")
+        button_houpm.setToolTip("Project download site")
 
         button_repo = SvgPushButton(
             self,
@@ -169,6 +181,7 @@ class MainWindow(QMainWindow):
         layout_main_vertical.addLayout(layout_main_header)
         layout_main_header.addWidget(logo)
         layout_main_header.addLayout(layout_urls)
+        layout_urls.addWidget(button_houpm)
         layout_urls.addWidget(button_repo)
         layout_urls.addWidget(button_bug_report)
         layout_urls.addWidget(button_pkg_docs)
