@@ -475,12 +475,13 @@ class PluginListItem(QWidget):
     Includes a checkbox (with the path name), the path, and a remove-item button.
     """
 
-    def __init__(self, parent: QWidget, path: Path, label_file_overwrite: QLabel) -> None:
-        super().__init__(parent)
+    def __init__(self, listbox: PluginListBox, path: Path, label_file_overwrite: QLabel) -> None:
+        super().__init__(listbox)
 
         if not isinstance(path, Path):
             raise TypeError("path must be a pathlib Path.")
 
+        self.listbox = listbox
         self.label_file_overwrite = label_file_overwrite
 
         self.button_remove = SvgPushButton(
@@ -527,6 +528,11 @@ class PluginListItem(QWidget):
         # manually disable the toggle instead, which has the same effect in this case.
         self.checkbox.setChecked(False)
         self.label_file_overwrite.property("update")()
+
+        # if there's only one item left, then it must be this one (self) that's getting deleted,
+        # so change stack back to default
+        if self.listbox.layout_plugin_list.count() == 1:
+            self.listbox.setCurrentIndex(0)
 
 
 class SelectPluginsButton(QPushButton):
