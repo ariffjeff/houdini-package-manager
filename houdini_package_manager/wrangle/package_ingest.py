@@ -2,6 +2,7 @@ import contextlib
 import os
 import re
 import subprocess
+from pathlib import Path
 
 import win32api
 
@@ -47,7 +48,7 @@ def fix_path(path: list[str]):
     return path
 
 
-def setup_houdini_environment(houdini_install_dir: str, quiet_mode=True) -> None:
+def setup_houdini_environment(houdini_install_dir: Path) -> None:
     """
     Sets up the environment for Houdini by running the "houdini_setup" bash script found in the given Houdini install directory.
     houdini_setup runs the OS relevant bash or csh script that does all the setup.
@@ -58,11 +59,8 @@ def setup_houdini_environment(houdini_install_dir: str, quiet_mode=True) -> None
     inserting the Houdini bin directory at the beginning.
 
     Args:
-        houdini_setup_path (str): The Houdini install directory. AKA $HFS.
-
-        quiet_mode (bool, optional): If set to False, the function will not run in quiet
-                                      mode without displaying any messages. Default
-                                      is True.
+        houdini_setup_path (str):
+            The Houdini install directory. AKA $HFS.
 
     Environment Variables Set:
         HFS: The Houdini installation directory.
@@ -83,6 +81,12 @@ def setup_houdini_environment(houdini_install_dir: str, quiet_mode=True) -> None
         HIH: The Houdini user directory.
         HIS: The Houdini "houdini" directory (deprecated).
     """
+
+    if not isinstance(houdini_install_dir, Path):
+        raise TypeError("houdini_install_dir must be a pathlib.Path object.")
+
+    if not houdini_install_dir.exists():
+        raise ValueError(f"{houdini_install_dir} does not exist.")
 
     if not is_git_bash_in_path_env():
         raise BashNotFoundError()
@@ -124,11 +128,8 @@ def setup_houdini_environment(houdini_install_dir: str, quiet_mode=True) -> None
         raise BashNotFoundError() from e
 
 
-def enableHouModule() -> None:
-    """
-    Set up the environment so that "import hou" works.
-    """
-
+def enableHouModule():
+    """Set up the environment so that "import hou" works."""
     import os
     import sys
 
@@ -165,13 +166,16 @@ def enableHouModule() -> None:
 
 
 def main():
+    houdini_version = "19.5.569"
+    houdini_install_dir = Path(f"C:/Program Files/Side Effects Software/Houdini {houdini_version}")
+
     try:
         pass
     except ImportError:
-        setup_houdini_environment("C:\\Program Files\\Side Effects Software\\Houdini 19.5.569", False)
+        setup_houdini_environment(houdini_install_dir)
         enableHouModule()
 
-    print("h")
+    print("hou imported.")
 
 
 if __name__ == "__main__":
