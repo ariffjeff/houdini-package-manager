@@ -16,6 +16,11 @@ build-exe: NAME := Houdini_Package_Manager
 build-exe: EXECUTABLE := $(NAME)-$(VERSION)
 
 build-exe: ## Build app executable from python
+ifeq ($(TEST), )
+	pytest tests/
+else
+	@echo "Skipping pytests."
+endif
 	@pyinstaller -w --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
 	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources')"
 	@echo "Built: ${EXECUTABLE}" 

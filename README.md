@@ -36,6 +36,7 @@ Note: This project was primarily tested with Python 3.9.10.
         - Both `pyproject.toml` and `__version__.py` will be updated automatically due to [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) being installed in this project.
     1. Commit the version bump. The commit message should be the version number (e.g. `1.3.2`)
 1. Do `make build-exe` to build the project. It will appear in `dist/`
+    - The pytests are run automatically. Skip them with `make build-exe TEST=0`
     - `resources/` is copied over to the build folder automatically for you so you don't have to worry about it.
     - The build folder and .exe name is determined by the version number set by the result of `poetry version ...` (referenced in the Makefile)
 1. Do `make zip` to make a .zip of the build in `dist/`
