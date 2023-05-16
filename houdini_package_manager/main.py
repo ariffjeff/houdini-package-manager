@@ -4,8 +4,9 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from houdini_package_manager.update import Updater
+from houdini_package_manager.dialogs import ErrorDialog, Updater
 from houdini_package_manager.widgets.main_window import MainWindow
+from houdini_package_manager.wrangle.config_control import HoudiniManager
 
 
 def main(start: bool = True, headless: bool = False) -> QApplication:
@@ -23,7 +24,21 @@ def main(start: bool = True, headless: bool = False) -> QApplication:
     """
 
     app = QApplication(sys.argv)
-    window = MainWindow(app)
+
+    # get all the relevant houdini meta and package data for all installed versions of Houdini
+    houdini_data = HoudiniManager()
+    houdini_data.get_houdini_data()
+
+    # check for no houdini install
+    if not houdini_data.install_directories:
+        dialog_missing_houdini = ErrorDialog(
+            "No Houdini install found.\nPlease install Houdini first.\n\nHPM's functionality relies on a version of"
+            " Houdini being installed to work."
+        )
+        dialog_missing_houdini.exec()
+        return
+
+    window = MainWindow(app, houdini_data)
 
     # delay updater dialog until main window shows
     QTimer.singleShot(0, show_updater)

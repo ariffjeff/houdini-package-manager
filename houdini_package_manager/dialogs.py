@@ -92,3 +92,34 @@ class UpdateDialog(QDialog):
     def upgrade(self) -> None:
         QDesktopServices.openUrl(self.dist_url)
         self.accept()
+
+
+class ErrorDialog(QDialog):
+    """
+    A standard error dialog that contains a message and an OK button.
+    """
+
+    def __init__(self, error_message):
+        super().__init__()
+        self.setWindowTitle("Error: Houdini not installed")
+        self.setFixedWidth(300)
+        self.setFixedHeight(150)
+        self.layout_main = QVBoxLayout()
+        self.setLayout(self.layout_main)
+
+        label = QLabel(error_message)
+        label.setWordWrap(True)
+        self.layout_main.addWidget(label)
+
+        ok_button = QPushButton("OK")
+        ok_button.setMaximumWidth(85)
+        ok_button.clicked.connect(self.accept)
+        self.layout_main.addWidget(ok_button)
+
+        self.setStyleSheet(
+            """
+            background-color: #303030;
+            color: white;
+            padding: 5px;
+        """
+        )

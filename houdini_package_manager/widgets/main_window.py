@@ -25,9 +25,11 @@ class MainWindow(QMainWindow):
     The main window containing all of HPM's functionality.
     """
 
-    def __init__(self, app: QApplication) -> None:
+    def __init__(self, app: QApplication, houdini_data: HoudiniManager) -> None:
         super().__init__()
+
         self.app = app  # declare an app member
+        self.houdini_data = houdini_data
 
         TITLE = f"Houdini Package Manager {__version__}"
         self.setWindowTitle(TITLE)
@@ -54,11 +56,6 @@ class MainWindow(QMainWindow):
             }
         """
         )
-
-        # MANAGE HOUDINI DATA
-        # get packages and their HOUDINI_PATH data for each installed Houdini version
-        self.houdini_data = HoudiniManager()
-        self.houdini_data.get_houdini_data()
 
         # if no package data (PackageCollection object) for a houdini install, then there's no way to know where
         # the Houdini /packages directory is, so remove the whole houdini install from the data
