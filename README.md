@@ -2,6 +2,10 @@
   <img width="125" src="https://raw.githubusercontent.com/ariffjeff/houdini-package-manager/main/docs/static/hpm.svg">
 </p style = "margin-bottom: 2rem;">
 
+<p align="center">
+  <img width="700" src="https://raw.githubusercontent.com/ariffjeff/houdini-package-manager/main/docs/static/hpm_screenshot.png">
+</p style = "margin-bottom: 2rem;">
+
 # Houdini Package Manager
 
 [![Release](https://img.shields.io/github/v/release/ariffjeff/houdini-package-manager)](https://img.shields.io/github/v/release/ariffjeff/houdini-package-manager)
