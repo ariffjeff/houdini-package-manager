@@ -25,6 +25,13 @@ endif
 	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources')"
 	@echo "Built: ${EXECUTABLE}" 
 
+build-exe: # change houpm website HPM version html
+	@echo "Updating HPM version HTML on houpm website..."
+	@powershell -Command "(Get-Content docs/index.html) \
+	-replace 'Houdini_Package_Manager-[0-9]+\.[0-9]+\.[0-9]+', 'Houdini_Package_Manager-$(VERSION)' \
+	-replace 'Download HPM [0-9]+\.[0-9]+\.[0-9]+', 'Download HPM $(VERSION)' \
+	| Set-Content docs/index.html"
+
 .PHONY: zip
 zip: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
 zip: NAME := Houdini_Package_Manager
