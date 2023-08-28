@@ -21,12 +21,14 @@ ifeq ($(TEST), )
 else
 	@echo "Skipping pytests."
 endif
+
+# build
 	@pyinstaller -w --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
 	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources')"
 	@echo "Built: ${EXECUTABLE}" 
 
-build-exe: # change houpm website HPM version html
-	@echo "Updating HPM version HTML on houpm website..."
+# update HPM version html in houpm website
+	@echo "Updating HPM version html in houpm website..."
 	@powershell -Command "(Get-Content docs/index.html) \
 	-replace 'Houdini_Package_Manager-[0-9]+\.[0-9]+\.[0-9]+', 'Houdini_Package_Manager-$(VERSION)' \
 	-replace 'Download HPM [0-9]+\.[0-9]+\.[0-9]+', 'Download HPM $(VERSION)' \
