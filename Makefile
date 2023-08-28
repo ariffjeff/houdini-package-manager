@@ -17,7 +17,7 @@ build-exe: EXECUTABLE := $(NAME)-$(VERSION)
 
 build-exe: ## Build app executable from python
 ifeq ($(TEST), )
-	pytest tests/
+	make test
 else
 	@echo "Skipping pytests."
 endif
