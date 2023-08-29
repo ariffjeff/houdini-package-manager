@@ -24,8 +24,15 @@ endif
 
 # build
 	@pyinstaller -w --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
-	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources')"
 	@echo "Built: ${EXECUTABLE}" 
+	@python -c "import shutil;\
+	shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources');\
+	print('Copied /resources to /dist');\
+	shutil.rmtree('docs/dist_hpm', ignore_errors=True);\
+	print('Deleted /dist_hpm');\
+	shutil.copytree('dist', 'docs/dist_hpm');\
+	print('Copied /dist to /dist_hpm');\
+	"
 
 # update HPM version html in houpm website
 	@echo "Updating HPM version html in houpm website..."
