@@ -166,3 +166,6 @@ cython_debug/
 # User package config metadata
 houdini_package_manager/package_data
 houdini_package_manager/widgets/widget_testing.py
+
+# houpm website
+node_modules
