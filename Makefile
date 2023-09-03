@@ -1,61 +1,73 @@
+export VERSION = $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
+export NAME = Houdini_Package_Manager
+export EXECUTABLE = $(NAME)-$(VERSION)
+
+# run the app from main.py
 .PHONY: run
-run: ## main app
+run:
 	@python main.py
 
+# run the exe build
 .PHONY: run-exe
-run-exe: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
-run-exe: NAME := Houdini_Package_Manager
-run-exe: EXECUTABLE := $(NAME)-$(VERSION)
-
-run-exe: ## Run exe build
+run-exe:
 	.\dist\${EXECUTABLE}\${EXECUTABLE}.exe
 
-.PHONY: build-exe
-build-exe: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
-build-exe: NAME := Houdini_Package_Manager
-build-exe: EXECUTABLE := $(NAME)-$(VERSION)
-
-build-exe: ## Build app executable from python
+## create the dist build and zip, and place them in the houpm site dist folder
+.PHONY: prepare
+prepare:
 ifeq ($(TEST), )
 	make test
 else
 	@echo "Skipping pytests."
 endif
 
-# build
-	@pyinstaller -w --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
-	@echo "Built: ${EXECUTABLE}" 
-	@python -c "import shutil;\
+	make build-exe
+	make zip
+	make dist-move
+	make update-houpm
+	@echo "Finished prepare."
+
+# build app executable from python
+.PHONY: build-exe
+build-exe: 
+# pyinstaller must be run inside the poetry venv (via '@poetry run') for pyinstaller to access the venv dependencies
+	@poetry run pyinstaller -w --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
+	@python -c "\
+	import shutil;\
 	shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources');\
-	print('Copied /resources to /dist');\
+	"
+	@echo "Built: ${EXECUTABLE}"
+
+# create a copy of the dist build in the HouPM website dist_hpm folder
+.PHONY: dist-move
+dist-move:
+	@python -c "\
+	import shutil;\
 	shutil.rmtree('docs/dist_hpm', ignore_errors=True);\
-	print('Deleted /dist_hpm');\
 	shutil.copytree('dist', 'docs/dist_hpm');\
-	print('Copied /dist to /dist_hpm');\
+	print('Updated /dist_hpm from /dist');\
 	"
 
 # update HPM version html in houpm website
-	@echo "Updating HPM version html in houpm website..."
+.PHONY: update-houpm
+update-houpm:
 	@powershell -Command "(Get-Content docs/index.html) \
 	-replace 'Houdini_Package_Manager-[0-9]+\.[0-9]+\.[0-9]+', 'Houdini_Package_Manager-$(VERSION)' \
 	-replace 'Download HPM [0-9]+\.[0-9]+\.[0-9]+', 'Download HPM $(VERSION)' \
 	| Set-Content docs/index.html"
+	@echo "Updated HPM version html in houpm website..."
 
 .PHONY: zip
-zip: VERSION := $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
-zip: NAME := Houdini_Package_Manager
-zip: FILENAME := $(NAME)-$(VERSION)
-
 zip:
-	@echo "Zipping build: ${FILENAME}"
-	@python -c "import shutil; shutil.make_archive('dist/${FILENAME}', 'zip', 'dist/${FILENAME}')"
-	@echo ".zip created: ${FILENAME}"
+	@echo "Zipping build: ${EXECUTABLE}"
+	@python -c "import shutil; shutil.make_archive('dist/${EXECUTABLE}', 'zip', 'dist/${EXECUTABLE}')"
+	@echo ".zip created: ${EXECUTABLE}"
 
 .PHONY: install
 install: ## Install the poetry environment and install the pre-commit hooks
 	@echo "🚀 Creating virtual environment using pyenv and poetry"
 	@poetry install	
-	@ poetry run pre-commit install
+	@poetry run pre-commit install
 	@poetry shell
 
 .PHONY: check
