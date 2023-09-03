@@ -42,9 +42,10 @@ build-exe:
 .PHONY: dist-move
 dist-move:
 	@python -c "\
-	import shutil;\
+	import shutil; import os;\
 	shutil.rmtree('docs/dist_hpm', ignore_errors=True);\
-	shutil.copytree('dist', 'docs/dist_hpm');\
+	os.mkdir('docs/dist_hpm');\
+	shutil.copy('dist/$(EXECUTABLE).zip', 'docs/dist_hpm/$(EXECUTABLE).zip');\
 	print('Updated /dist_hpm from /dist');\
 	"
 
