@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
@@ -63,6 +65,8 @@ class MainWindow(QMainWindow):
         for version, hou_install in self.houdini_data.hou_installs.items():
             if hou_install.packages:
                 valid_installs[version] = hou_install
+            else:
+                logging.warning(f"Skipping Houdini {version} since no packages were found for it.")
         self.houdini_data.hou_installs = valid_installs
 
         self.versions = [version.version.front for version in self.houdini_data.hou_installs.values()]

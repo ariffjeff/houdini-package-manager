@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import platform
 import re
@@ -26,6 +27,7 @@ class HoudiniManager:
         if only_hou_installs:
             self.install_directories = self.only_houdini_locations()
 
+        logging.debug(f"Using these installs:\n{self.install_directories}\n")
         self.hou_installs = {}
 
     def get_houdini_data(self, versions: Union[str, List[str]] = None) -> None:
@@ -80,6 +82,7 @@ class HoudiniManager:
 
         # sort dict items by key version number in descending order (largest version number first)
         paths = dict(sorted(paths.items(), key=lambda x: tuple(map(int, x[0].split("."))), reverse=True))
+        logging.debug(f"Houdini install paths:\n{paths}\n")
         return paths
 
     def _win_registry_values(self, key_path: str) -> dict:
@@ -109,6 +112,7 @@ class HoudiniManager:
             # no more values left
             pass
 
+        logging.debug(f"Houdini relevant registry keys detected:\n{values}\n")
         return values
 
     def _houdini_version_name(self, version: str) -> str:
@@ -166,6 +170,10 @@ class HoudiniInstall:
         self.HB = Path(self.HFS, "bin")
         self.version = HouVersion(str(self.HFS))
 
+        logging.debug(
+            f"Getting Houdini {self.version.full} install data (env vars from hconfig, package data from json)...\n"
+        )
+
         # get metadata from hconfig
         self.env_vars = self.run_hconfig()
 
@@ -173,10 +181,25 @@ class HoudiniInstall:
 
         # if hconfig.exe failed to produce the "HOUDINI_USER_PREF_DIR" env var or any env var data
         # because maybe the houdini install is corrupted somehow, then no package data can be retrieved.
+        logging.debug(f"\nHoudini {self.version.full} ENV VARS:")
+        for key, value in self.env_vars.items():
+            logging.debug(f"{key} = {value}")
+        logging.debug("\n")
+
         if PREF_DIR_KEY not in self.env_vars:
             self.packages = None
         else:
             self.packages = PackageCollection(Path(self.env_vars[PREF_DIR_KEY], "packages"), self.env_vars)
+
+        logging.debug(f"\nHoudini {self.version.full} PACKAGE CONFIGS:")
+        for pkg in self.packages.configs.values():
+            logging.debug(pkg.config_path)
+        logging.debug("\n")
+
+        logging.debug(f"\nHoudini {self.version.full} PLUGINS:")
+        for plugin in self.packages.hconfig_plugin_paths:
+            logging.debug(plugin)
+        logging.debug("\n")
 
     def run_hconfig(self) -> list:
         """
@@ -326,7 +349,7 @@ class PackageCollection:
 
         if not self.packages_directory.exists():
             self.packages_directory.mkdir(parents=True)
-            print(f"Created missing packages folder: {self.packages_directory}")
+            logging.debug(f"Created missing packages folder: {self.packages_directory}")
 
         # add the package directory as a needed environment variable
         # which isn't automatically added by hconfig for some reason.

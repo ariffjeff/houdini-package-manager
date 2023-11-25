@@ -1,4 +1,5 @@
 # for processing cli args
+import logging
 import sys
 
 from PySide6.QtCore import QTimer
@@ -22,6 +23,10 @@ def main(start: bool = True, headless: bool = False) -> QApplication:
     Returns:
         QApplication: PySide6.QtWidgets object
     """
+
+    logging.debug("Houdini Package Manager Python version:")
+    logging.debug(sys.version)
+    logging.debug(f"{sys.version_info}\n")
 
     app = QApplication(sys.argv)
 
