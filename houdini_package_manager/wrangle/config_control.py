@@ -13,6 +13,11 @@ class HoudiniManager:
     """
     A class for managing data related to multiple installed versions of Houdini.
 
+    Arguments:
+        only_hou_installs (bool):
+            Remove any paths that aren't Houdini install paths.
+            This will remove the LicenceServer path for example.
+
     Attributes:
         install_directories (Dict[str, Path]):
             The directories containing the install locations of different Houdini versions.
