@@ -24,7 +24,7 @@ def main(start: bool = True, headless: bool = False) -> QApplication:
         QApplication: PySide6.QtWidgets object
     """
 
-    logging.debug("Houdini Package Manager Python version:")
+    logging.debug("Houdini Package Manager - Python version:")
     logging.debug(sys.version)
     logging.debug(f"{sys.version_info}\n")
 

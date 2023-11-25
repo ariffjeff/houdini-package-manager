@@ -361,6 +361,8 @@ class PackageCollection:
 
         files = next(os.walk(self.packages_directory))
         files = [name for name in files[2] if ".json" in name]  # only .json files
+
+        # create each Package object
         for file in files:
             self.configs[Path(file).stem] = Package(
                 Path(self.packages_directory, file), self.hconfig_plugin_paths, self.env_vars
