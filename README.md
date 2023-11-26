@@ -51,7 +51,7 @@ Note: This project was primarily tested with Python 3.9.10.
     - If you're adding other files/images/vectors/etc., put them somewhere in `houdini_package_manager/resources/`
 1. Optional: Version bump the project
     1. Version bump the project by doing `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate.
-        - Both `pyproject.toml` and `__version__.py` will be updated automatically due to [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) being installed in this project.
+        - Both `pyproject.toml` and `__init__.py` will be updated automatically due to [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) being installed in this project.
     1. Commit the version bump. The commit message should be the version number (e.g. `1.3.2`)
 1. Do `make prepare` which does all the final build management automatically by running a bunch of other commands.
     - Review these make commands only if you need to use them individually...
