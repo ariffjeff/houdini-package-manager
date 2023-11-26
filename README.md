@@ -65,7 +65,7 @@ Note: This project was primarily tested with Python 3.9.10.
     1. `make zip` zips the build in `dist/`
     1. `make dist-move` creates a copy of the dist build in the HouPM website dist_hpm folder.
     1. `make update-houpm` updates HPM version html in houpm website.
-1. Testing (sanity check)
+1. Run/test the build (sanity check)
     1. Run the build.
         - Different methods:
             1. Go to `dist/`, find the .exe and run it.
