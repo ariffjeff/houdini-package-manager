@@ -29,4 +29,4 @@ if __name__ == "__main__":
 
     if not exception_occurred:
         logging.shutdown()  # Ensure all loggers are closed
-        os.remove(FILENAME)
+        os.remove(FILENAME)  # if the running HPM console is closed then the log file won't be deleted
