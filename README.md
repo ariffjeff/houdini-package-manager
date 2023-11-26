@@ -50,7 +50,7 @@ Note: This project was primarily tested with Python 3.9.10.
     1. `make update-houpm` updates HPM version html in houpm website.
 1. Run the build by going to `dist/`, finding the .exe, and running it there.
     - You can also run it by doing `make run-exe`, but be aware that this doesn't run it directly in the folder its in, which can lead to the issue of relative file paths not being able to find the files they're targetting if the paths have been set improperly... i.e. images failing to load. Make sure you set file paths with `utils.epath()` which automatically handles relative paths correctly for both the dev and build environment.
-1. If you get unexpected results (something isn't working right):
-    1. Remove `-w` from the `build-exe:` action in the `Makefile`
-    1. Do `make build-exe` again.
-    1. Run the .exe and you'll notice a terminal pops up along with the app. If any errors occur you'll be able to see them there.
+1. If you get unexpected behavior or a crash:
+    1. Check the app folder for a .log crash file.
+        - Crash log files currently are timestamped/created immediately upon exe run. If HPM is closed (not from a crash and not via the debug console) then the log file will be deleted.
+    1. Do `make build-exe-log` to make an exe that displays a debug console on run which you can inspect. If any errors occur you'll be able to see them there.
