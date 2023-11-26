@@ -13,6 +13,7 @@ run-exe:
 	.\dist\${EXECUTABLE}\${EXECUTABLE}.exe
 
 ## create the dist build and zip, and place them in the houpm site dist folder
+# "make prepare TEST=0" to skip testing
 .PHONY: prepare
 prepare:
 ifeq ($(TEST), )
@@ -27,16 +28,24 @@ endif
 	make update-houpm
 	@echo "Finished prepare."
 
-# build app executable from python
-.PHONY: build-exe
-build-exe: 
-# pyinstaller must be run inside the poetry venv (via '@poetry run') for pyinstaller to access the venv dependencies
-	@poetry run pyinstaller -w --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
-	@python -c "\
-	import shutil;\
-	shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources');\
-	"
+
+# build app executable from python using pyinstaller
+define build_executable
+	@poetry run pyinstaller $(if $(filter -w,$(1)), -w,) --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
+	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources');"
 	@echo "Built: ${EXECUTABLE}"
+endef
+
+# build executable, no console
+.PHONY: build-exe
+build-exe:
+	$(call build_executable, -w)
+
+# build executable, with console
+.PHONY: build-exe-log
+build-exe-log:
+	$(call build_executable)
+
 
 # create a copy of the dist build in the HouPM website dist_hpm folder
 .PHONY: dist-move

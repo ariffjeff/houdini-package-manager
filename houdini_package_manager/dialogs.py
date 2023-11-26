@@ -1,3 +1,5 @@
+import logging
+
 import requests
 from packaging import version
 from PySide6.QtCore import Qt, QUrl
@@ -46,6 +48,7 @@ class Updater(QWidget):
         """
 
         try:
+            logging.debug("Checking for HPM updates...")
             response = requests.get(f"https://pypi.org/pypi/{self.TITLE}/json", timeout=5)
         except (requests.RequestException, ValueError):
             return None
