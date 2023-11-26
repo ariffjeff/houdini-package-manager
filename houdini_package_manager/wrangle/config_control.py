@@ -179,14 +179,37 @@ class HoudiniInstall:
             f"Getting Houdini {self.version.full} install data (env vars from hconfig, package data from json)...\n"
         )
 
-        # get metadata from hconfig
+        """
+        ### Get environment variable keys AND values from hconfig
+
+        ### WARNING
+        Due to the difficulty of getting Houdini environment variables (keys AND values) quickly and without errors, here are the
+        different ways to go about it (hconfig and other methods).
+        
+        1. open houdini directly > Python Shell > hou.ui.packageInfo()
+        - Returns plugin paths (some env var values and no keys), and other crap, can probably be extracted with regex
+        - Only works directly in Houdini's python shell
+
+        2. hython > hou.getenv("HOUDINI_PATH")
+        - Returns plugin paths (not env vars!)
+
+        3. python > subprocess call hython > import os; os.environ
+        - Returns env var keys + values, including global Windows env vars.
+        - Slow performance overhead to load hython
+
+        4. python > subprocess > hconfig
+        - Returns env var keys + values
+        - fast performance
+        - errors on incompatible python versions calling hconfig.exe (if this can be fixed then this is the ideal solution)
+
+        5. Somehow find env vars a different way?
+        """
         self.env_vars = self.run_hconfig()
 
         PREF_DIR_KEY = "HOUDINI_USER_PREF_DIR"
-
         # if hconfig.exe failed to produce the "HOUDINI_USER_PREF_DIR" env var or any env var data
         # because maybe the houdini install is corrupted somehow, then no package data can be retrieved.
-        logging.debug(f"\nHoudini {self.version.full} ENV VARS:")
+        logging.debug(f"Houdini {self.version.full} ENV VARS:")
         for key, value in self.env_vars.items():
             logging.debug(f"{key} = {value}")
         logging.debug("\n")
@@ -196,38 +219,104 @@ class HoudiniInstall:
         else:
             self.packages = PackageCollection(Path(self.env_vars[PREF_DIR_KEY], "packages"), self.env_vars)
 
-        logging.debug(f"\nHoudini {self.version.full} PACKAGE CONFIGS:")
+        logging.debug(f"Houdini {self.version.full} PACKAGE CONFIGS:")
         for pkg in self.packages.configs.values():
             logging.debug(pkg.config_path)
         logging.debug("\n")
 
-        logging.debug(f"\nHoudini {self.version.full} PLUGINS:")
+        logging.debug(f"Houdini {self.version.full} PLUGINS:")
         for plugin in self.packages.hconfig_plugin_paths:
             logging.debug(plugin)
         logging.debug("\n")
 
     def run_hconfig(self) -> list:
         """
-        Execute Houdini's hconfig to generate the environment variables associated with an installed version of Houdini.
+        Executes Houdini's hconfig.exe via a Python subprocess in order to get the generated Houdini environment variables that hconfig processes from the json package config files.
 
-        Returns a list of the environment variables.
+        hconfig.exe can only be run by a compatible Python version that Houdini shipped with (Windows only: https://www.sidefx.com/docs/houdini/hom/index.html#which-python).
+        So here we can either:
+            1. Find and run a compatible Python by proxy in order to have it run hconfig.exe. This allows us to avoid needing to ship this project with multiple matching Python versions.
+            or...
+            2. Naively run any Houdini hconfig.exe's with whataver version of Python HPM is built with. For example, a Python3.9 subprocess calling an hconfig.exe that was build for
+            Python3.10 will result in an error message being returned, and thus no env vars. No env vars means we can't process any package config data - the given Houdini version
+            would have to be ignored entirely! If HPM is running hconfig naively, HPM's Python will need to be updated to match the latest Houdini's Python version on every major release.
+
+        Returns a list of the Houdini environment variables.
         """
 
-        command = "hconfig"
+        def _run_with_this_apps_python_naively(command):
+            # naively run given hconfig with this project's python version, which might be incompatible (would return useless data)
+
+            result = subprocess.run([command], shell=True, capture_output=True, text=True).stdout
+
+            if result:
+                logging.debug(f"HCONFIG RETURNED:\n{result}\n")
+            else:
+                logging.error("HCONFIG FAILED TO RETURN ANY DATA!\n")
+
+            metadata = result.split("\n")
+            return metadata
+
+        def _run_with_compatible_python(command, python_exe_path):
+            # run hconfig based on the python version it was built for through two-layered subprocess calls.
+
+            # THIS CURRENTLY DOES NOT WORK AS HCONFIG WILL STILL RETURN AN ERROR THINKING IT'S BEING CALLED BY THE
+            # WRONG PYTHON VERSION, WHICH MAKES NO SENSE.
+
+            command = [
+                python_exe_path,
+                "-c",
+                (
+                    f"import subprocess; result = subprocess.run(['{hconfig.as_posix()}'], capture_output=True,"
+                    " text=True); print(result)"
+                ),
+            ]
+            result = subprocess.run(command, shell=False, capture_output=True, text=True).stdout
+
+            if result:
+                logging.debug(f"HCONFIG RETURNED:\n{result}\n")
+            else:
+                logging.error("HCONFIG FAILED TO RETURN ANY DATA!\n")
+
+            result = re.findall(r'stdout="(.*?)"\s*,\s*stderr=', result)[0]  # extract inner subprocess return value
+            metadata = result.split("\\n")
+            return metadata
+
+        # target the correct hconfig.exe
+        hconfig = "hconfig"
         if platform.system() == "Windows":
-            command += ".exe"
+            hconfig += ".exe"
+        hconfig = Path(self.HB, hconfig)
 
-        command = Path(self.HB, command)
+        # run hconfig - choose the best method!
+        metadata = _run_with_this_apps_python_naively(hconfig)
+        # metadata = _run_with_compatible_python(hconfig, self.this_houdini_python_version())
 
-        result = subprocess.run([command], shell=True, capture_output=True, text=True)
-        metadata = result.stdout.split("\n")
         metadata = dict(item.split(" := ") for item in metadata if len(item) > 0)
-        # remove first and last quotes
-        for key, value in metadata.items():
+        for key, value in metadata.items():  # remove first and last quotes
             if value[0] in ["'", '"'] and value[-1] in ["'", '"']:
                 metadata[key] = value[1:-1]
 
         return metadata
+
+    def this_houdini_python_version(self) -> Path or None:
+        """
+        Finds the latest installed version of Python that shipped with this Houdini (Windows only).
+        Returns a Path object of the python directory.
+        """
+
+        hou_folders = os.listdir(self.HFS)
+        python_folders = [folder for folder in hou_folders if re.match(r"python\d+", folder)]
+
+        if not python_folders:
+            return None
+
+        installed_pythons = [
+            Path(self.HFS, folder, "python.exe")
+            for folder in python_folders
+            if Path(self.HFS, folder, "python.exe").exists()
+        ]
+        return installed_pythons[0]
 
     def get_package_data(self, named=True) -> dict:
         """
