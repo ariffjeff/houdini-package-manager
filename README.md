@@ -20,6 +20,20 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 - **Github repository**: <https://github.com/ariffjeff/houdini-package-manager>
 - **PyPI repository**: <https://pypi.org/project/houdini-package-manager>
 
+## How it Works
+HPM is a Python application that basically grabs your plugins' package config files and converts them into a nice UI with a bunch of useful functionality.
+
+#### 1. On a high level, HPM does this for all installed versions of Houdini it finds upon startup:
+1. Gets Houdini's environment variable key value pairs.
+1. Gets the raw json package config data (some values might contain variables), typically found in `/packages`.
+1. Uses the Houdini environment variables to resolve the package config variables. The data as a whole is also simplified.
+1. Creates arbitrary objects from this resolved package config/plugin data.
+1. Converts this package/plugin data into a Pyside6 UI with accompanying functionality.
+1. This is all then built into an executable with `Pyinstaller`.
+
+#### 2. Creating package configs for new plugins:
+- You can create new package configs for plugins you have downloaded to quickly get them into Houdini hassle free.
+- HPM takes the plugin folder path, HDA, or script you provide it and simply creates a new package config from a template, and puts it in `/packages`.
 
 ## Install
 1. Download the latest version from https://houpm.com
