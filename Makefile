@@ -13,6 +13,7 @@ run-exe:
 	.\dist\${EXECUTABLE}\${EXECUTABLE}.exe
 
 ## create the dist build and zip, and place them in the houpm site dist folder
+# "make prepare TEST=0" to skip testing
 .PHONY: prepare
 prepare:
 ifeq ($(TEST), )
