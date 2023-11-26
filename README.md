@@ -84,3 +84,18 @@ Note: This project was primarily tested with Python 3.9.10.
     - Commit both the version bump (mentioned before) and the new build .zip together.
     - The commit message should just be the version number (e.g. `1.3.2`) for convention.
     - Try not to commit anything else with these for simplicity.
+1. Tag the commit
+    - The tag name should be the version number (e.g. `1.3.2`) for convention.
+    - You can do this by right clicking the commit if you're using a GUI like [GitHub Desktop](https://desktop.github.com/).
+1. Push and pull request
+    1. Name the pull request the version number (e.g. `1.3.2`).
+    1. Merge to the relevant branch.
+    - Hopefully you haven't pushed directly to main.
+1. Create a new release
+    1. On GitHub, go to Releases.
+    1. Select the tag version number (e.g. `1.3.2`) from the dropdown.
+    1. Name the title the same version number.
+    1. Click `Generate release notes`.
+    1. Add any extra descriptive changes for this release.
+    1. Click publish.
+    - PyPI will automatically be updated with the new HPM version via a GitHub action.
