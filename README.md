@@ -48,13 +48,18 @@ Note: This project was primarily tested with Python 3.9.10.
 1. Clone [HPM](https://github.com/ariffjeff/houdini-package-manager)
     1. Open a terminal, and `cd` to it.
 1. Do `poetry install`
-1. Make your code changes and commit them.
+1. Make your code changes and commit them
     - If you're adding other files/images/vectors/etc., put them somewhere appropriate in `houdini_package_manager/resources/`
 1. Version bump (optional)
-    - The final executable/zip and [houpm.com](https://houpm.com/) website HTML will automatically adopt this version number.
-    1. Version bump the project by doing `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate.
-        - Both `pyproject.toml` and `__init__.py` will be updated automatically due to [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) being installed in this project.
-    1. Commit the version bump later along with a new build (keep reading next steps).
+    - Automatic version bump: 
+        1. Do `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate. These will automatically be updated:
+            1. `pyproject.toml`
+            2. `__version__` in `__init__.py` (due to [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) being installed in this project)
+            3. The relevant HTML in `houpm.com`
+            4. The final executable and .zip file/folder names
+    - Manual version bump:
+        1. Do `poetry version 1.2.3`
+    - Commit the version bump later along with a new build (keep reading next steps).
 1. Do `make prepare`
     -  This does all the final build management automatically by running a bunch of other commands.
     - Review these make commands only if you need to use them individually...
@@ -66,7 +71,7 @@ Note: This project was primarily tested with Python 3.9.10.
     1. `make dist-move` creates a copy of the dist build in the HouPM website dist_hpm folder.
     1. `make update-houpm` updates HPM version html in houpm website.
 1. Run/test the build (sanity check)
-    1. Run the build.
+    1. Run the build
         - Different methods:
             1. Go to `dist/`, find the .exe and run it.
             2. Or do `make run-exe`.
