@@ -54,9 +54,9 @@ Note: This project was primarily tested with Python 3.9.10.
     - Automatic version bump: 
         1. Do `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate. These will automatically be updated:
             1. `pyproject.toml`
-            2. `__version__` in `__init__.py` (due to [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) being installed in this project)
-            3. The relevant HTML in `houpm.com`
-            4. The final executable and .zip file/folder names
+            2. `__version__` in `__init__.py`. (if the Poetry [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) plugin is installed)
+            3. The relevant HTML in `houpm.com`. (auto updated later by `make prepare`)
+            4. The final executable and .zip file/folder names. (auto updated later by `make prepare`)
     - Manual version bump:
         1. Do `poetry version 1.2.3`
     - Commit the version bump later along with a new build (keep reading next steps).

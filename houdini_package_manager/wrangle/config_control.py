@@ -868,6 +868,12 @@ class Package:
         new_paths = []
         [new_paths.extend(split_paths(path[-1])) for path in paths]
         paths = new_paths
+
+        # remove duplicate paths
+        new_paths = []
+        [new_paths.extend([path]) for path in paths if path not in new_paths]
+        paths = new_paths
+
         paths = [Path(path) for path in paths]
         paths = [path for path in paths if path.exists()]
         return paths

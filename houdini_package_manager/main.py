@@ -5,7 +5,7 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from houdini_package_manager.dialogs import ErrorDialog, Updater
+from houdini_package_manager.widgets.dialogs import ErrorDialog, Updater
 from houdini_package_manager.widgets.main_window import MainWindow
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
