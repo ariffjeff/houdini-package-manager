@@ -225,7 +225,7 @@ class CellWidgets:
     @staticmethod
     def label_no_plugin_data() -> QLabel:
         # if there's no plugin data
-        label = QLabel("No plugin data")
+        label = QLabel("No plugin folder found.")
         return label
 
     @staticmethod
