@@ -121,6 +121,18 @@ def test_invalid_slashes():
     assert package_data._raw_json == expected_loaded_config
 
 
+def test_missing_commas():
+    """
+    Test if invalid JSON due to missing commas are parsed correctly by the JSONPathDecoder class.
+    """
+
+    expected_loaded_config = {"env": [{"some_var": "C:/a/b/c"}, {"another_var": "lorem"}]}
+
+    package_path = Path(r"tests\test_packages\package_missing_commas.json")
+    package_data = Package(package_path)
+    assert package_data._raw_json == expected_loaded_config
+
+
 def test_handle_circular_referencing_vars():
     expected_loaded_config = [
         ["var_one", "$var_one"],
