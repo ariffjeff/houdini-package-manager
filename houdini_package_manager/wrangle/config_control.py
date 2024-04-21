@@ -672,8 +672,14 @@ class Package:
                     s = regex.sub(replacement, s)
                 return super().decode(s, **kwargs)
 
-        with open(self.config_path) as f:
-            data = json.load(f, cls=JSONPathDecoder)
+        try:
+            with open(self.config_path) as f:
+                data = json.load(f)
+        except json.decoder.JSONDecodeError:
+            logging.warning(f"Invalid json (might fail to resolve/parse): {self.config_path}")
+            self.warnings.append("Invalid JSON! Fix errors and refresh this table.")
+            with open(self.config_path) as f:
+                data = json.load(f, cls=JSONPathDecoder)
 
         self._raw_json = data
         self.config = data
