@@ -7,7 +7,7 @@ class PackageTemplates:
     """
 
     @staticmethod
-    def standard(houdini_path: Path):
+    def standard(path_to_plugin: Path):
         """
         A standard package template.
 
@@ -24,14 +24,14 @@ class PackageTemplates:
         because it was cause Houdini to crash on startup.
         """
 
-        if not houdini_path.exists():
-            raise FileNotFoundError(f"Does not exist: {houdini_path}")
+        if not path_to_plugin.exists():
+            raise FileNotFoundError(f"Does not exist: {path_to_plugin}")
 
-        houdini_path = str(houdini_path)
+        path_to_plugin = str(path_to_plugin)
 
         package = {
             "env": [
-                {"HOUDINI_PATH": houdini_path},
+                {"HOUDINI_PATH": path_to_plugin},
                 {"HOUDINI_OTLSCAN_PATH": "$HOUDINI_PATH/otls"},
                 {"HOUDINI_TOOLBAR_PATH": "$HOUDINI_PATH/toolbar"},
                 {"PYTHONPATH": "$HOUDINI_PATH/scripts/python"},

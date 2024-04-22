@@ -1,0 +1,10 @@
+{
+    "env": [
+        {
+            "some_var": "C:/a/b/c"
+        }
+        {
+            "another_var": "lorem"
+        }
+    ]
+}
