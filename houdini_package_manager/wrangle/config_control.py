@@ -665,7 +665,7 @@ class Package:
             def decode(self, s, **kwargs):
                 regex_replacements = [
                     (re.compile(r"([^\\])\\([^\\])"), r"\1\\\\\2"),  # Fix single backslashes in paths
-                    (re.compile(r",(\s*])"), r"\1"),  # Remove extraneous commas
+                    (re.compile(r",(\s*[\]}])"), r"\1"),  # Remove extraneous commas at the end of objects and arrays
                     (re.compile(r"}\s*{"), r"}, {"),  # Fix missing commas between objects
                 ]
                 for regex, replacement in regex_replacements:
