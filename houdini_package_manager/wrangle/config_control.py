@@ -299,7 +299,7 @@ class HoudiniInstall:
 
         return metadata
 
-    def this_houdini_python_version(self) -> Path or None:
+    def this_houdini_python_version(self) -> Union[Path, None]:
         """
         Finds the latest installed version of Python that shipped with this Houdini (Windows only).
         Returns a Path object of the python directory.
