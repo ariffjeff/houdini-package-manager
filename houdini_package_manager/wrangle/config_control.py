@@ -654,14 +654,17 @@ class Package:
     def _load(self) -> None:
         """
         Load json contents.
-        Handles invalid json such as directory paths with single \\ character delimiters.
+        Handles invalid json. If the json cannot be recovered, an empty dict will be set.
         """
 
         if not isinstance(self.config_path, Path):
             raise TypeError("path must be a pathlib.Path object.")
 
-        # convert invalid json values that are paths with '\' to '\\' to prevent json loading error
         class JSONPathDecoder(json.JSONDecoder):
+            """
+            Tries to parse invalid json into valid json by accounting for some possible errors.
+            """
+
             def decode(self, s, **kwargs):
                 regex_replacements = [
                     (re.compile(r"([^\\])\\([^\\])"), r"\1\\\\\2"),  # Fix single backslashes in paths
@@ -678,8 +681,11 @@ class Package:
         except json.decoder.JSONDecodeError:
             logging.warning(f"Invalid json (might fail to resolve/parse): {self.config_path}")
             self.warnings.append("Invalid JSON! Fix errors and refresh this table.")
-            with open(self.config_path) as f:
-                data = json.load(f, cls=JSONPathDecoder)
+            try:
+                with open(self.config_path) as f:
+                    data = json.load(f, cls=JSONPathDecoder)
+            except Exception:  # final catch all for all other broken json errors
+                data = {}
 
         self._raw_json = data
         self.config = data
