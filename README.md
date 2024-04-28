@@ -99,3 +99,39 @@ Note: This project was primarily tested with Python 3.9.10.
     1. Add any extra descriptive changes for this release.
     1. Click publish.
     - PyPI will automatically be updated with the new HPM version via a GitHub action.
+
+# TODO
+### Priority bugs
+
+- HPM should warn the user if a .json file contains the "path" in-place-of/next to "HOUDINI_PATH" key since "path" is now deprecated by SESI according to their documentation. Or just auto merge "path" value with "HOUDINI_PATH" value (ignore duplicate paths) - (changing the actual json file to remove "path" in favor of "HOUDINI_PATH"). "hpath" technically should work as well but I couldn't get it to work.
+- unchecking config button dissappears plugin path, even if actual config json is not set to false
+
+
+### Features:
+
+- node tree view editing of package/script/otl dependencies for each houdini version
+- warning dialog for about to overwrite package config when creating a package
+- allow HPM to find loose otls and scripts that aren't in a folder
+- easy editing of houdini env vars
+- pref pane to disable auto update
+- refresh package tables when new packages created
+- ability to delete package table items
+- give option to use existing .json package config created by plugin dev instead of using default template
+- the other meta header data
+- sort table by rows
+- status log history (executed actions only)
+- donations link
+- ability to easily set most of the top-level variables ("load_package_once", etc.)
+- See what versions of houdini a package is in from a glance.
+- button that finds new installs of houdini (it might already do this? or just restart the app)
+- packages with houdini patch version specifications should be represented visually somehow
+- proper svg color changing: https://stackoverflow.com/questions/33512884/pyside-change-color-or-opacity-of-svg-in-qicon
+- create tables scripts and OTLs not directly a part of any package
+- search bar for packages - isolates row in table (for when you have a lot of packages)
+
+### Bugs
+- class PackageConfig:
+    - search paths for plugin HDAs (\otls)
+- _get_houdini_paths() does not account for linux/macos
+- packages_table.py
+    - utilize _main.json to locate loose HDAs and scripts that aren't actual plugin packages
