@@ -110,8 +110,8 @@ class PackagesWidget(QWidget):
             epath("resources/icons/migrate.svg"),
             epath("resources/icons/migrate_hover.svg"),
         )
-        self.button_copy.set_hover_status_message("Copy selected packages to other installed Houdini versions.")
-        self.button_copy.setToolTip("Copy selected packages to other installed Houdini versions")
+        self.button_copy.set_hover_status_message("Copy all packages to other Houdini versions.")
+        self.button_copy.setToolTip("Copy all packages to other Houdini versions")
         self.button_copy.clicked.connect(self.migrate_packages)
 
         self.button_refresh = SvgPushButton(
