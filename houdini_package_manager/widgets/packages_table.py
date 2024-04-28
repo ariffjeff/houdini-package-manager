@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Union
 
 from PySide6.QtCore import QEvent, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (
 from houdini_package_manager.meta.meta_tools import StatusBar
 from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
-from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
+from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package, Url
 
 
 class PackageTableModel(QTableWidget):
@@ -93,17 +94,20 @@ class PackageTableModel(QTableWidget):
         Enter the packages data into the packages table.
         """
 
-        # set table data with widgets
+        # set table data with widgets based on the incoming data's information/data type
         for row, rowData in enumerate(self.table_data):
             for column, value in enumerate(rowData):
+                # checkbox
                 if self.horizontalHeaderItem(column).text() == "Enable":
                     checkbox_widget = CellWidgets.checkbox_enable(self, value)
                     self.setCellWidget(row, column, self.align_widget(checkbox_widget))
 
-                elif self.horizontalHeaderItem(column).text() == "Config":
-                    config_widget = CellWidgets.button_config(self, value)
-                    self.setCellWidget(row, column, self.align_widget(config_widget))
+                # button
+                elif self.horizontalHeaderItem(column).text() in ["Source", "Config"] and value:
+                    button_widget = CellWidgets.button_path(self, value)
+                    self.setCellWidget(row, column, self.align_widget(button_widget))
 
+                # dropdown (warning button as a replacement)
                 elif self.horizontalHeaderItem(column).text() == "Plugins":
                     warnings = "\n".join(list(self.warnings.values())[row])
                     if warnings:
@@ -121,6 +125,7 @@ class PackageTableModel(QTableWidget):
                     plugin_widget.setMinimumHeight(29)
                     self.setCellWidget(row, column, self.align_widget(plugin_widget, Qt.AlignLeft))
 
+                # string
                 elif isinstance(value, str):
                     text_widget = CellWidgets.label_text(value)
                     self.setCellWidget(
@@ -130,20 +135,22 @@ class PackageTableModel(QTableWidget):
     def open_path(self) -> None:
         """
         Get the path that is associated with a button and open it.
+        This method can handle both path Url and Path objects.
         """
 
         button = self.sender()
-        path = button.property("path")
+        path = button.property("path")  # Url or Path
+        path_str = str(path)
 
-        if not isinstance(path, Path):
-            path = Path(path)
+        if isinstance(path, Path):
+            if not path.exists():
+                StatusBar.message(f"Failed to open: {path_str}")
+                return
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+        elif isinstance(path, Url):
+            QDesktopServices.openUrl(QUrl.fromUserInput(path_str))
 
-        if not path.exists():
-            StatusBar.message(f"Failed to open: {str(path)}")
-            return
-
-        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
-        StatusBar.message(f"Opened: {path}")
+        StatusBar.message(f"Opened: {path_str}")
 
     def enable_package(self) -> None:
         """
@@ -290,20 +297,30 @@ class CellWidgets:
         return button
 
     @staticmethod
-    def button_config(parent: PackageTableModel, value) -> SvgPushButton:
-        # Config: push button that opens its file path when clicked
-        config_button = SvgPushButton(
+    def button_path(parent: PackageTableModel, path: Union[Path, Url]) -> SvgPushButton:
+        # Config: push button that opens its file path or url when clicked
+
+        # local path or url
+        icons = "resources/icons"
+        if isinstance(path, Url):
+            svg = icons + "/source_control.svg"
+            svg_hover = icons + "/source_control_hover.svg"
+        elif isinstance(path, Path):
+            svg = icons + "/file.svg"
+            svg_hover = icons + "/file_hover.svg"
+
+        button = SvgPushButton(
             parent,
             23,
             29,
-            epath("resources/icons/file.svg"),
-            epath("resources/icons/file_hover.svg"),
+            epath(svg),
+            epath(svg_hover),
         )
-        config_button.setToolTip(str(value))
-        config_button.setProperty("path", value)
-        config_button.clicked.connect(parent.open_path)
-        config_button.set_hover_status_message(f"Open: {value}")
-        return config_button
+        button.setToolTip(str(path))
+        button.setProperty("path", path)  # store path on button
+        button.clicked.connect(parent.open_path)
+        button.set_hover_status_message(f"Open: {str(path)}")
+        return button
 
     @staticmethod
     def label_text(value) -> QLabel:

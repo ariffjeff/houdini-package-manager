@@ -7,6 +7,10 @@ import subprocess
 from itertools import takewhile
 from pathlib import Path
 from typing import Dict, List, Union
+from urllib.parse import urlparse
+
+import git
+import git.exc
 
 
 class HoudiniManager:
@@ -377,6 +381,22 @@ class HouVersion:
         return ver
 
 
+class Url:
+    """
+    An URL path and its parsed result.
+    """
+
+    def __init__(self, url: Union[str, None]) -> None:
+        if not isinstance(url, str):
+            raise TypeError("URL must be a string.")
+
+        self._url = url
+        self.parse = urlparse(url)  # ParseResult
+
+    def __str__(self) -> str:
+        return self._url
+
+
 class PackageCollection:
     """
     Package JSON configurations and the associated plugin data the configs point to.
@@ -531,8 +551,9 @@ class Package:
         # set data determined by config
         ###############################
 
-        # enable
         self._enable = self.is_enabled()
+        self._source = self.find_remote_repo_url()
+
         self.version = None
         self.author = None
 
@@ -571,6 +592,10 @@ class Package:
         with open(self.config_path, "w") as outfile:
             json.dump(self._raw_json, outfile, indent=4)
 
+    @property
+    def source(self):
+        return self._source
+
     # convenient way to access all the config key-value assignments
     @property
     def config_keys(self):
@@ -586,6 +611,7 @@ class Package:
         return {
             "Enable": self.enable,
             "Package": self.name,
+            "Source": self.source,
             # commented out because these values are really only able
             # to be gotten from a package index service
             # "Version": self.version,
@@ -610,6 +636,30 @@ class Package:
                 return True
             return enabled
         return True
+
+    def find_remote_repo_url(self) -> Url:
+        """
+        Find the plugin's remote source control repository URL.
+        This is done by extracting the URL from the plugin path's .git folder, if it exists.
+
+        Returns a Url object of the remote repo if it is found.
+        Returns None if no Url is found.
+        """
+
+        if len(self.plugin_paths) == 0:
+            return None
+        potential_git_folder = self.plugin_paths[0]
+
+        try:
+            repo = git.Repo(potential_git_folder)
+        except git.exc.InvalidGitRepositoryError:
+            return None
+
+        remote_urls = [remote.url for remote in repo.remotes]
+
+        if remote_urls:
+            return Url(remote_urls[0])
+        return None
 
     def resolve(self) -> None:
         """
