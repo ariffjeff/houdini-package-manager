@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (
 from houdini_package_manager.meta.meta_tools import StatusBar
 from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.custom_widgets import SvgPushButton
-from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package, Url
+from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
+from houdini_package_manager.wrangle.url import Url
 
 
 class PackageTableModel(QTableWidget):
@@ -45,6 +46,7 @@ class PackageTableModel(QTableWidget):
     def setup_table_data(self) -> None:
         """
         Prepare the table data before it gets entered into the packages table.
+        This method does not determine column order. This is pre-set by the table_model property in the Package class.
         """
 
         # insert custom index column
