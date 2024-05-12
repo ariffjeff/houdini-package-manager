@@ -20,7 +20,7 @@ def base_path() -> Path:
 def epath(path: str, string=False) -> Path:
     """
     Combine the base path and a given relative path to produce a complete environment path.
-    Returns a Path by default. Returns a string is string arg is True.
+    Returns a Path by default. Returns a string if string arg is True.
     """
 
     path = Path(base_path(), path)
