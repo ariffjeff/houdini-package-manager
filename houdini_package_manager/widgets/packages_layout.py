@@ -18,8 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import StatusBar, TextColor
-from houdini_package_manager.utils import epath
-from houdini_package_manager.widgets.custom_widgets import SvgPushButton
+from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.widgets.packages_table import PackageTableModel
 from houdini_package_manager.wrangle.config_control import HoudiniManager, Package
 
@@ -57,13 +56,7 @@ class PackagesWidget(QWidget):
         label_version_dropdown.setStyleSheet("QLabel { color: #ff6600 }")
 
         # BUTTON - ADD PACKAGE
-        button_add_package = SvgPushButton(
-            self,
-            120,
-            36,
-            epath("resources/icons/add_packages.svg"),
-            epath("resources/icons/add_packages_hover.svg"),
-        )
+        button_add_package = SvgPushButton(self, BtnSize.WIDE_LARGE, BtnIcon.ADD_PKG)
         button_add_package.clicked.connect(self.add_packages)
 
         # DROPDOWN - HOUDINI VERSION
@@ -88,13 +81,7 @@ class PackagesWidget(QWidget):
         )
 
         # BUTTON - HOUDINI VERSION FOLDER
-        self.button_version = SvgPushButton(
-            self,
-            38,
-            24,
-            epath("resources/icons/folder.svg"),
-            epath("resources/icons/folder_hover.svg"),
-        )
+        self.button_version = SvgPushButton(self, BtnSize.FOLDER, BtnIcon.FOLDER)
         path = self.current_packages_directory()
         self.button_version.set_hover_status_message(f"Open: {path}")
         self.button_version.setToolTip("Open packages folder")
@@ -103,35 +90,18 @@ class PackagesWidget(QWidget):
 
         # BUTTONS - PACKAGE OPTIONS
         # copy all the packages in the current table to another houdini version
-        self.button_copy = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/migrate.svg"),
-            epath("resources/icons/migrate_hover.svg"),
-        )
+
+        self.button_copy = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.MIGRATE)
         self.button_copy.set_hover_status_message("Copy selected packages to other installed Houdini versions.")
         self.button_copy.setToolTip("Copy selected packages to other installed Houdini versions")
         self.button_copy.clicked.connect(self.migrate_packages)
 
-        self.button_refresh = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/refresh.svg"),
-            epath("resources/icons/refresh_hover.svg"),
-        )
+        self.button_refresh = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.REFRESH)
         self.button_refresh.set_hover_status_message(f"Refresh Houdini {self.table_version} packages.")
         self.button_refresh.setToolTip("Refresh packages for current table")
         self.button_refresh.clicked.connect(self.refresh_table)
 
-        self.button_refresh_all = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/refresh_all.svg"),
-            epath("resources/icons/refresh_all_hover.svg"),
-        )
+        self.button_refresh_all = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.REFRESH_ALL)
         self.button_refresh_all.set_hover_status_message("Refresh all packages for all installed versions of Houdini.")
         self.button_refresh_all.setToolTip("Refresh all packages for all installed versions of Houdini")
         self.button_refresh_all.clicked.connect(self.refresh_all_tables)

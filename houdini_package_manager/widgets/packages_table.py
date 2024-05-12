@@ -17,8 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import StatusBar
-from houdini_package_manager.utils import epath
-from houdini_package_manager.widgets.custom_widgets import SvgPushButton
+from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
 from houdini_package_manager.wrangle.url import Url
 
@@ -213,13 +212,7 @@ class CellWidgets:
         # A label replaces the dropdown if there is no plugin data.
 
         # if the package config has problems
-        button_warning = SvgPushButton(
-            parent,
-            32,
-            29,
-            epath("resources/icons/warning.svg"),
-            epath("resources/icons/warning_hover.svg"),
-        )
+        button_warning = SvgPushButton(parent, BtnSize.WARNING, BtnIcon.WARNING)
 
         pkg_name = parent._current_package(row).name
         if pkg_name[-5:] != ".json":
@@ -303,21 +296,11 @@ class CellWidgets:
         # Config: push button that opens its file path or url when clicked
 
         # local path or url
-        icons = "resources/icons"
         if isinstance(path, Url):
-            svg = icons + "/source_control.svg"
-            svg_hover = icons + "/source_control_hover.svg"
+            button = SvgPushButton(parent, BtnSize.CELL_TALL, BtnIcon.SOURCE_CONTROL)
         elif isinstance(path, Path):
-            svg = icons + "/file.svg"
-            svg_hover = icons + "/file_hover.svg"
+            button = SvgPushButton(parent, BtnSize.CELL_TALL, BtnIcon.FILE)
 
-        button = SvgPushButton(
-            parent,
-            23,
-            29,
-            epath(svg),
-            epath(svg_hover),
-        )
         button.setToolTip(str(path))
         button.setProperty("path", path)  # store path on button
         button.clicked.connect(parent.open_path)

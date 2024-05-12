@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import List
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -22,8 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import StatusBar, TextColor
-from houdini_package_manager.utils import epath
-from houdini_package_manager.widgets.custom_widgets import SvgPushButton
+from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 from houdini_package_manager.wrangle.package_templates import PackageTemplates
 
@@ -104,13 +103,7 @@ class LocalPackageAdderWidget(QWidget):
         button_remove_all_items.clicked.connect(self.plugin_list_box.remove_all_items)
 
         # BUTTON - CREATE PACKAGES
-        button_add_package = SvgPushButton(
-            self,
-            120,
-            36,
-            epath("resources/icons/add_packages_confirm.svg"),
-            epath("resources/icons/add_packages_confirm_hover.svg"),
-        )
+        button_add_package = SvgPushButton(self, BtnSize.WIDE_LARGE, BtnIcon.ADD_PKG_CONFIRM)
         button_add_package.set_hover_status_message(
             "Create packages for the selected plugins for the selected Houdini versions."
         )
@@ -484,13 +477,7 @@ class PluginListItem(QWidget):
         self.listbox = listbox
         self.label_file_overwrite = label_file_overwrite
 
-        self.button_remove = SvgPushButton(
-            self,
-            16,
-            16,
-            epath("resources/icons/remove.svg"),
-            epath("resources/icons/remove_hover.svg"),
-        )
+        self.button_remove = SvgPushButton(self, BtnSize.SQUARE_SMALL, BtnIcon.REMOVE)
         self.button_remove.set_hover_status_message("Remove item.")
         self.button_remove.setToolTip("Remove item")
         self.button_remove.clicked.connect(self.remove_self)
@@ -558,65 +545,37 @@ class PresetWidgets:
     Tool widgets for the package adder window.
     """
 
-    size_default = QSize(24, 24)
-    size_long = QSize(48, 24)
-
     @classmethod
     def add_items(cls, parent) -> SvgPushButton:
-        add_items = SvgPushButton(
-            parent,
-            *cls.size_long.toTuple(),
-            epath("resources/icons/add.svg"),
-            epath("resources/icons/add_hover.svg"),
-        )
+        add_items = SvgPushButton(parent, BtnSize.WIDE_DEFAULT, BtnIcon.ADD)
         add_items.set_hover_status_message("Select plugins.")
         add_items.setToolTip("Select plugins")
         return add_items
 
     @classmethod
     def invert_selection(cls, parent) -> SvgPushButton:
-        invert_selection = SvgPushButton(
-            parent,
-            *cls.size_default.toTuple(),
-            epath("resources/icons/invert_selection.svg"),
-            epath("resources/icons/invert_selection_hover.svg"),
-        )
+        invert_selection = SvgPushButton(parent, BtnSize.SQUARE_MEDIUM, BtnIcon.INVERT_SELECTION)
         invert_selection.set_hover_status_message("Invert selection.")
         invert_selection.setToolTip("Invert selection")
         return invert_selection
 
     @classmethod
     def clear_selection(cls, parent) -> SvgPushButton:
-        clear_selection = SvgPushButton(
-            parent,
-            *cls.size_default.toTuple(),
-            epath("resources/icons/clear_selection.svg"),
-            epath("resources/icons/clear_selection_hover.svg"),
-        )
+        clear_selection = SvgPushButton(parent, BtnSize.SQUARE_MEDIUM, BtnIcon.CLEAR_SELECTION)
         clear_selection.set_hover_status_message("Clear selection.")
         clear_selection.setToolTip("Clear selection")
         return clear_selection
 
     @classmethod
     def remove_selected_items(cls, parent) -> SvgPushButton:
-        remove_item = SvgPushButton(
-            parent,
-            *cls.size_default.toTuple(),
-            epath("resources/icons/remove.svg"),
-            epath("resources/icons/remove_hover.svg"),
-        )
+        remove_item = SvgPushButton(parent, BtnSize.SQUARE_MEDIUM, BtnIcon.REMOVE)
         remove_item.set_hover_status_message("Remove selected items.")
         remove_item.setToolTip("Remove selected items")
         return remove_item
 
     @classmethod
     def remove_all_items(cls, parent) -> SvgPushButton:
-        remove_all_items = SvgPushButton(
-            parent,
-            *cls.size_default.toTuple(),
-            epath("resources/icons/remove_all_items.svg"),
-            epath("resources/icons/remove_all_items_hover.svg"),
-        )
+        remove_all_items = SvgPushButton(parent, BtnSize.SQUARE_MEDIUM, BtnIcon.REMOVE_ALL_ITEMS)
         remove_all_items.set_hover_status_message("Remove all items.")
         remove_all_items.setToolTip("Remove all items")
         return remove_all_items
