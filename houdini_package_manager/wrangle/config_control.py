@@ -284,6 +284,10 @@ class HoudiniInstall:
             metadata = result.split("\\n")
             return metadata
 
+        logging.debug(
+            f"Getting Houdini {self.version.full} install data (env vars from hconfig, package data from json)...\n"
+        )
+
         # target the correct hconfig.exe
         hconfig = "hconfig"
         if platform.system() == "Windows":
