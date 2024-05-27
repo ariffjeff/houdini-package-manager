@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowIcon(QIcon(epath("resources/icons/hpm_icon.svg", True)))
 
-        self.setMinimumSize(1000, 550)
+        self.resize(1250, 600)
 
         self.setStyleSheet(
             """
