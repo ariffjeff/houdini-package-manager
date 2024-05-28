@@ -1,4 +1,6 @@
+import json
 from enum import Enum
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QStatusBar
 
@@ -92,3 +94,44 @@ class RateLimitError(Exception):
     def __init__(self, message="API rate limit exceeded. Status code: 403") -> None:
         self.message = message
         super().__init__(self.message)
+
+
+class RepoMetadataController:
+    """
+    Read, write, and manage a package's repo metadata.
+    """
+
+    def __init__(self) -> None:
+        self.PACKAGES_GIT_DATA_PATH = Path("houdini_package_manager/user/package_repo_data.json")
+        # self.package = package
+
+    def load_local_metadata(self) -> dict:
+        if not self.PACKAGES_GIT_DATA_PATH.exists():
+            return {}
+
+        with open(self.PACKAGES_GIT_DATA_PATH) as file:
+            data = json.load(file)
+        return data
+
+    def fetch_remote_metadata(self) -> dict:
+        """
+        Access the GitHub API to fetch remote repo data for all packages.
+        Accounts for API rate limiting if there are too many packages to request data for.
+        Returns a json-like dict of the desired repo data.
+        """
+
+        # request remote repo data
+        for name, _pkg in self.configs.items():
+            self.configs[name]._repo.get_remote_data()
+            # repo = pkg._repo
+            # repo.get_remote_data()
+
+        # create json structure
+        data = {self.houdini_version: {}}
+        for name, pkg in self.configs.items():
+            data[self.houdini_version][name] = {
+                "local_config_path": str(pkg.config_path),
+                "latest_version": self.configs[name]._repo.remote.tag_latest,
+            }
+
+        return data

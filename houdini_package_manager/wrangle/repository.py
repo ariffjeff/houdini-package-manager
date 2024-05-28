@@ -194,7 +194,15 @@ class GitProject:
             logging.debug(f"{self.name} current list of known remote tags: {self.remote.tags}")
             self.remote.tags = tags
 
-            # TODO store tags list in user json
+            """
+            TODO: store tags list in user json and read back in on HPM start
+
+            - write fetched remote tags to local package json using global controller class
+            - update local packages metadata
+            - check if json exists
+            - create new if doesnt exist and populate with package info (local_path, latest_version)
+            - if exists, read json data
+            """
 
         return tags
 
