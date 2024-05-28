@@ -16,7 +16,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from houdini_package_manager.meta.meta_tools import RateLimitError, StatusBar, TableHeaders, TextColor
+from houdini_package_manager.meta.meta_tools import (
+    RateLimitError,
+    RequestConnectionError,
+    StatusBar,
+    TableHeaders,
+    TextColor,
+)
 from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
 from houdini_package_manager.wrangle.url import Url
@@ -486,7 +492,7 @@ class CellWidgets:
                 target_cell.setText(latest_tag)
                 StatusBar.message(f"Successfully synced metadata for {pkg.pkg_name}", TextColor.SUCCESS)
 
-            except RateLimitError as e:
+            except (RateLimitError, RequestConnectionError) as e:
                 StatusBar.message(str(e), TextColor.ERROR)
 
         button = SvgPushButton(parent, BtnSize.SQUARE_DEFAULT, BtnIcon.GIT_SYNC)

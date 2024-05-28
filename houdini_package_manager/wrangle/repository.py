@@ -8,7 +8,7 @@ import git
 import git.exc
 import requests
 
-from houdini_package_manager.meta.meta_tools import RateLimitError
+from houdini_package_manager.meta.meta_tools import RateLimitError, RequestConnectionError
 from houdini_package_manager.wrangle.url import Url
 
 
@@ -274,7 +274,14 @@ class GitProject:
         """
 
         request_timeout = 5  # seconds
-        response = requests.get(url, params=params, timeout=request_timeout)
+
+        try:
+            response = requests.get(url, params=params, timeout=request_timeout)
+        except requests.exceptions.ConnectionError as e:
+            message = f"Fetch failed! Unable to establish connection to {url}"
+            logging.error(message)
+            logging.error(e)
+            raise RequestConnectionError(message) from e
 
         if response.status_code == 200:  # success
             return response

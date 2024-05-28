@@ -96,6 +96,16 @@ class RateLimitError(Exception):
         super().__init__(self.message)
 
 
+class RequestConnectionError(Exception):
+    """
+    An exception when a request connection fails.
+    """
+
+    def __init__(self, message="Failed to establish connection.") -> None:
+        self.message = message
+        super().__init__(self.message)
+
+
 class RepoMetadataController:
     """
     Read, write, and manage a package's repo metadata.
