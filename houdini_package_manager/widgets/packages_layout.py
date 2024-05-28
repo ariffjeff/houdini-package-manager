@@ -42,14 +42,15 @@ class PackagesWidget(QWidget):
             The parent QTabWidget. Used for switching tabs based on widget interaction in this QWidget.
     """
 
-    def __init__(self, parent, table_data: HoudiniManager, versions: List[str], tabs: QTabWidget) -> None:
+    def __init__(self, parent, table_data: HoudiniManager, hou_versions: List[str], tabs: QTabWidget) -> None:
         super().__init__(parent)
 
         self.parent_tabs = tabs
         self.table_data = table_data
-        self.versions = versions
-        self.version_labels = ["Houdini " + version for version in self.versions]
-        self._table_version = self.versions[0]
+        self.hou_versions = hou_versions
+
+        self.version_labels = ["Houdini " + version for version in self.hou_versions]
+        self._table_version = self.hou_versions[0]
 
         # LABEL - HOUDINI VERSION DROPDOWN
         label_version_dropdown = QLabel("HOUDINI VERSIONS")
@@ -107,7 +108,7 @@ class PackagesWidget(QWidget):
         self.button_refresh_all.clicked.connect(self.refresh_all_tables)
 
         # TABLE - PACKAGE DATA
-        current_hou_version = self.table_data.hou_installs[self.versions[0]]
+        current_hou_version = self.table_data.hou_installs[self.hou_versions[0]]
         if current_hou_version.packages.pkgs:
             table = PackageTableModel(self, current_hou_version)
             table.setStyleSheet("QTableWidget {border: none;}")
@@ -119,7 +120,7 @@ class PackagesWidget(QWidget):
         self.stacked_widget.setStyleSheet("QStackedWidget {border: 1px solid grey;}")
 
         # keep track of loaded package tables in the order they are added to stacked_widget
-        self.loaded_stacked_widgets_in_order_loaded = [self.versions[0]]
+        self.loaded_stacked_widgets_in_order_loaded = [self.hou_versions[0]]
 
         # CREATE LAYOUTS
         self.layout_main = QVBoxLayout()
@@ -293,7 +294,7 @@ class PackagesWidget(QWidget):
             self.refresh_table(version)
 
         # reload package config data for packages not loaded into tables.
-        not_loaded_versions = list(set(self.versions).difference(set(self.loaded_stacked_widgets_in_order_loaded)))
+        not_loaded_versions = list(set(self.hou_versions).difference(set(self.loaded_stacked_widgets_in_order_loaded)))
         for version in not_loaded_versions:
             self.table_data.get_houdini_data(version)
 
@@ -305,11 +306,11 @@ class PackagesWidget(QWidget):
         in the target packages directory of the target installed versions of Houdini.
         """
 
-        if len(self.versions) <= 1:
+        if len(self.hou_versions) <= 1:
             StatusBar.message("No other Houdini versions to copy packages to.", TextColor.ERROR)
             return
 
-        checkbox_version_options = list(self.versions)
+        checkbox_version_options = list(self.hou_versions)
         checkbox_version_options.remove(self.table_version)
         checkbox_version_options = [f"Houdini {version}" for version in checkbox_version_options]
 
@@ -363,7 +364,7 @@ class PackagesWidget(QWidget):
         """
 
         # check the package tables that aren't the one that's currently loaded
-        other_versions = list(self.versions)
+        other_versions = list(self.hou_versions)
         other_versions.remove(self.table_version)
 
         # identify any potential file overwrite conflicts for different houdini versions
