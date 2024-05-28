@@ -254,7 +254,7 @@ class GitProject:
 
         return all_tags
 
-    def _make_request(self, url: str, params: dict) -> requests.Response:
+    def _make_request(self, url: str, params: dict) -> requests.Response | None:
         """
         Makes a GET request to the specified URL with given parameters and handles the response.
 
