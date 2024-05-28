@@ -108,7 +108,7 @@ class PackagesWidget(QWidget):
 
         # TABLE - PACKAGE DATA
         current_hou_version = self.table_data.hou_installs[self.versions[0]]
-        if current_hou_version.packages.configs:
+        if current_hou_version.packages.pkgs:
             table = PackageTableModel(self, current_hou_version)
             table.setStyleSheet("QTableWidget {border: none;}")
         else:
@@ -205,7 +205,7 @@ class PackagesWidget(QWidget):
             self.stacked_widget.setCurrentIndex(index)
             return
 
-        configs = self.table_data.hou_installs[self.table_version].packages.configs
+        configs = self.table_data.hou_installs[self.table_version].packages.pkgs
         if configs:
             widget_contents = PackageTableModel(self, self.table_data.hou_installs[self.table_version])
             widget_contents.setStyleSheet("QTableWidget {border: none;}")
@@ -239,7 +239,7 @@ class PackagesWidget(QWidget):
         # refresh config data for current package set
         self.table_data.get_houdini_data(refresh_version)
 
-        configs = self.table_data.hou_installs[refresh_version].packages.configs
+        configs = self.table_data.hou_installs[refresh_version].packages.pkgs
         if configs:
             widget_contents = PackageTableModel(self, self.table_data.hou_installs[refresh_version])
             widget_contents.setStyleSheet("QTableWidget {border: none;}")
@@ -433,7 +433,7 @@ class PackagesWidget(QWidget):
         # get the package data for each houdini install version
         package_data = {}
         for key, houInstall in target_versions.items():
-            package_data[key] = houInstall.packages.configs
+            package_data[key] = houInstall.packages.pkgs
 
         return package_data
 
