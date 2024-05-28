@@ -65,3 +65,30 @@ class StatusBar:
             return False
 
         raise RuntimeError("Unable to find status bar in top level widget.")
+
+
+class TableHeaders(Enum):
+    """
+    Enums for the table column header names.
+    """
+
+    ENABLE = "Enable"
+    PACKAGE = "Package"
+    AUTHOR = "Author"
+    LATEST = "Latest"
+    INSTALLED = "Installed"
+    SOURCE = "Src"
+    CONFIG = "Config"
+    PLUGINS = "Plugins"
+    SYNC = "Sync"
+    UPDATE = "Update"
+
+
+class RateLimitError(Exception):
+    """
+    An exception that should be raised when an API's rate limit has been exceeded (status code: 403).
+    """
+
+    def __init__(self, message="API rate limit exceeded. Status code: 403") -> None:
+        self.message = message
+        super().__init__(self.message)

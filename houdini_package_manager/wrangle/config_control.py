@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -6,9 +8,10 @@ import re
 import subprocess
 from itertools import takewhile
 from pathlib import Path
-from typing import Dict, List, Union
 
-from houdini_package_manager.wrangle.repository import Project
+from houdini_package_manager.meta.meta_tools import TableHeaders
+from houdini_package_manager.wrangle.repository import GitProject
+from houdini_package_manager.wrangle.url import Url
 
 
 class HoudiniManager:
@@ -37,7 +40,7 @@ class HoudiniManager:
         logging.debug(f"Using these installs:\n{self.install_directories}\n")
         self.hou_installs = {}
 
-    def get_houdini_data(self, versions: Union[str, List[str]] = None) -> None:
+    def get_houdini_data(self, versions: str | list[str] = None) -> None:
         """
         Get the package data and relevant meta data for each installed version of Houdini.
         If an install has no package data then the config will simply be empty.
@@ -176,18 +179,51 @@ class HoudiniInstall:
         self.HFS = install_dir
         self.HB = Path(self.HFS, "bin")
         self.version = HouVersion(str(self.HFS))
+        self.env_vars = self._get_env_vars()
+        self.packages = self._get_pkgs()
+        self._final_debug_logs()
 
-        logging.debug(
-            f"Getting Houdini {self.version.full} install data (env vars from hconfig, package data from json)...\n"
-        )
+    def _final_debug_logs(self) -> None:
+        logging.debug(f"Houdini {self.version.full} PACKAGE CONFIGS:")
+        for pkg in self.packages.pkgs.values():
+            logging.debug(pkg.config_path)
+        logging.debug("\n")
 
+        logging.debug(f"Houdini {self.version.full} PLUGINS:")
+        for plugin in self.packages.hconfig_plugin_paths:
+            logging.debug(plugin)
+        logging.debug("\n")
+
+    def _get_pkgs(self) -> PackageCollection | None:
+        HOU_PKG_DIR_KEY = "HOUDINI_USER_PREF_DIR"
+        # if hconfig.exe failed to produce the "HOUDINI_USER_PREF_DIR" env var or any env var data
+        # because maybe the houdini install is corrupted somehow, then no package data can be retrieved.
+        logging.debug(f"Houdini {self.version.full} ENV VARS:")
+        for key, value in self.env_vars.items():
+            logging.debug(f"{key} = {value}")
+        logging.debug("\n")
+
+        if HOU_PKG_DIR_KEY in self.env_vars:
+            return PackageCollection(Path(self.env_vars[HOU_PKG_DIR_KEY], "packages"), self.env_vars)
+        return None
+
+    def _get_env_vars(self) -> list:
         """
-        ### Get environment variable keys AND values from hconfig
+        Executes Houdini's hconfig.exe via a Python subprocess in order to get the generated Houdini environment variables (keys and values) that
+        hconfig processes from the json package config files.
+
+        hconfig.exe can only be run by a compatible Python version that Houdini shipped with (Windows only: https://www.sidefx.com/docs/houdini/hom/index.html#which-python).
+        So here we can either:
+            1. Find and run a compatible Python by proxy in order to have it run hconfig.exe. This allows us to avoid needing to ship this project with multiple matching Python versions.
+            or...
+            2. Naively run any Houdini hconfig.exe's with whataver version of Python HPM is built with. For example, a Python3.9 subprocess calling an hconfig.exe that was build for
+            Python3.10 will result in an error message being returned, and thus no env vars. No env vars means we can't process any package config data - the given Houdini version
+            would have to be ignored entirely! If HPM is running hconfig naively, HPM's Python will need to be updated to match the latest Houdini's Python version on every major release.
 
         ### WARNING
         Due to the difficulty of getting Houdini environment variables (keys AND values) quickly and without errors, here are the
         different ways to go about it (hconfig and other methods).
-        
+
         1. open houdini directly > Python Shell > hou.ui.packageInfo()
         - Returns plugin paths (some env var values and no keys), and other crap, can probably be extracted with regex
         - Only works directly in Houdini's python shell
@@ -205,43 +241,7 @@ class HoudiniInstall:
         - errors on incompatible python versions calling hconfig.exe (if this can be fixed then this is the ideal solution)
 
         5. Somehow find env vars a different way?
-        """
-        self.env_vars = self.run_hconfig()
-
-        PREF_DIR_KEY = "HOUDINI_USER_PREF_DIR"
-        # if hconfig.exe failed to produce the "HOUDINI_USER_PREF_DIR" env var or any env var data
-        # because maybe the houdini install is corrupted somehow, then no package data can be retrieved.
-        logging.debug(f"Houdini {self.version.full} ENV VARS:")
-        for key, value in self.env_vars.items():
-            logging.debug(f"{key} = {value}")
-        logging.debug("\n")
-
-        if PREF_DIR_KEY not in self.env_vars:
-            self.packages = None
-        else:
-            self.packages = PackageCollection(Path(self.env_vars[PREF_DIR_KEY], "packages"), self.env_vars)
-
-        logging.debug(f"Houdini {self.version.full} PACKAGE CONFIGS:")
-        for pkg in self.packages.configs.values():
-            logging.debug(pkg.config_path)
-        logging.debug("\n")
-
-        logging.debug(f"Houdini {self.version.full} PLUGINS:")
-        for plugin in self.packages.hconfig_plugin_paths:
-            logging.debug(plugin)
-        logging.debug("\n")
-
-    def run_hconfig(self) -> list:
-        """
-        Executes Houdini's hconfig.exe via a Python subprocess in order to get the generated Houdini environment variables that hconfig processes from the json package config files.
-
-        hconfig.exe can only be run by a compatible Python version that Houdini shipped with (Windows only: https://www.sidefx.com/docs/houdini/hom/index.html#which-python).
-        So here we can either:
-            1. Find and run a compatible Python by proxy in order to have it run hconfig.exe. This allows us to avoid needing to ship this project with multiple matching Python versions.
-            or...
-            2. Naively run any Houdini hconfig.exe's with whataver version of Python HPM is built with. For example, a Python3.9 subprocess calling an hconfig.exe that was build for
-            Python3.10 will result in an error message being returned, and thus no env vars. No env vars means we can't process any package config data - the given Houdini version
-            would have to be ignored entirely! If HPM is running hconfig naively, HPM's Python will need to be updated to match the latest Houdini's Python version on every major release.
+        ###
 
         Returns a list of the Houdini environment variables.
         """
@@ -305,7 +305,7 @@ class HoudiniInstall:
 
         return metadata
 
-    def this_houdini_python_version(self) -> Union[Path, None]:
+    def this_houdini_python_version(self) -> Path | None:
         """
         Finds the latest installed version of Python that shipped with this Houdini (Windows only).
         Returns a Path object of the python directory.
@@ -324,9 +324,9 @@ class HoudiniInstall:
         ]
         return installed_pythons[0]
 
-    def get_package_data(self, named=True) -> dict:
+    def pkg_data_as_table_model(self, named=True) -> dict | list:
         """
-        Get the ordered list of data for all the packages for a single version of Houdini.
+        Get a list or dict of data for all the packages for a single version of Houdini, ordered as defined by the table model.
 
         Arguments:
             named (bool):
@@ -335,26 +335,26 @@ class HoudiniInstall:
         """
         if named:
             data = {}
-            for name, pkg in self.packages.configs.items():
+            for name, pkg in self.packages.pkgs.items():
                 data[name] = pkg.table_model
         else:
             data = []
-            for _name, pkg in self.packages.configs.items():
+            for _name, pkg in self.packages.pkgs.items():
                 data.append(list(pkg.table_model.values()))
         return data
 
-    def get_package_warnings(self) -> List[str]:
+    def get_package_warnings(self) -> list[str]:
         """
         Get the warnings for each package.
         """
 
         data = {}
-        for name, pkg in self.packages.configs.items():
+        for name, pkg in self.packages.pkgs.items():
             data[name] = pkg.warnings
         return data
 
-    def get_labels(self) -> List[str]:
-        for _, pkg in self.packages.configs.items():
+    def get_labels(self) -> list[str]:
+        for _, pkg in self.packages.pkgs.items():
             return list(pkg.table_model.keys())
 
 
@@ -407,7 +407,7 @@ class PackageCollection:
             version of Houdini.
     """
 
-    def __init__(self, packages_directory: Path = None, env_vars: Dict[str, str] = None, get_data=True) -> None:
+    def __init__(self, packages_directory: Path = None, env_vars: dict[str, str] = None, get_data=True) -> None:
         if packages_directory and not isinstance(packages_directory, Path):
             raise TypeError("directory must be a pathlib.Path object.")
 
@@ -422,21 +422,29 @@ class PackageCollection:
         self.packages_directory = packages_directory
         self.env_vars = env_vars
         self.hconfig_plugin_paths = []
-        self.configs = {}
+        self.pkgs = {}  # Package objects
         self.package_plugin_matches = {}
 
+        self.PACKAGES_GIT_DATA_PATH = Path("houdini_package_manager/user_data/package_repo_data.json")
+
         if get_data:
-            self.get_package_data()
+            self.create_pkgs()
 
     @property
-    def parent_directory(self):
+    def parent_directory(self) -> Path | None:
         if not self.packages_directory:
             return None
         return self.packages_directory.parent
 
-    def get_package_data(self) -> None:
+    @property
+    def houdini_version(self) -> str:
+        if not self.packages_directory:
+            return None
+        return self.packages_directory.parent.stem
+
+    def create_pkgs(self) -> None:
         """
-        Finds the package configuration files for a version of Houdini and matches them to their respective plugin data.
+        Finds all the package configuration files for a version of Houdini and matches them to their respective plugin data.
 
         Returns:
             None
@@ -464,11 +472,10 @@ class PackageCollection:
 
         # create each Package object
         for file in files:
-            self.configs[Path(file).stem] = Package(
-                Path(self.packages_directory, file), self.hconfig_plugin_paths, self.env_vars
-            )
+            filename = Path(file).stem
+            self.pkgs[filename] = Package(Path(self.packages_directory, file), self.hconfig_plugin_paths, self.env_vars)
 
-    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> List[Path]:
+    def extract_plugin_paths_from_HOUDINI_PATH(self, houdini_path: str) -> list[Path]:
         """
         Extract all the paths from the value of the HOUDINI_PATH environment variable.
         The paths are the directories that Houdini will search for the plugin data (HDAs/OTLs).
@@ -485,7 +492,7 @@ class PackageCollection:
 
 class Package:
     def __init__(
-        self, config_path: Path, hconfig_plugin_paths: List[Path] = None, env_vars: Dict[str, str] = None
+        self, config_path: Path, hconfig_plugin_paths: list[Path] = None, env_vars: dict[str, str] = None
     ) -> None:
         """
         A single JSON package file and its configuration and related data.
@@ -524,7 +531,6 @@ class Package:
         self._hconfig_plugin_paths = hconfig_plugin_paths
         self._env_vars = env_vars or {}
         self._plugin_paths = []
-        self.date_installed = None
         self.warnings = []
 
         self._load()
@@ -533,41 +539,37 @@ class Package:
         self.resolve()
         self.extract_data()
 
-        if len(self.plugin_paths) != 0:
-            self._repo = Project(self.plugin_paths[0])
-        else:
-            self._repo = Project()
-
-        ###############################
-        # set data determined by config
-        ###############################
-
-        self._enable = self.is_enabled()
-        self._source = self._repo.remote_url
-        self._version_latest = self._repo.remote.tag_latest
-        self._version_installed = self._repo.local.tag_latest
-
-        self.version = None
-        self.author = None
+        # initialize git repo data structure
+        path = self.plugin_paths[0] if len(self.plugin_paths) != 0 else None
+        self._git_project = GitProject(path)
 
     @property
-    def env_vars(self):
+    def env_vars(self) -> dict:
+        """
+        The environment variables that apply to all the packages for an installed Houdini version.
+        """
         return self._env_vars
 
-    @property
-    def plugin_paths(self):
-        return self._plugin_paths
+    ##############################################
+    # set data determined by package's config file
+    ##############################################
 
     @property
-    def name(self):
-        return self.config_path.stem
-
-    @property
-    def enable(self):
-        return self._enable
+    def enable(self) -> bool:
+        """
+        Whether the package is enabled to be loaded by houdini.
+        Can be found in package config.
+        """
+        enabled = self.is_enabled()
+        return enabled
 
     @enable.setter
-    def enable(self, toggle: bool):
+    def enable(self, toggle: bool) -> None:
+        """
+        Set the 'enable' variable's state of a plugin's config file to True or False.
+        This determines if houdini loads the plugin.
+        """
+
         if not isinstance(toggle, bool):
             raise TypeError("enable must be a bool.")
 
@@ -586,42 +588,94 @@ class Package:
             json.dump(self._raw_json, outfile, indent=4)
 
     @property
-    def source(self):
-        return self._source
+    def pkg_name(self) -> str:
+        """
+        Name of the plugin's package (taken from the config's filename).
+        """
+        return self.config_path.stem
 
     @property
-    def version_latest(self):
-        return self._version_latest
+    def pkg_author(self) -> str:
+        """
+        The author of the package.
+        """
+        return self._git_project.owner
 
     @property
-    def version_installed(self):
-        return self._version_installed
-
-    # convenient way to access all the config key-value assignments
-    @property
-    def config_keys(self):
-        return [path[-2] for path in self.config]
-
-    @property
-    def config_values(self):
-        return [path[-1] for path in self.config]
+    def version_latest(self) -> str:
+        """
+        Latest version of the plugin (git tag version string).
+        This is fetched from the remote repo via the GitHub API or a local json file if it already exists.
+        """
+        return self._git_project.remote.tag_latest
 
     @property
-    def table_model(self):
-        # the order here is how the columns are ordered in the GUI
+    def version_installed(self) -> str:
+        """
+        Installed version of the plugin (git tag version string).
+        This is taken from local repo (if a repo exists).
+        """
+        return self._git_project.local.tag_latest
+
+    @property
+    def remote_repo_url(self) -> Url:
+        """
+        The URL of the plugin's remote repository, if it exists.
+        """
+        return self._git_project.remote_url
+
+    @property
+    def plugin_paths(self) -> list[Path]:
+        """
+        List of Path(s) to the local plugin data.
+        Extracted from the package config file.
+        """
+        return self._plugin_paths
+
+    @property
+    def config_keys(self) -> list[str]:
+        """
+        A list of the keys of key-value pairs from a package's json config file.
+        Convenient for checking the current saved state of a package configuration as recognized by houdini.
+        """
+        keys = [path[-2] for path in self.config]
+        return keys
+
+    @property
+    def config_values(self) -> list[str | bool]:
+        """
+        A list of the values of key-value pairs from a package's json config file.
+        Convenient for checking the current saved state of a package configuration as recognized by houdini.
+        """
+        values = [path[-1] for path in self.config]
+        return values
+
+    @property
+    def last_metadata_sync_from_remote(self) -> str:
+        """
+        The date when this package's remote metadata was last synced from the remote repo.
+        """
+        pass
+
+    @property
+    def table_model(self) -> dict:
+        """
+        The model of package data that is later interpreted and loaded into the table GUI.
+        The order of key-value pairs here determines how the columns are ordered in the GUI.
+        The dict keys determine the names of the columns and which cells get which data.
+        The dict values determine the contents of the row cells (that can be interpreted later by the table loader).
+        """
         return {
-            "Enable": self.enable,
-            "Package": self.name,
-            "Latest": self.version_latest,
-            "Installed": self.version_installed,
-            "Source": self.source,
-            # commented out because these values are really only able
-            # to be gotten from a package index service
-            # "Version": self.version,
-            # "Author": self.author,
-            # "Date Installed": self.date_installed,
-            "Config": self.config_path,
-            "Plugins": self.plugin_paths,
+            # first column in table is the index, this is created in the table view
+            TableHeaders.ENABLE.value: self.enable,
+            TableHeaders.PACKAGE.value: self.pkg_name,
+            TableHeaders.AUTHOR.value: self.pkg_author,
+            TableHeaders.INSTALLED.value: self.version_installed,
+            TableHeaders.LATEST.value: self.version_latest,
+            TableHeaders.SOURCE.value: self.remote_repo_url,
+            TableHeaders.SYNC.value: None,  # functionality handled by table view
+            TableHeaders.CONFIG.value: self.config_path,
+            TableHeaders.PLUGINS.value: self.plugin_paths,
         }
 
     def is_enabled(self) -> bool:
@@ -754,7 +808,7 @@ class Package:
             flat.append([*prefix, data])
         return flat
 
-    def _standard_paths(self, data: List[list]) -> List[list]:
+    def _standard_paths(self, data: list[list]) -> list[list]:
         """
         Replace invalid double backslashes in paths with valid forward slashes.
         This ensures future regex operations do not encounter errors parsing escape characters.
@@ -767,7 +821,7 @@ class Package:
                 data[i][-1] = value
         return data
 
-    def _split_indexes(self, nums: List[int], split_num: int) -> List[List[int]]:
+    def _split_indexes(self, nums: list[int], split_num: int) -> list[list[int]]:
         index = len(nums)
         for i, num in enumerate(nums):
             if num > split_num:
@@ -778,7 +832,7 @@ class Package:
         end = nums[index:]
         return [start, end]
 
-    def _replace_var_calls(self, data: List[list], var_calls: list, potential_var_names: list) -> List[list]:
+    def _replace_var_calls(self, data: list[list], var_calls: list, potential_var_names: list) -> list[list]:
         """
         Continuously replace variable calls with their respective values until no variable calls remain.
         Only replaces var calls if the variable exists to replace it with.
@@ -829,7 +883,7 @@ class Package:
 
         return data
 
-    def _resolve_vars(self, config: List[list]) -> None:
+    def _resolve_vars(self, config: list[list]) -> None:
         """
         Replace every variable call in a package config with the variable's value.
 
@@ -882,7 +936,7 @@ class Package:
 
         return config
 
-    def _find_plugin_paths(self, paths: List[list]) -> List[str]:
+    def _find_plugin_paths(self, paths: list[list]) -> list[str]:
         """
         Find all the plugin paths in the package.
         Returns a list of all the valid paths.

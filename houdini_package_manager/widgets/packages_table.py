@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union
+from typing import Any, Callable, List, Union
 
 from PySide6.QtCore import QEvent, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from houdini_package_manager.meta.meta_tools import StatusBar
+from houdini_package_manager.meta.meta_tools import RateLimitError, StatusBar, TableHeaders, TextColor
 from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.wrangle.config_control import HoudiniInstall, Package
 from houdini_package_manager.wrangle.url import Url
@@ -30,13 +30,13 @@ class PackageTableModel(QTableWidget):
     def __init__(self, parent, houdini_install: HoudiniInstall) -> None:
         super().__init__(parent)
 
-        if not houdini_install.packages.configs:
+        if not houdini_install.packages.pkgs:
             raise ValueError(f"No package data found for Houdini {houdini_install.version.full}")
 
-        self.version = houdini_install.version
-        self.packages = houdini_install.packages.configs
-        self.table_data = houdini_install.get_package_data(named=False)
-        self.labels = houdini_install.get_labels()
+        self.hou_version = houdini_install.version
+        self.packages = houdini_install.packages.pkgs
+        self.table_data = houdini_install.pkg_data_as_table_model(named=False)
+        self.column_headers = houdini_install.get_labels()
         self.warnings = houdini_install.get_package_warnings()
 
         self.setup_table_data()
@@ -49,7 +49,7 @@ class PackageTableModel(QTableWidget):
         """
 
         # insert custom index column
-        self.labels.insert(0, "")
+        self.column_headers.insert(0, "")
         for i, _row in enumerate(self.table_data):
             self.table_data[i].insert(0, str(i + 1))
         # remove default index column since it contains the corner part that can't be styled
@@ -59,12 +59,12 @@ class PackageTableModel(QTableWidget):
         self.verticalHeader().setVisible(False)
 
         self.setRowCount(len(self.table_data))
-        self.setColumnCount(len(self.labels))
+        self.setColumnCount(len(self.column_headers))
 
-        self.setHorizontalHeaderLabels(self.labels)
+        self.setHorizontalHeaderLabels(self.column_headers)
         self.resizeColumnsToContents()  # before manual width adjustments
-        self.setColumnWidth(self.labels.index("Package"), 180)
-        self.setColumnWidth(self.labels.index("Plugins"), 200)
+        self.setColumnWidth(self.column_headers.index(TableHeaders.PACKAGE.value), 180)
+        self.setColumnWidth(self.column_headers.index(TableHeaders.PLUGINS.value), 200)
         # self.setColumnWidth(0, 26)  # doesnt seem to work with small numbers
 
         style = """
@@ -90,48 +90,84 @@ class PackageTableModel(QTableWidget):
         # self.verticalHeader().setMinimumWidth(26) # default index column width
         self.verticalHeader().setDefaultSectionSize(36)  # cell height
 
+    def setCellWidget(self, widget: QWidget) -> None:
+        """
+        Wrapper for the QTableWidget setCellWidget method to simplify setting cell data.
+        """
+
+        return super().setCellWidget(self.t_row, self.t_col, widget)
+
     def fill_table_contents(self) -> None:
         """
-        Enter the packages data into the packages table.
+        Enters the packages data into the packages table.
+
+        The QTableWidget's cells each consist of a QWidget container that aligns the
+        desired widget (QLabel, QPushButton, etc.) inside it.
+        (QTableWidget -> cell -> QWidget -> Any widget type)
+
+        All cell items are center aligned by default.
         """
+
+        columns_to_align_left = self._headers_to_column_index(
+            [TableHeaders.PACKAGE, TableHeaders.AUTHOR, TableHeaders.PLUGINS]
+        )
+        self.t_row = 0
+        self.t_col = 0
 
         # set table data with widgets based on the incoming data's information/data type
         for row, rowData in enumerate(self.table_data):
-            for column, value in enumerate(rowData):
-                # checkbox
-                if self.horizontalHeaderItem(column).text() == "Enable":
-                    checkbox_widget = CellWidgets.checkbox_enable(self, value)
-                    self.setCellWidget(row, column, self.align_widget(checkbox_widget))
+            self.t_row = row
+            for col, value in enumerate(rowData):
+                self.t_col = col
 
-                # button
-                elif self.horizontalHeaderItem(column).text() in ["Source", "Config"] and value:
-                    button_widget = CellWidgets.button_path(self, value)
-                    self.setCellWidget(row, column, self.align_widget(button_widget))
+                header = self.horizontalHeaderItem(self.t_col).text()  # column title
+                if header:
+                    header = self._string_to_header_enum(header)  # convert header back to its enum
+
+                # checkbox
+                if header in [TableHeaders.ENABLE]:
+                    widget = CellWidgets.checkbox_enable(self, value)
+
+                # button - open a path
+                elif header in [TableHeaders.SOURCE, TableHeaders.CONFIG] and value:
+                    widget = CellWidgets.button_open_path(self, value, header)
+
+                # button - sync a package's repository metadata
+                elif header in [TableHeaders.SYNC] and self._current_package().remote_repo_url:
+                    widget = CellWidgets.button_git_sync(self, value, header)
 
                 # dropdown (warning button as a replacement)
-                elif self.horizontalHeaderItem(column).text() == "Plugins":
-                    warnings = "\n".join(list(self.warnings.values())[row])
-                    if warnings:
-                        plugin_widget = CellWidgets.button_warning(
-                            self, row, warnings, self._current_package(row).config_path
-                        )
-                    elif not value:
-                        plugin_widget = CellWidgets.label_no_plugin_data()
-                    elif len(value) > 1:
-                        plugin_widget = CellWidgets.combo_plugins(self, value)
-                    else:
-                        plugin_widget = CellWidgets.button_plugins(self, value[0])
-                        plugin_widget.clicked.connect(self.open_path)
+                elif header in [TableHeaders.PLUGINS]:
+                    widget = self._create_plugin_dropdown_widget(value)
 
-                    plugin_widget.setMinimumHeight(29)
-                    self.setCellWidget(row, column, self.align_widget(plugin_widget, Qt.AlignLeft))
+                # string, None - strings and any remaining unset values from the table model
+                elif isinstance(value, str) or not value:
+                    widget = CellWidgets.label_text(value)
 
-                # string
-                elif isinstance(value, str):
-                    text_widget = CellWidgets.label_text(value)
-                    self.setCellWidget(
-                        row, column, self.align_widget(text_widget, Qt.AlignCenter if column == 0 else Qt.AlignLeft)
-                    )
+                # align widgets in cells
+                align = None
+                if self.t_col in columns_to_align_left:
+                    align = Qt.AlignLeft
+
+                self.setCellWidget(self.align_widget(widget, align))
+
+    def _create_plugin_dropdown_widget(self, value) -> QWidget:
+        """
+        Creates the plugins dropdown widget.
+        """
+
+        warnings = "\n".join(list(self.warnings.values())[self.t_row])
+        if warnings:
+            widget = CellWidgets.button_warning(self, self.t_row, warnings, self._current_package().config_path)
+        elif not value:
+            widget = CellWidgets.label_no_plugin_data()
+        elif len(value) > 1:
+            widget = CellWidgets.combo_plugins(self, value)
+        else:
+            widget = CellWidgets.button_plugins(self, value[0])
+            widget.clicked.connect(self.open_path)
+        widget.setMinimumHeight(29)
+        return widget
 
     def open_path(self) -> None:
         """
@@ -169,13 +205,24 @@ class PackageTableModel(QTableWidget):
         package.enable = toggle  # triggers setter method
 
         message = "Enabled" if toggle else "Disabled"
-        StatusBar.message(f"{message} package: {package.name}")
+        StatusBar.message(f"{message} package: {package.pkg_name}")
 
     def align_widget(self, widget, align: Qt.AlignmentFlag = None) -> QWidget:
         """
-        Create a QWidget that lays out a desired widget in a QTableWidget cell.
-        Mainly prevents the table cell from collapsing in on the cell contents.
-        Returns a QWidget that should be used as the third arg of: self.setCellWidget(row, column, widget)
+        Creates a QWidget with a QHBoxLayout that positions and scales a desired widget inside.
+
+        These are mainly sub-containers that are intended to be set inside a QTableWidget cell.
+        The QWidget prevents the cell from collapsing in on the cell contents, which would hide it.
+
+        Args:
+            widget:
+                The QWidget container to be placed in a QTableWidget cell.
+
+            align:
+                The type of alignment. Centered inside the cell by default.
+
+        Returns:
+            A QWidget that can be used as an argument in the self.setCellWidget method.
         """
 
         if not align:
@@ -189,15 +236,113 @@ class PackageTableModel(QTableWidget):
         layout_widget.setLayout(layout)
         return layout_widget
 
-    def _current_package(self, row: int) -> Package:
+    def _current_package(self) -> Package:
         """
         Return the current Package that's data is being worked upon while the table cells are being set.
-
-        Arguments:
-            row (int):
-                The index of the row that the table cell-setting for loop is currently on.
         """
-        return list(self.packages.values())[row]
+
+        pkg = list(self.packages.values())[self.t_row]
+        return pkg
+
+    def _current_cell(self) -> tuple:
+        """
+        The row and column integers for the current cell that is being created while the given cell is being set.
+
+        Returns a tuple.
+        """
+
+        return (self.t_row, self.t_col)
+
+    def _get_cell_contents_from_same_row(self, header: TableHeaders) -> QWidget | None:
+        """
+        Returns the desired QTableWidget cell's widget contents (if any).
+
+        The desired cell must be targeted:
+            - from another cell within the same row.
+            - during the calling cell's creation (so that the current row & column indices are correct).
+            - with a given column header from TableHeaders.
+
+        Args:
+            header (TableHeaders):
+                The target cell's column header Enum name.
+
+        Returns:
+            A QWidget object (the cell's inner alignment container) if one exists or None if the cell is empty.
+        """
+
+        cell_position = self._get_cell_position_from_same_row(header)
+        cell_widget = self.cellWidget(*cell_position)
+
+        # in case cell has not been set with anything
+        if not cell_widget:
+            return None
+
+        target_widget = cell_widget.layout().itemAt(0).widget()
+
+        return target_widget
+
+    def _get_cell_position_from_same_row(self, header: TableHeaders) -> tuple:
+        """
+        Returns the index coordinate position of the desired QTableWidget cell.
+
+        The position is determined by iterating through the header row until
+        the current header name matches the desired name.
+
+        Args:
+            header (TableHeaders):
+                The target cell's column header Enum name.
+
+        Returns:
+            A tuple of the cell's coordinate position.
+        """
+
+        if not isinstance(header, TableHeaders):
+            raise TypeError(f"{type(header)} must be of type TableHeaders.")
+
+        header_row = self.horizontalHeader()
+        for column in range(header_row.count()):
+            if self.horizontalHeaderItem(column).text() == header.value:
+                break
+
+        cell_position = (self.t_row, column)
+
+        return cell_position
+
+    def _headers_to_column_index(self, headers: TableHeaders | List[TableHeaders]) -> int | List[int]:
+        """
+        Convert the column header(s) to its index.
+
+        Returns an int or list of ints.
+        """
+
+        if isinstance(headers, TableHeaders):
+            headers = [headers]
+
+        indices = []
+        for head in headers:
+            i = self.column_headers.index(head.value)
+            indices.append(i)
+
+        return indices
+
+    def _string_to_header_enum(self, string_value: str) -> TableHeaders:
+        """
+        Converts a string to its corresponding enum member in the TableHeaders class.
+
+        Args:
+            string_value (str): The string to convert to an enum member.
+
+        Returns:
+            TableHeaders: The enum member corresponding to the string value.
+
+        Raises:
+            ValueError: If the string does not match any of the enum members' values.
+        """
+
+        for member in TableHeaders:
+            if member.value == string_value:
+                return member
+        raise ValueError(f"{string_value} is not a valid {TableHeaders.__name__}")
 
 
 class CellWidgets:
@@ -214,7 +359,7 @@ class CellWidgets:
         # if the package config has problems
         button_warning = SvgPushButton(parent, BtnSize.WARNING, BtnIcon.WARNING)
 
-        pkg_name = parent._current_package(row).name
+        pkg_name = parent._current_package().pkg_name
         if pkg_name[-5:] != ".json":
             pkg_name += ".json"
         button_warning.set_hover_status_message(f"Can't process package, error(s) in config: {pkg_name}")
@@ -292,19 +437,62 @@ class CellWidgets:
         return button
 
     @staticmethod
-    def button_path(parent: PackageTableModel, path: Union[Path, Url]) -> SvgPushButton:
-        # Config: push button that opens its file path or url when clicked
+    def button_open_path(parent: PackageTableModel, path: Union[Path, Url], button_type: TableHeaders) -> SvgPushButton:
+        """
+        A QPushButton that opens its file path or url when clicked.
+        """
 
         # local path or url
-        if isinstance(path, Url):
+        if button_type is TableHeaders.SOURCE:
             button = SvgPushButton(parent, BtnSize.CELL_TALL, BtnIcon.SOURCE_CONTROL)
-        elif isinstance(path, Path):
+        elif button_type is TableHeaders.CONFIG:
             button = SvgPushButton(parent, BtnSize.CELL_TALL, BtnIcon.FILE)
 
         button.setToolTip(str(path))
         button.setProperty("path", path)  # store path on button
         button.clicked.connect(parent.open_path)
         button.set_hover_status_message(f"Open: {str(path)}")
+        return button
+
+    @staticmethod
+    def button_git_sync(parent: PackageTableModel, func: Callable[..., Any], button_type: TableHeaders) -> QPushButton:
+        """
+        A QPushButton that updates the row with the latest tag version.
+
+        One or more requests is sent to the GitHub API to fetch the remote repo's tags.
+        """
+
+        # initialize data now during this cell's creation
+        pkg = parent._current_package()
+        target_cell = parent._get_cell_contents_from_same_row(TableHeaders.LATEST)
+
+        def update_latest_tag() -> None:
+            """
+            Perform all operations to update the latest tag version.
+
+            The tag is fetched from the remote, set to the relevant cell, and finally cached in the user's json.
+            """
+
+            try:
+                latest_tag = pkg._git_project.fetch_latest_remote_tag()
+
+                if not latest_tag:
+                    StatusBar.message(
+                        f"Sync failed. No tag versions found on the remote repository for {pkg.pkg_name}.",
+                        TextColor.ERROR,
+                    )
+                    return
+
+                target_cell.setText(latest_tag)
+                StatusBar.message(f"Successfully synced metadata for {pkg.pkg_name}", TextColor.SUCCESS)
+
+            except RateLimitError as e:
+                StatusBar.message(str(e), TextColor.ERROR)
+
+        button = SvgPushButton(parent, BtnSize.SQUARE_DEFAULT, BtnIcon.GIT_SYNC)
+        button.clicked.connect(update_latest_tag)
+        button.setToolTip("Sync metadata")
+        button.set_hover_status_message(f"Sync metadata for {pkg.remote_repo_url.stem}")
         return button
 
     @staticmethod
@@ -323,6 +511,10 @@ class CellWidgets:
 
 
 class DropDown(QComboBox):
+    """
+    A dropdown list of items that ignores scroll-wheel scrolling.
+    """
+
     def __init__(self, parent=None):
         super().__init__(parent)
 

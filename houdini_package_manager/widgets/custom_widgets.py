@@ -17,7 +17,6 @@ class BtnIcon(Enum):
 
     SOURCE_CONTROL = "source_control"
     FILE = "file"
-    SYNC = "sync"
     UPDATE = "update"
     HPM_LOGO = "hpm"
     HPM_LOGO_GREY = "hpm_grey"
@@ -51,7 +50,6 @@ class BtnSize(Enum):
     WIDE_DEFAULT = (48, 24)
     WIDE_LARGE = (120, 36)
 
-    CELL_DEFAULT = (23, 23)
     CELL_TALL = (23, 29)
 
     """SPECIALS"""

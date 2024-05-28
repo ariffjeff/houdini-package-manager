@@ -19,3 +19,16 @@ class Url:
 
     def __repr__(self) -> str:
         return self._url
+
+    @property
+    def stem(self) -> str:
+        """
+        The final path element of the URL, excluding the extension.
+        """
+
+        s = self.__str__()
+        s = s.split("/")
+        stem = s[-1]
+        stem = stem.split(".")
+        stem = stem[0]
+        return stem
