@@ -20,6 +20,12 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 - **Github repository**: <https://github.com/ariffjeff/houdini-package-manager>
 - **PyPI repository**: <https://pypi.org/project/houdini-package-manager>
 
+## Install
+1. Download the latest version from https://houpm.com
+2. Unzip and store the folder anywhere you want.
+3. Create a shortcut of the Houdini_Package_Manager-x.y.z.exe file from the folder.
+4. Now you can run HPM from the shortcut, that's all there is to it!
+
 ## How it Works
 HPM is a Python application that basically grabs your plugins' package config files and converts them into a nice UI with a bunch of useful functionality.
 
@@ -34,12 +40,6 @@ HPM is a Python application that basically grabs your plugins' package config fi
 #### 2. Creating package configs for new plugins:
 - You can create new package configs for plugins you have downloaded to quickly get them into Houdini hassle free.
 - HPM takes the plugin folder path, HDA, or script you provide it and simply creates a new package config from a template, and puts it in `/packages`.
-
-## Install
-1. Download the latest version from https://houpm.com
-2. Unzip and store the folder anywhere you want.
-3. Create a shortcut of the Houdini_Package_Manager-x.y.z.exe file from the folder.
-4. Now you can run HPM from the shortcut, that's all there is to it!
 
 ## Building the project yourself
 Note: This project was primarily tested with Python 3.9.10.
