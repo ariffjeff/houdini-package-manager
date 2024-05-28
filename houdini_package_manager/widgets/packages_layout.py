@@ -91,6 +91,12 @@ class PackagesWidget(QWidget):
 
         # BUTTONS - PACKAGE OPTIONS
         # copy all the packages in the current table to another houdini version
+        self.button_git_sync = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.GIT_SYNC)
+        self.button_git_sync.set_hover_status_message(
+            "Sync all package metadata for all Houdini versions from remote repositories."
+        )
+        self.button_git_sync.setToolTip("Sync all package metadata.")
+        self.button_git_sync.clicked.connect(self.fetch_all_package_remote_metadata)
 
         self.button_copy = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.MIGRATE)
         self.button_copy.set_hover_status_message("Copy selected packages to other installed Houdini versions.")
@@ -142,6 +148,7 @@ class PackagesWidget(QWidget):
         layout_version_buttons.addWidget(self.combo_version)
         layout_version_buttons.addWidget(self.button_version)
         layout_table_options.addLayout(layout_package_buttons)
+        layout_package_buttons.addWidget(self.button_git_sync)
         layout_package_buttons.addWidget(self.button_copy)
         layout_package_buttons.addWidget(self.button_refresh)
         layout_package_buttons.addWidget(self.button_refresh_all)
@@ -299,6 +306,18 @@ class PackagesWidget(QWidget):
             self.table_data.get_houdini_data(version)
 
         StatusBar.message("Refreshed all package data and tables.")
+
+    def fetch_all_package_remote_metadata(self) -> None:
+        """
+        Fetch the remote metadata for every package of this version of Houdini.
+        """
+
+        StatusBar.message(
+            f"Synced all metadata for applicable Houdini {self._table_version} packages.", TextColor.SUCCESS
+        )
+
+        # TODO: send request to github api to get latest tag versions for all the plugins in the current table
+        # TODO: update all the relevant version_latest cell with latest tag versions
 
     def migrate_packages(self) -> None:
         """
