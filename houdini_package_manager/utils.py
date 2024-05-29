@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 
-def base_path() -> Path:
+def _base_path() -> Path:
     """
     Return the absolute base Path of the current executing environment.
     This allows resource files to be located when the project is running from either the
@@ -23,7 +23,7 @@ def epath(path: str, string=False) -> Path:
     Returns a Path by default. Returns a string if string arg is True.
     """
 
-    path = Path(base_path(), path)
+    path = Path(_base_path(), path)
 
     if string:
         return str(path)
