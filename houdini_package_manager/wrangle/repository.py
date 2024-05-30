@@ -8,7 +8,7 @@ import git
 import git.exc
 import requests
 
-from houdini_package_manager.meta.meta_tools import RateLimitError, RequestConnectionError
+from houdini_package_manager.meta.meta_tools import RateLimitError, RequestConnectionError, UserDataManager
 from houdini_package_manager.wrangle.url import Url
 
 
@@ -41,6 +41,8 @@ class GitProject:
         self.local = Local()  # contains self.tags
         self.remote = Remote()  # contains self.tags
         self.init_repo_data(get_remote)
+
+        self.user_data_manager = UserDataManager()
 
     def init_repo_data(self, get_remote=False) -> None:
         """
@@ -193,16 +195,7 @@ class GitProject:
         if cache:
             logging.debug(f"{self.name} current list of known remote tags: {self.remote.tags}")
             self.remote.tags = tags
-
-            """
-            TODO: store tags list in user json and read back in on HPM start
-
-            - write fetched remote tags to local package json using global controller class
-            - update local packages metadata
-            - check if json exists
-            - create new if doesnt exist and populate with package info (local_path, latest_version)
-            - if exists, read json data
-            """
+            self.user_data_manager.update_tags(self.name, self.remote.tags)
 
         return tags
 

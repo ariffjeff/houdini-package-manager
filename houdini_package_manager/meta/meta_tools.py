@@ -106,42 +106,55 @@ class RequestConnectionError(Exception):
         super().__init__(self.message)
 
 
-class RepoMetadataController:
+class UserDataManager:
     """
-    Read, write, and manage a package's repo metadata.
+    TODO
+    - create new pkg name dict in json if it doesnt exist (or just pre init them all at once?)
+    - read values on HPM load
+    - if a non existent json entry for a tool is created, init its local_config_path (forgot to do that currently)
+    - account for json file not existing
+    - read data back in on HPM start
     """
 
-    def __init__(self) -> None:
-        self.PACKAGES_GIT_DATA_PATH = Path("houdini_package_manager/user/package_repo_data.json")
-        # self.package = package
+    def __init__(self):
+        self.file_path = Path("houdini_package_manager/user/package_repo_data.json")
 
-    def load_local_metadata(self) -> dict:
-        if not self.PACKAGES_GIT_DATA_PATH.exists():
+    def _read_data(self):
+        """Reads data from the JSON file."""
+        if self.file_path.exists():
+            with open(self.file_path) as file:
+                return json.load(file)
+        else:
             return {}
 
-        with open(self.PACKAGES_GIT_DATA_PATH) as file:
-            data = json.load(file)
-        return data
+    def _write_data(self, data):
+        """Writes the given data to the JSON file."""
+        with open(self.file_path, "w") as file:
+            json.dump(data, file, indent=4)
 
-    def fetch_remote_metadata(self) -> dict:
-        """
-        Access the GitHub API to fetch remote repo data for all packages.
-        Accounts for API rate limiting if there are too many packages to request data for.
-        Returns a json-like dict of the desired repo data.
-        """
+    def add_entry(self, tool_name, local_config_path):
+        """Adds a new entry to the data."""
+        data = self._read_data()
+        data[tool_name] = {"local_config_path": local_config_path, "tags": []}
+        self._write_data(data)
 
-        # request remote repo data
-        for name, _pkg in self.configs.items():
-            self.configs[name]._repo.get_remote_data()
-            # repo = pkg._repo
-            # repo.get_remote_data()
+    def update_tags(self, tool_name, tags):
+        """Updates the tags for a specific tool."""
+        data = self._read_data()
+        if tool_name not in data:
+            # If the tool does not exist, initialize its entry with empty tags
+            data[tool_name] = {"local_config_path": "", "tags": []}
+        data[tool_name]["tags"] = tags
+        self._write_data(data)
 
-        # create json structure
-        data = {self.houdini_version: {}}
-        for name, pkg in self.configs.items():
-            data[self.houdini_version][name] = {
-                "local_config_path": str(pkg.config_path),
-                "latest_version": self.configs[name]._repo.remote.tag_latest,
-            }
+    def get_entry(self, tool_name):
+        """Retrieves the entry for a specific tool."""
+        data = self._read_data()
+        if tool_name in data:
+            return data[tool_name]
+        else:
+            raise KeyError(f"Entry for tool '{tool_name}' does not exist.")
 
-        return data
+    def set_file_path(self, file_path):
+        """Sets or changes the file path for the JSON data file."""
+        self.file_path = file_path
