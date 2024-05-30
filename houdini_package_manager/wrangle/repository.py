@@ -249,7 +249,7 @@ class GitProject:
                     break
                 all_tags.extend(tag["name"] for tag in tags)
 
-                if len(tags) < 100:  # no more tags on future page requests
+                if len(tags) < tags_per_request:  # no more tags on future page requests
                     break
 
                 pagination_page += 1
