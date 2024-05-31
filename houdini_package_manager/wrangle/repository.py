@@ -36,20 +36,30 @@ class GitProject:
         self.name = None
         self.owner = None
 
+        self.user_data_manager = UserDataManager()
+
         self._local_git_repo = None  # complex git module object
         self.init_local_git_repo()
         self.local = Local()  # contains self.tags
         self.remote = Remote()  # contains self.tags
         self.init_repo_data(get_remote)
 
-        self.user_data_manager = UserDataManager()
-
     def init_repo_data(self, get_remote=False) -> None:
         """
-        Extracts useful data from the local git repo.
+        Extracts any useful metadata from the local git repo and cached remote user data.
 
         If get_remote is True then the remote repo's data will be fetch and stored locally.
         The default is False.
+        """
+
+        """
+        TODO:
+        - There seems to be some duplicate tag setting being done (might be ok if its local & remote separately),
+        due to logs reporting: 'Updated list of known remote tags to: ...' twice.
+        If not a problem, document it and debug loggers to specify local vs remote data setting.
+
+        COMPARE LOCAL FETCHED TAGS TO THE CACHED REMORE TAGS TO SEE WHAT'S THE TRUE LATEST TAG. This will account for a case
+        where a repo gets updated locally to a new tag but the remote hasn't yet been updated.
         """
 
         if self._local_git_repo:
@@ -58,6 +68,10 @@ class GitProject:
             self.local.tags = self.extract_latest_tag_from_local_repo()
             if get_remote:
                 self.remote.tags = self.fetch_remote_tags()
+
+        cache = self.user_data_manager.get_entry(self.name)
+        if cache:
+            self.remote.tags = cache["tags"]
 
     def init_path(self, path) -> None:
         """
