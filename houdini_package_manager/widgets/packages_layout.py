@@ -156,7 +156,11 @@ class PackagesWidget(QWidget):
         layout_table_options.setAlignment(layout_package_buttons, Qt.AlignRight)
 
     @property
-    def table_version(self):
+    def table_version(self) -> str:
+        """
+        The Houdini version number that the current table pertains to.
+        """
+
         self._table_version = self.combo_version.currentText().split(" ")[-1]
         return self._table_version
 
@@ -275,7 +279,10 @@ class PackagesWidget(QWidget):
             StatusBar.message(f"Refreshed packages for Houdini {refresh_version}.")
 
     def _no_packages_found(self):
-        # Return a label meant to replace a table when there is no package data to fill it.
+        """
+        Returns a QLabel that's meant to replace a table when there is no package data to fill it.
+        """
+
         label = QLabel("No packages found")
         label.setAlignment(Qt.AlignCenter)
         return label
@@ -468,6 +475,10 @@ class PackagesWidget(QWidget):
 
 
 class CheckboxDialog(QDialog):
+    """
+    The dialog box for copying packages from one Houdini version to another.
+    """
+
     def __init__(self, checkbox_data, package_count, file_conflicts, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Copy packages")
@@ -507,7 +518,12 @@ class CheckboxDialog(QDialog):
         self.setLayout(layout_main)
 
     def update_file_conflicts(self) -> None:
-        # Get the total number of file conflicts for each houdini version's checkbox that is enabled.
+        """
+        Updates the displayed total number of file conflicts in the dialog box's warning.
+
+        This is done by checking for conflicts for each selected version of houdini.
+        """
+
         self.checked_file_conflicts = 0
         data = self.get_checkbox_data()
 
@@ -519,13 +535,16 @@ class CheckboxDialog(QDialog):
 
         self.label_file_overwrites.setText(f"{self.checked_file_conflicts} files will be overwritten.")
 
-    def get_checkbox_data(self):
-        # Return a list of tuples containing the checkbox labels and whether they are checked
+    def get_checkbox_data(self) -> List[tuple]:
+        """
+        Returns a list of tuples containing this dialog's checkbox labels and whether they are checked.
+        """
+
         return [checkbox.isChecked() for checkbox in self.checkboxes]
 
     def enabled_checkboxes(self) -> List[str]:
         """
-        Return a list of the enabled checkbox labels.
+        Returns a list of strings of the enabled checkbox labels' text.
         """
 
         selected_checkboxes = []
