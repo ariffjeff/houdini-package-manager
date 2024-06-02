@@ -1,4 +1,5 @@
 import json
+import logging
 from enum import Enum
 from pathlib import Path
 
@@ -123,11 +124,17 @@ class UserDataManager:
         self.file_path = Path("houdini_package_manager/user/package_repo_data.json")
 
     def _read_data(self) -> dict:
-        """Reads data from the JSON file."""
+        """
+        Reads data from the JSON file.
+
+        If the file doesn't exist, it will be created with no data.
+        """
+
         if self.file_path.exists():
             with open(self.file_path) as file:
                 return json.load(file)
         else:
+            self.new_empty_file()
             return {}
 
     def _write_data(self, data) -> None:
@@ -159,8 +166,14 @@ class UserDataManager:
         if tool_name in data:
             return data[tool_name]
         else:
-            raise KeyError(f"Entry for tool '{tool_name}' does not exist.")
+            logging.debug(f"User data cache for plugin '{tool_name}' does not exist.")
+            return None
 
     def set_file_path(self, file_path):
         """Sets or changes the file path for the JSON data file."""
         self.file_path = file_path
+
+    def new_empty_file(self) -> None:
+        """Creates the missing file with no data."""
+        with open(self.file_path, "w") as file:
+            json.dump({}, file)
