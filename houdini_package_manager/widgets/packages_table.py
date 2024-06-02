@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Callable, List, Union
 
-from PySide6.QtCore import QEvent, Qt, QUrl
+from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -71,7 +71,9 @@ class PackageTableModel(QTableWidget):
         self.resizeColumnsToContents()  # before manual width adjustments
         self.setColumnWidth(self.column_headers.index(TableHeaders.PACKAGE.value), 180)
         self.setColumnWidth(self.column_headers.index(TableHeaders.PLUGINS.value), 200)
-        # self.setColumnWidth(0, 26)  # doesnt seem to work with small numbers
+
+        # resize troublesome columns to their contents after event loop is idle (window shown)
+        QTimer.singleShot(0, self.minimize_column_widths)
 
         style = """
             ::section {
@@ -95,6 +97,27 @@ class PackageTableModel(QTableWidget):
         # expand vertical cell size
         # self.verticalHeader().setMinimumWidth(26) # default index column width
         self.verticalHeader().setDefaultSectionSize(36)  # cell height
+
+    def minimize_column_widths(self):
+        """
+        Resizes certain table's column widths to their content width.
+
+        This is to improve quality of life when using the app by working around an annoying
+        feature of certain columns horizontally resizing inconsistently.
+
+        This method really only exists to support resizing any troublesome columns that:
+            - refuse to allow resizing to their contents until after the app window is shown.
+            - size unpredictably/inconsistently across multiple tables, leading to data
+            visually jumping around horizontally when you switch between tables.
+
+        Add more columns to this list whenever they start to become troublesome.
+        """
+
+        column_indices = [0]  # start with custom index column
+        column_indices += self._headers_to_column_index(TableHeaders.SOURCE)
+
+        for i in column_indices:
+            self.resizeColumnToContents(i)  # custom index column
 
     def setCellWidget(self, widget: QWidget) -> None:
         """
