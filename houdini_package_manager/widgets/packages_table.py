@@ -117,7 +117,7 @@ class PackageTableModel(QTableWidget):
         column_indices += self._headers_to_column_index(TableHeaders.SOURCE)
 
         for i in column_indices:
-            self.resizeColumnToContents(i)  # custom index column
+            self.resizeColumnToContents(i)
 
     def setCellWidget(self, widget: QWidget) -> None:
         """
