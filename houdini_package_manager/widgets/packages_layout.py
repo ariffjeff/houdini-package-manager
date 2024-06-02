@@ -158,7 +158,7 @@ class PackagesWidget(QWidget):
     @property
     def table_version(self) -> str:
         """
-        The Houdini version number that the current table pertains to.
+        Returns the houdini version number of the current displayed package table.
         """
 
         self._table_version = self.combo_version.currentText().split(" ")[-1]
@@ -343,7 +343,7 @@ class PackagesWidget(QWidget):
         # identify any potential file overwrite conflicts for different houdini versions
         current_package_paths = [package.config_path for package in self.current_packages()]
         if not current_package_paths:
-            StatusBar.message(f"No packages in Houdini {self.current_table_version()} to copy.")
+            StatusBar.message(f"No packages in Houdini {self.table_version} to copy.")
             return
 
         file_conflicts = self.find_file_conflicts()
@@ -423,15 +423,6 @@ class PackagesWidget(QWidget):
         packages = list(current_table.packages.values())
         return packages
 
-    def current_table_version(self) -> str:
-        """
-        Return the houdini version number of the current displayed package table.
-        """
-
-        label = self.combo_version.currentText()
-        label = label.split(" ")[-1]
-        return label
-
     def get_packages(self, versions: Union[str, List[str]] = None) -> Dict[str, Package]:
         """
         Return a dict of the package data for the all the tables.
@@ -469,7 +460,7 @@ class PackagesWidget(QWidget):
         Return the packages directory of the currently loaded houdini version.
         """
 
-        current_version = self.current_table_version()
+        current_version = self.table_version
         path = self.table_data.hou_installs[current_version].packages.packages_directory
         return path
 
