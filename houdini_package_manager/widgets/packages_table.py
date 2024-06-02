@@ -169,7 +169,7 @@ class PackageTableModel(QTableWidget):
                 elif header in [TableHeaders.PLUGINS]:
                     widget = self._create_plugin_dropdown_widget(value)
 
-                # string, None - strings and any remaining unset values from the table model
+                # index (str), string, None - strings and any remaining unset values from the table model
                 elif isinstance(value, str) or not value:
                     widget = CellWidgets.label_text(value)
 
@@ -337,11 +337,11 @@ class PackageTableModel(QTableWidget):
 
         return cell_position
 
-    def _headers_to_column_index(self, headers: TableHeaders | List[TableHeaders]) -> int | List[int]:
+    def _headers_to_column_index(self, headers: TableHeaders | List[TableHeaders]) -> List[int]:
         """
         Convert the column header(s) to its index.
 
-        Returns an int or list of ints.
+        Returns a list of int(s).
         """
 
         if isinstance(headers, TableHeaders):
