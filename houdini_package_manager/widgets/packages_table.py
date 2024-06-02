@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, Callable, List, Union
 
@@ -30,7 +31,17 @@ from houdini_package_manager.wrangle.url import Url
 
 class PackageTableModel(QTableWidget):
     """
-    The table widget that displays Houdini package configuration data and various buttons/options to navigate and manipulate them.
+    The table widget that displays Houdini package configuration data and various
+    buttons/options to navigate and manipulate them.
+
+    Every cell of the table by default contains a QWidget container which is used
+    to align and scale its inner contents. Contents can consist of text, buttons,
+    dropdowns, or other functionality. If a container is not set to have anything
+    in it (because nothing applies for that cell), then it will be filled with
+    an empty QLabel by default, which displays as a blank cell.
+
+    A default QWidget for every cell helps prevent errors when programmatically
+    traversing multiple cells.
     """
 
     def __init__(self, parent, houdini_install: HoudiniInstall) -> None:
@@ -304,6 +315,12 @@ class PackageTableModel(QTableWidget):
 
         # in case cell has not been set with anything
         if not cell_widget:
+            message = (
+                f"Table cell at position {cell_position} is missing a default inner QWidget container (cell has no"
+                " data)."
+            )
+            logging.error(message)
+            StatusBar.message(message, TextColor.ERROR)
             return None
 
         target_widget = cell_widget.layout().itemAt(0).widget()
