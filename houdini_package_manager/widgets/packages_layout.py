@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Dict, List
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
@@ -493,14 +493,14 @@ class PackagesWidget(QWidget):
         packages = list(current_table.packages.values())
         return packages
 
-    def get_packages(self, versions: Union[str, List[str]] = None) -> Dict[str, Package]:
+    def get_packages(self, versions: str | List[str] = None) -> Dict[str, Package]:
         """
         Return a dict of the package data for the all the tables.
         The key is the Houdini version number.
         The value is the Package object.
 
         Arguments:
-            versions (Union(str, List[str])):
+            versions (str | List[str]):
                 The Houdini versions to get packages from.
                 If no version is provided, the packages for all Houdini versions will be returned.
         """

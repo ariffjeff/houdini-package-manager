@@ -2,7 +2,7 @@ import contextlib
 import logging
 import re
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 import git
 import git.exc
@@ -311,7 +311,7 @@ class GitProject:
 
 
 class _Repo:
-    def __init__(self, tags: Union[list, str, None]) -> None:
+    def __init__(self, tags: list | str | None) -> None:
         """
         The template for local and remote repository classes.
 
@@ -344,7 +344,7 @@ class _Repo:
         return self._tags
 
     @tags.setter
-    def tags(self, new_tags: Union[str, List[str], None]) -> None:
+    def tags(self, new_tags: str | List[str] | None) -> None:
         """
         Sets a list of the known (given) tag version(s).
 

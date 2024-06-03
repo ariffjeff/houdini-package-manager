@@ -1,4 +1,3 @@
-from typing import Union
 from urllib.parse import urlparse
 
 
@@ -7,7 +6,7 @@ class Url:
     A URL path and its parsed result.
     """
 
-    def __init__(self, url: Union[str, None]) -> None:
+    def __init__(self, url: str | None) -> None:
         if not isinstance(url, str):
             raise TypeError("URL must be a string.")
 

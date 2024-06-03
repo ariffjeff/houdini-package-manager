@@ -46,7 +46,7 @@ class HoudiniManager:
         If an install has no package data then the config will simply be empty.
 
         Arguments:
-            version (Union[str, List[str]]):
+            version (str | List[str]):
                 Get all data for only the given Houdini version(s). If the data already exists
                 for a version then it is replaced by a new set of data.
         """
