@@ -376,7 +376,7 @@ class PackagesWidget(QWidget):
                     break
 
         if not exception:
-            logging.error(
+            logging.debug(
                 f"Completed full table metadata GitHub sync for Houdini {self.current_table_version} with no errors."
             )
             StatusBar.message(
