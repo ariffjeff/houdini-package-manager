@@ -417,7 +417,7 @@ class PackagesWidget(QWidget):
         Return a list of the Package objects assosciated with the currently loaded table.
         """
 
-        current_table = self.stacked_widget.currentWidget()
+        current_table = self.current_table
         if not hasattr(current_table, "packages"):
             return []
         packages = list(current_table.packages.values())
