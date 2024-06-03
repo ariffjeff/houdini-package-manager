@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from enum import Enum
 from pathlib import Path
 
@@ -174,7 +175,15 @@ class UserDataManager:
         self.file_path = file_path
 
     def new_empty_file(self) -> None:
-        """Creates the missing file with no data."""
+        """
+        Creates the missing file with no data.
+
+        If the user folder does not exist, it will also be created first.
+        """
+
+        folder_path = os.path.dirname(self.file_path)
+        os.makedirs(folder_path, exist_ok=True)  # ensure the directory exists
+
         with open(self.file_path, "w") as file:
             json.dump({}, file)
 
