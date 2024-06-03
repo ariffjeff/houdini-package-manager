@@ -17,7 +17,7 @@ from houdini_package_manager import __version__
 from houdini_package_manager.meta.meta_tools import StatusBar
 from houdini_package_manager.utils import epath
 from houdini_package_manager.widgets.add_packages_layout import LocalPackageAdderWidget
-from houdini_package_manager.widgets.custom_widgets import SvgPushButton
+from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.widgets.packages_layout import PackagesWidget
 from houdini_package_manager.wrangle.config_control import HoudiniManager
 
@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowIcon(QIcon(epath("resources/icons/hpm_icon.svg", True)))
 
-        self.setMinimumSize(1000, 550)
+        self.resize(1250, 600)
 
         self.setStyleSheet(
             """
@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
         self.statusLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.statusLabel = self.status_bar.findChild(QLabel)
 
-        logo = SvgPushButton(self, 56, 28, epath("resources/icons/hpm.svg"))
+        logo = SvgPushButton(self, BtnSize.HPM_LOGO, BtnIcon.HPM_LOGO, clickable=False)
 
         # TABS
         self.tabs = QTabWidget()
@@ -120,46 +120,22 @@ class MainWindow(QMainWindow):
         self.REPOSITORY_ISSUES_URL = "https://github.com/ariffjeff/houdini-package-manager/issues"
         self.PACKAGES_DOCS_URL = "https://www.sidefx.com/docs/houdini/ref/plugins.html"
 
-        button_houpm = SvgPushButton(
-            self,
-            56,
-            28,
-            epath("resources/icons/hpm_grey.svg"),
-            epath("resources/icons/hpm_grey_hover.svg"),
-        )
+        button_houpm = SvgPushButton(self, BtnSize.HPM_LOGO, BtnIcon.HPM_LOGO_GREY)
         button_houpm.clicked.connect(lambda: self.open_url(self.DOWNLOAD_URL))
         button_houpm.set_hover_status_message(f"Open project download site: {self.DOWNLOAD_URL}")
         button_houpm.setToolTip("Project download site")
 
-        button_repo = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/repo.svg"),
-            epath("resources/icons/repo_hover.svg"),
-        )
+        button_repo = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.REPO)
         button_repo.clicked.connect(lambda: self.open_url(self.REPOSITORY_URL))
         button_repo.set_hover_status_message(f"Open project repository: {self.REPOSITORY_URL}")
         button_repo.setToolTip("Project repository")
 
-        button_bug_report = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/bug.svg"),
-            epath("resources/icons/bug_hover.svg"),
-        )
+        button_bug_report = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.BUG)
         button_bug_report.clicked.connect(lambda: self.open_url(self.REPOSITORY_ISSUES_URL))
         button_bug_report.set_hover_status_message(f"Open feature request/bug report: {self.REPOSITORY_ISSUES_URL}")
         button_bug_report.setToolTip("Feature request/bug report")
 
-        button_pkg_docs = SvgPushButton(
-            self,
-            24,
-            28,
-            epath("resources/icons/docs.svg"),
-            epath("resources/icons/docs_hover.svg"),
-        )
+        button_pkg_docs = SvgPushButton(self, BtnSize.DOCS, BtnIcon.DOCS)
         button_pkg_docs.clicked.connect(lambda: self.open_url(self.PACKAGES_DOCS_URL))
         button_pkg_docs.set_hover_status_message(f"Open Houdini packages docs: {self.PACKAGES_DOCS_URL}")
         button_pkg_docs.setToolTip("Houdini packages docs")
