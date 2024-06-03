@@ -382,17 +382,22 @@ class PackagesWidget(QWidget):
             StatusBar.message(
                 f"Synced all metadata for applicable Houdini {self._current_table_version} packages.", TextColor.SUCCESS
             )
-        elif exception and isinstance(exception, RateLimitError):
-            StatusBar.message(
-                "GitHub API rate limiting occured at some point during table metadata sync. Some packages weren't"
-                " synced. Try again later.",
-                TextColor.ERROR,
+        elif exception:
+            logging.error(
+                f"Failed to complete full table metadata GitHub sync for Houdini {self.current_table_version}"
             )
-        elif exception and isinstance(exception, RequestConnectionError):
-            StatusBar.message(
-                "A connection error occured trying to reach the GitHub API during table metadata sync. Try again.",
-                TextColor.ERROR,
-            )
+
+            if isinstance(exception, RateLimitError):
+                StatusBar.message(
+                    "GitHub API rate limiting occured at some point during table metadata sync. Some packages weren't"
+                    " synced. Try again later.",
+                    TextColor.ERROR,
+                )
+            elif isinstance(exception, RequestConnectionError):
+                StatusBar.message(
+                    "A connection error occured trying to reach the GitHub API during table metadata sync. Try again.",
+                    TextColor.ERROR,
+                )
 
         # TODO: print total number of pkgs whose tag lists have been updated
 
