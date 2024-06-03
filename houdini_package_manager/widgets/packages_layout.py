@@ -1,6 +1,7 @@
+import logging
 import shutil
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Dict, List
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
@@ -17,9 +18,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from houdini_package_manager.meta.meta_tools import StatusBar, TextColor
-from houdini_package_manager.utils import epath
-from houdini_package_manager.widgets.custom_widgets import SvgPushButton
+from houdini_package_manager.meta.meta_tools import (
+    GlobalExceptionTracker,
+    RateLimitError,
+    RequestConnectionError,
+    StatusBar,
+    TableHeaders,
+    TextColor,
+)
+from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.widgets.packages_table import PackageTableModel
 from houdini_package_manager.wrangle.config_control import HoudiniManager, Package
 
@@ -43,27 +50,22 @@ class PackagesWidget(QWidget):
             The parent QTabWidget. Used for switching tabs based on widget interaction in this QWidget.
     """
 
-    def __init__(self, parent, table_data: HoudiniManager, versions: List[str], tabs: QTabWidget) -> None:
+    def __init__(self, parent, table_data: HoudiniManager, hou_versions: List[str], tabs: QTabWidget) -> None:
         super().__init__(parent)
 
         self.parent_tabs = tabs
         self.table_data = table_data
-        self.versions = versions
-        self.version_labels = ["Houdini " + version for version in self.versions]
-        self._table_version = self.versions[0]
+        self.hou_versions = hou_versions
+
+        self.version_labels = ["Houdini " + version for version in self.hou_versions]
+        self._current_table_version = self.hou_versions[0]
 
         # LABEL - HOUDINI VERSION DROPDOWN
         label_version_dropdown = QLabel("HOUDINI VERSIONS")
         label_version_dropdown.setStyleSheet("QLabel { color: #ff6600 }")
 
         # BUTTON - ADD PACKAGE
-        button_add_package = SvgPushButton(
-            self,
-            120,
-            36,
-            epath("resources/icons/add_packages.svg"),
-            epath("resources/icons/add_packages_hover.svg"),
-        )
+        button_add_package = SvgPushButton(self, BtnSize.WIDE_LARGE, BtnIcon.ADD_PKG)
         button_add_package.clicked.connect(self.add_packages)
 
         # DROPDOWN - HOUDINI VERSION
@@ -88,13 +90,7 @@ class PackagesWidget(QWidget):
         )
 
         # BUTTON - HOUDINI VERSION FOLDER
-        self.button_version = SvgPushButton(
-            self,
-            38,
-            24,
-            epath("resources/icons/folder.svg"),
-            epath("resources/icons/folder_hover.svg"),
-        )
+        self.button_version = SvgPushButton(self, BtnSize.FOLDER, BtnIcon.FOLDER)
         path = self.current_packages_directory()
         self.button_version.set_hover_status_message(f"Open: {path}")
         self.button_version.setToolTip("Open packages folder")
@@ -103,42 +99,32 @@ class PackagesWidget(QWidget):
 
         # BUTTONS - PACKAGE OPTIONS
         # copy all the packages in the current table to another houdini version
-        self.button_copy = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/migrate.svg"),
-            epath("resources/icons/migrate_hover.svg"),
+        self.button_git_sync = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.GIT_SYNC)
+        self.button_git_sync.set_hover_status_message(
+            "Sync all package metadata from remote repositories for this table."
         )
+
+        self.button_git_sync.setToolTip("Sync this table's metadata")
+        self.button_git_sync.clicked.connect(self.fetch_all_package_remote_metadata)
+
+        self.button_copy = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.MIGRATE)
         self.button_copy.set_hover_status_message("Copy all packages to other Houdini versions.")
         self.button_copy.setToolTip("Copy all packages to other Houdini versions")
         self.button_copy.clicked.connect(self.migrate_packages)
 
-        self.button_refresh = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/refresh.svg"),
-            epath("resources/icons/refresh_hover.svg"),
-        )
-        self.button_refresh.set_hover_status_message(f"Refresh Houdini {self.table_version} packages.")
+        self.button_refresh = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.REFRESH)
+        self.button_refresh.set_hover_status_message(f"Refresh Houdini {self.current_table_version} packages.")
         self.button_refresh.setToolTip("Refresh packages for current table")
         self.button_refresh.clicked.connect(self.refresh_table)
 
-        self.button_refresh_all = SvgPushButton(
-            self,
-            28,
-            28,
-            epath("resources/icons/refresh_all.svg"),
-            epath("resources/icons/refresh_all_hover.svg"),
-        )
+        self.button_refresh_all = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.REFRESH_ALL)
         self.button_refresh_all.set_hover_status_message("Refresh all packages for all installed versions of Houdini.")
         self.button_refresh_all.setToolTip("Refresh all packages for all installed versions of Houdini")
         self.button_refresh_all.clicked.connect(self.refresh_all_tables)
 
         # TABLE - PACKAGE DATA
-        current_hou_version = self.table_data.hou_installs[self.versions[0]]
-        if current_hou_version.packages.configs:
+        current_hou_version = self.table_data.hou_installs[self.hou_versions[0]]
+        if current_hou_version.packages.pkgs:
             table = PackageTableModel(self, current_hou_version)
             table.setStyleSheet("QTableWidget {border: none;}")
         else:
@@ -149,7 +135,7 @@ class PackagesWidget(QWidget):
         self.stacked_widget.setStyleSheet("QStackedWidget {border: 1px solid grey;}")
 
         # keep track of loaded package tables in the order they are added to stacked_widget
-        self.loaded_stacked_widgets_in_order_loaded = [self.versions[0]]
+        self.loaded_stacked_widgets_in_order_loaded = [self.hou_versions[0]]
 
         # CREATE LAYOUTS
         self.layout_main = QVBoxLayout()
@@ -171,6 +157,7 @@ class PackagesWidget(QWidget):
         layout_version_buttons.addWidget(self.combo_version)
         layout_version_buttons.addWidget(self.button_version)
         layout_table_options.addLayout(layout_package_buttons)
+        layout_package_buttons.addWidget(self.button_git_sync)
         layout_package_buttons.addWidget(self.button_copy)
         layout_package_buttons.addWidget(self.button_refresh)
         layout_package_buttons.addWidget(self.button_refresh_all)
@@ -178,9 +165,36 @@ class PackagesWidget(QWidget):
         layout_table_options.setAlignment(layout_package_buttons, Qt.AlignRight)
 
     @property
-    def table_version(self):
-        self._table_version = self.combo_version.currentText().split(" ")[-1]
-        return self._table_version
+    def current_table_version(self) -> str:
+        """
+        Returns the houdini version number of the current displayed package table.
+        """
+
+        self._current_table_version = self.combo_version.currentText().split(" ")[-1]
+        return self._current_table_version
+
+    @property
+    def current_table(self) -> PackageTableModel:
+        """
+        Returns the currently displayed PackageTableModel package table.
+        """
+
+        table = self.stacked_widget.currentWidget()
+        return table
+
+    @property
+    def loaded_tables(self) -> List[PackageTableModel]:
+        """
+        Returns a list of currently loaded PackageTableModel package tables.
+
+        Tables that aren't loaded are ones that the user has not navigated to yet,
+        which hasn't triggered their load.
+        """
+
+        tables = []
+        for i in range(self.stacked_widget.count()):
+            tables.append(self.stacked_widget.widget(i))
+        return tables
 
     def add_packages(self) -> None:
         """
@@ -224,20 +238,20 @@ class PackagesWidget(QWidget):
 
         # MANUAL UPDATING OF PACKAGE TABLE INDEPENDENT WIDGETS
         # update refresh button hover status bar message
-        self.button_refresh.set_hover_status_message(f"Refresh Houdini {self.table_version} packages.")
+        self.button_refresh.set_hover_status_message(f"Refresh Houdini {self.current_table_version} packages.")
         # update houdini packages folder button location
         self.button_version.setProperty("path", self.current_packages_directory())
         self.button_version.set_hover_status_message(f"Open: {self.current_packages_directory()}")
 
         # if the table widget has already been added, switch to it
-        if self.table_version in self.loaded_stacked_widgets_in_order_loaded:
-            index = self.loaded_stacked_widgets_in_order_loaded.index(self.table_version)
+        if self.current_table_version in self.loaded_stacked_widgets_in_order_loaded:
+            index = self.loaded_stacked_widgets_in_order_loaded.index(self.current_table_version)
             self.stacked_widget.setCurrentIndex(index)
             return
 
-        configs = self.table_data.hou_installs[self.table_version].packages.configs
+        configs = self.table_data.hou_installs[self.current_table_version].packages.pkgs
         if configs:
-            widget_contents = PackageTableModel(self, self.table_data.hou_installs[self.table_version])
+            widget_contents = PackageTableModel(self, self.table_data.hou_installs[self.current_table_version])
             widget_contents.setStyleSheet("QTableWidget {border: none;}")
         else:
             widget_contents = QLabel("No packages found")
@@ -245,7 +259,7 @@ class PackagesWidget(QWidget):
 
         self.stacked_widget.addWidget(widget_contents)
         self.stacked_widget.setCurrentWidget(widget_contents)
-        self.loaded_stacked_widgets_in_order_loaded.append(self.table_version)
+        self.loaded_stacked_widgets_in_order_loaded.append(self.current_table_version)
 
     def refresh_table(self, version: str = None, status: bool = True) -> None:
         """
@@ -264,12 +278,12 @@ class PackagesWidget(QWidget):
                 Default is True.
         """
 
-        refresh_version = version if version else self.table_version
+        refresh_version = version if version else self.current_table_version
 
         # refresh config data for current package set
         self.table_data.get_houdini_data(refresh_version)
 
-        configs = self.table_data.hou_installs[refresh_version].packages.configs
+        configs = self.table_data.hou_installs[refresh_version].packages.pkgs
         if configs:
             widget_contents = PackageTableModel(self, self.table_data.hou_installs[refresh_version])
             widget_contents.setStyleSheet("QTableWidget {border: none;}")
@@ -297,7 +311,10 @@ class PackagesWidget(QWidget):
             StatusBar.message(f"Refreshed packages for Houdini {refresh_version}.")
 
     def _no_packages_found(self):
-        # Return a label meant to replace a table when there is no package data to fill it.
+        """
+        Returns a QLabel that's meant to replace a table when there is no package data to fill it.
+        """
+
         label = QLabel("No packages found")
         label.setAlignment(Qt.AlignCenter)
         return label
@@ -323,11 +340,67 @@ class PackagesWidget(QWidget):
             self.refresh_table(version)
 
         # reload package config data for packages not loaded into tables.
-        not_loaded_versions = list(set(self.versions).difference(set(self.loaded_stacked_widgets_in_order_loaded)))
+        not_loaded_versions = list(set(self.hou_versions).difference(set(self.loaded_stacked_widgets_in_order_loaded)))
         for version in not_loaded_versions:
             self.table_data.get_houdini_data(version)
 
         StatusBar.message("Refreshed all package data and tables.")
+
+    def fetch_all_package_remote_metadata(self) -> None:
+        """
+        Fetch the remote metadata for every package of this version of Houdini.
+
+        This is done by programmatically "clicking" every git sync button in the
+        table across all the rows.
+
+        Exceptions that occur during metadata syncing across multiple rows are
+        tracked by a global exception tracker and then handled in this method
+        because programmatically triggering buttons' signals prevents
+        exceptions from traversing up the call stack to this method where
+        they need to be caught. The global exception tracker is the
+        workaround for this.
+        """
+
+        logging.debug(f"Started full table metadata GitHub sync for Houdini {self.current_table_version}")
+
+        table = self.current_table
+        cell_data = table.cell_data
+        git_fetch_col_index = table._headers_to_column_index(TableHeaders.SYNC)[0]
+        tracker = GlobalExceptionTracker()
+
+        for row in cell_data:
+            cell_item = row[git_fetch_col_index]
+            if isinstance(cell_item, SvgPushButton):  # checking button exists in cell
+                cell_item.clicked.emit()  # trigger signal
+                exception = tracker.get_exception()  # recheck if hidden exception occured
+                if exception:
+                    break
+
+        if not exception:
+            logging.debug(
+                f"Completed full table metadata GitHub sync for Houdini {self.current_table_version} with no errors."
+            )
+            StatusBar.message(
+                f"Synced all metadata for applicable Houdini {self._current_table_version} packages.", TextColor.SUCCESS
+            )
+        elif exception:
+            logging.error(
+                f"Failed to complete full table metadata GitHub sync for Houdini {self.current_table_version}"
+            )
+
+            if isinstance(exception, RateLimitError):
+                StatusBar.message(
+                    "GitHub API rate limiting occured at some point during table metadata sync. Some packages weren't"
+                    " synced. Try again later.",
+                    TextColor.ERROR,
+                )
+            elif isinstance(exception, RequestConnectionError):
+                StatusBar.message(
+                    "A connection error occured trying to reach the GitHub API during table metadata sync. Try again.",
+                    TextColor.ERROR,
+                )
+
+        # TODO: print total number of pkgs whose tag lists have been updated
 
     def migrate_packages(self) -> None:
         """
@@ -335,18 +408,18 @@ class PackagesWidget(QWidget):
         in the target packages directory of the target installed versions of Houdini.
         """
 
-        if len(self.versions) <= 1:
+        if len(self.hou_versions) <= 1:
             StatusBar.message("No other Houdini versions to copy packages to.", TextColor.ERROR)
             return
 
-        checkbox_version_options = list(self.versions)
-        checkbox_version_options.remove(self.table_version)
+        checkbox_version_options = list(self.hou_versions)
+        checkbox_version_options.remove(self.current_table_version)
         checkbox_version_options = [f"Houdini {version}" for version in checkbox_version_options]
 
         # identify any potential file overwrite conflicts for different houdini versions
         current_package_paths = [package.config_path for package in self.current_packages()]
         if not current_package_paths:
-            StatusBar.message(f"No packages in Houdini {self.current_table_version()} to copy.")
+            StatusBar.message(f"No packages in Houdini {self.current_table_version} to copy.")
             return
 
         file_conflicts = self.find_file_conflicts()
@@ -393,8 +466,8 @@ class PackagesWidget(QWidget):
         """
 
         # check the package tables that aren't the one that's currently loaded
-        other_versions = list(self.versions)
-        other_versions.remove(self.table_version)
+        other_versions = list(self.hou_versions)
+        other_versions.remove(self.current_table_version)
 
         # identify any potential file overwrite conflicts for different houdini versions
         current_package_paths = [package.config_path for package in self.current_packages()]
@@ -420,29 +493,20 @@ class PackagesWidget(QWidget):
         Return a list of the Package objects assosciated with the currently loaded table.
         """
 
-        current_table = self.stacked_widget.currentWidget()
+        current_table = self.current_table
         if not hasattr(current_table, "packages"):
             return []
         packages = list(current_table.packages.values())
         return packages
 
-    def current_table_version(self) -> str:
-        """
-        Return the houdini version number of the current displayed package table.
-        """
-
-        label = self.combo_version.currentText()
-        label = label.split(" ")[-1]
-        return label
-
-    def get_packages(self, versions: Union[str, List[str]] = None) -> Dict[str, Package]:
+    def get_packages(self, versions: str | List[str] = None) -> Dict[str, Package]:
         """
         Return a dict of the package data for the all the tables.
         The key is the Houdini version number.
         The value is the Package object.
 
         Arguments:
-            versions (Union(str, List[str])):
+            versions (str | List[str]):
                 The Houdini versions to get packages from.
                 If no version is provided, the packages for all Houdini versions will be returned.
         """
@@ -463,7 +527,7 @@ class PackagesWidget(QWidget):
         # get the package data for each houdini install version
         package_data = {}
         for key, houInstall in target_versions.items():
-            package_data[key] = houInstall.packages.configs
+            package_data[key] = houInstall.packages.pkgs
 
         return package_data
 
@@ -472,12 +536,16 @@ class PackagesWidget(QWidget):
         Return the packages directory of the currently loaded houdini version.
         """
 
-        current_version = self.current_table_version()
+        current_version = self.current_table_version
         path = self.table_data.hou_installs[current_version].packages.packages_directory
         return path
 
 
 class CheckboxDialog(QDialog):
+    """
+    The dialog box for copying packages from one Houdini version to another.
+    """
+
     def __init__(self, checkbox_data, package_count, file_conflicts, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Copy packages")
@@ -517,7 +585,12 @@ class CheckboxDialog(QDialog):
         self.setLayout(layout_main)
 
     def update_file_conflicts(self) -> None:
-        # Get the total number of file conflicts for each houdini version's checkbox that is enabled.
+        """
+        Updates the displayed total number of file conflicts in the dialog box's warning.
+
+        This is done by checking for conflicts for each selected version of houdini.
+        """
+
         self.checked_file_conflicts = 0
         data = self.get_checkbox_data()
 
@@ -529,13 +602,16 @@ class CheckboxDialog(QDialog):
 
         self.label_file_overwrites.setText(f"{self.checked_file_conflicts} files will be overwritten.")
 
-    def get_checkbox_data(self):
-        # Return a list of tuples containing the checkbox labels and whether they are checked
+    def get_checkbox_data(self) -> List[tuple]:
+        """
+        Returns a list of tuples containing this dialog's checkbox labels and whether they are checked.
+        """
+
         return [checkbox.isChecked() for checkbox in self.checkboxes]
 
     def enabled_checkboxes(self) -> List[str]:
         """
-        Return a list of the enabled checkbox labels.
+        Returns a list of strings of the enabled checkbox labels' text.
         """
 
         selected_checkboxes = []

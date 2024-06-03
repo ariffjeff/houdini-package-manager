@@ -164,7 +164,7 @@ cython_debug/
 #.idea/
 
 # User package config metadata
-houdini_package_manager/package_data
+houdini_package_manager/user/
 houdini_package_manager/widgets/widget_testing.py
 
 # houpm website

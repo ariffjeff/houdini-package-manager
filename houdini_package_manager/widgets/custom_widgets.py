@@ -1,13 +1,65 @@
+from enum import Enum
+
 from PySide6.QtCore import QFile, QSize, Qt
 from PySide6.QtGui import QCursor, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QPushButton
 
 from houdini_package_manager.meta.meta_tools import StatusBar
+from houdini_package_manager.utils import epath
+
+
+class BtnIcon(Enum):
+    """
+    Enum class for different types of SVG QPushButton icons.
+    Each string is the filename of the respective SVG file.
+    """
+
+    SOURCE_CONTROL = "source_control"
+    FILE = "file"
+    UPDATE = "update"
+    HPM_LOGO = "hpm"
+    HPM_LOGO_GREY = "hpm_grey"
+    ADD_PKG = "add_packages"
+    ADD_PKG_CONFIRM = "add_packages_confirm"
+    REPO = "repo"
+    BUG = "bug"
+    DOCS = "docs"
+    FOLDER = "folder"
+    GIT_SYNC = "git_sync"
+    MIGRATE = "migrate"
+    REFRESH = "refresh"
+    REFRESH_ALL = "refresh_all"
+    WARNING = "warning"
+
+    ADD = "add"
+    REMOVE = "remove"
+    REMOVE_ALL_ITEMS = "remove_all_items"
+    INVERT_SELECTION = "invert_selection"
+    CLEAR_SELECTION = "clear_selection"
+
+
+class BtnSize(Enum):
+    """
+    Enum class for different types of SVG QPushButton pixel sizes.
+    """
+
+    SQUARE_DEFAULT = (28, 28)
+    SQUARE_MEDIUM = (24, 24)
+    SQUARE_SMALL = (16, 16)
+    WIDE_DEFAULT = (48, 24)
+    WIDE_LARGE = (120, 36)
+
+    CELL_TALL = (23, 29)
+
+    """SPECIALS"""
+    HPM_LOGO = (56, 28)
+    FOLDER = (38, 24)
+    WARNING = (32, 29)
+    DOCS = (24, 28)
 
 
 class SvgPushButton(QPushButton):
-
     """
     A standard SVG QPushButton.
 
@@ -25,13 +77,28 @@ class SvgPushButton(QPushButton):
             Path to the SVG file to be the hover display state of the button.
     """
 
-    def __init__(self, parent, width: int, height: int, svg_path: str, svg_path_hover: str = None) -> None:
+    def __init__(self, parent, dimensions: BtnSize, icon: BtnIcon, clickable=True) -> None:
         super().__init__(parent)
 
-        self.btn_width = width
-        self.btn_height = height
-        self.svg_path = svg_path
-        self.svg_path_hover = svg_path_hover
+        if not isinstance(dimensions, BtnSize):
+            raise TypeError(f"Argument 'dimensions' must be of type BtnSize, not {type(dimensions)}")
+
+        if not isinstance(icon, BtnIcon):
+            raise TypeError(f"Argument 'icon' must be of type BtnIcon, not {type(icon)}")
+
+        if not isinstance(clickable, bool):
+            raise TypeError(f"Argument 'clickable' must be of type bool, not {type(clickable)}")
+
+        self.dims = dimensions.value
+
+        """Standard icon filename structure"""
+        icon_dir = "resources/icons/"
+        self.svg_path = epath(icon_dir + icon.value + ".svg")
+        if clickable:
+            self.svg_path_hover = epath(icon_dir + icon.value + "_hover.svg")
+        else:
+            self.svg_path_hover = None
+
         self._hover_message = None
 
         self.render(self.svg_path)
@@ -103,7 +170,7 @@ class SvgPushButton(QPushButton):
         svg_file = QFile(svg_path)
         svg_file.open(QFile.ReadOnly | QFile.Text)
         svg_renderer = QSvgRenderer(svg_file.readAll())
-        svg_size = QSize(self.btn_width, self.btn_height)
+        svg_size = QSize(*self.dims)
         svg_pixmap = QPixmap(svg_size)
         svg_pixmap.fill(Qt.transparent)
 
