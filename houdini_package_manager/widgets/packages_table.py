@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Callable, List, Union
+from typing import List
 
 from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
@@ -174,7 +174,7 @@ class PackageTableModel(QTableWidget):
 
                 # button - sync a package's repository metadata
                 elif header in [TableHeaders.SYNC] and self._current_package().remote_repo_url:
-                    widget = CellWidgets.button_git_sync(self, value, header)
+                    widget = CellWidgets.button_git_sync(self)
 
                 # dropdown (warning button as a replacement)
                 elif header in [TableHeaders.PLUGINS]:
@@ -483,7 +483,7 @@ class CellWidgets:
         return button
 
     @staticmethod
-    def button_open_path(parent: PackageTableModel, path: Union[Path, Url], button_type: TableHeaders) -> SvgPushButton:
+    def button_open_path(parent: PackageTableModel, path: Path | Url, button_type: TableHeaders) -> SvgPushButton:
         """
         A QPushButton that opens its file path or url when clicked.
         """
@@ -501,7 +501,7 @@ class CellWidgets:
         return button
 
     @staticmethod
-    def button_git_sync(parent: PackageTableModel, func: Callable[..., Any], button_type: TableHeaders) -> QPushButton:
+    def button_git_sync(parent: PackageTableModel) -> SvgPushButton:
         """
         A QPushButton that updates the row with the latest tag version.
 
