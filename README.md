@@ -32,6 +32,8 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 - Houdini 19.5+ (older versions untested)
 - A supported version of Houdini must be installed for HPM to launch successfully.
 - An internet connection for the package GitHub syncing features.
+- In very unlikely situations, a version >= Houdini 20.0.x with [patch(es) pertaining to `hconfig.exe`](https://www.sidefx.com/changelog/?journal=&categories=&body=hconfig&version=&build_min=&build_max=&show_versions=on&show_compatibility=on&items_per_page=).
+    - Unfortunately specific user package configurations (`.json` files) cause a program called `hconfig.exe` that ships with Houdini to hang and fail to return valid data, which HPM needs in order to function. I am working with SideFX to fix the issue but in this unlikely scenario HPM might fail to launch or will display that you are missing packages. Make sure you have an up to date version of Houdini with a relevant patch if this applies to you.
 
 ## How it Works
 HPM is a Python application that basically grabs your plugins' package config files and converts them into a nice UI with a bunch of useful functionality.
