@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from houdini_package_manager.meta.meta_tools import (
+    GlobalExceptionTracker,
     RateLimitError,
     RequestConnectionError,
     StatusBar,
@@ -58,6 +59,27 @@ class PackageTableModel(QTableWidget):
 
         self.setup_table_data()
         self.fill_table_contents()
+
+    @property
+    def cell_data(self) -> List[List[Any]]:
+        """
+        Returns a grid of each cell's inner data for this table.
+
+        This refers to the inner most desirable data:
+        table -> cell -> QWidget container -> desired data
+
+        This should only be called after the table has been fully setup with data
+        (QWidget container and any inner data) in all cells.
+        """
+
+        data = []
+        for i in range(self.rowCount()):
+            data.append([])
+            for j in range(self.columnCount()):
+                cell = self.cellWidget(i, j).layout().itemAt(0).widget()
+                data[i].append(cell)
+
+        return data
 
     def setup_table_data(self) -> None:
         """
@@ -511,6 +533,7 @@ class CellWidgets:
         # initialize data now during this cell's creation
         pkg = parent._current_package()
         target_cell = parent._get_cell_contents_from_same_row(TableHeaders.LATEST)
+        exception_tracker = GlobalExceptionTracker()
 
         def update_latest_tag() -> None:
             """
@@ -533,6 +556,7 @@ class CellWidgets:
                 StatusBar.message(f"Successfully synced metadata for {pkg.pkg_name}", TextColor.SUCCESS)
 
             except (RateLimitError, RequestConnectionError) as e:
+                exception_tracker.set_exception(e)
                 StatusBar.message(str(e), TextColor.ERROR)
 
         button = SvgPushButton(parent, BtnSize.SQUARE_DEFAULT, BtnIcon.GIT_SYNC)

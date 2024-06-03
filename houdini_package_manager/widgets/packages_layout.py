@@ -1,3 +1,4 @@
+import logging
 import shutil
 from pathlib import Path
 from typing import Dict, List, Union
@@ -17,7 +18,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from houdini_package_manager.meta.meta_tools import StatusBar, TextColor
+from houdini_package_manager.meta.meta_tools import (
+    GlobalExceptionTracker,
+    RateLimitError,
+    RequestConnectionError,
+    StatusBar,
+    TableHeaders,
+    TextColor,
+)
 from houdini_package_manager.widgets.custom_widgets import BtnIcon, BtnSize, SvgPushButton
 from houdini_package_manager.widgets.packages_table import PackageTableModel
 from houdini_package_manager.wrangle.config_control import HoudiniManager, Package
@@ -50,7 +58,7 @@ class PackagesWidget(QWidget):
         self.hou_versions = hou_versions
 
         self.version_labels = ["Houdini " + version for version in self.hou_versions]
-        self._table_version = self.hou_versions[0]
+        self._current_table_version = self.hou_versions[0]
 
         # LABEL - HOUDINI VERSION DROPDOWN
         label_version_dropdown = QLabel("HOUDINI VERSIONS")
@@ -93,9 +101,9 @@ class PackagesWidget(QWidget):
         # copy all the packages in the current table to another houdini version
         self.button_git_sync = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.GIT_SYNC)
         self.button_git_sync.set_hover_status_message(
-            "Sync all package metadata for all Houdini versions from remote repositories."
+            "Sync all package metadata from remote repositories for this table."
         )
-        self.button_git_sync.setToolTip("Sync all package metadata.")
+        self.button_git_sync.setToolTip("Sync this table's metadata")
         self.button_git_sync.clicked.connect(self.fetch_all_package_remote_metadata)
 
         self.button_copy = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.MIGRATE)
@@ -161,8 +169,17 @@ class PackagesWidget(QWidget):
         Returns the houdini version number of the current displayed package table.
         """
 
-        self._table_version = self.combo_version.currentText().split(" ")[-1]
-        return self._table_version
+        self._current_table_version = self.combo_version.currentText().split(" ")[-1]
+        return self._current_table_version
+
+    @property
+    def current_table(self) -> PackageTableModel:
+        """
+        Returns the currently displayed PackageTableModel package table.
+        """
+
+        table = self.stacked_widget.currentWidget()
+        return table
 
     @property
     def loaded_tables(self) -> List[PackageTableModel]:
@@ -331,14 +348,53 @@ class PackagesWidget(QWidget):
     def fetch_all_package_remote_metadata(self) -> None:
         """
         Fetch the remote metadata for every package of this version of Houdini.
+
+        This is done by programmatically "clicking" every git sync button in the
+        table across all the rows.
+
+        Exceptions that occur during metadata syncing across multiple rows are
+        tracked by a global exception tracker and then handled in this method
+        because programmatically triggering buttons' signals prevents
+        exceptions from traversing up the call stack to this method where
+        they need to be caught. The global exception tracker is the
+        workaround for this.
         """
 
-        StatusBar.message(
-            f"Synced all metadata for applicable Houdini {self._table_version} packages.", TextColor.SUCCESS
-        )
+        logging.debug(f"Started full table metadata GitHub sync for Houdini {self.current_table_version}")
 
-        # TODO: send request to github api to get latest tag versions for all the plugins in the current table
-        # TODO: update all the relevant version_latest cell with latest tag versions
+        table = self.current_table
+        cell_data = table.cell_data
+        git_fetch_col_index = table._headers_to_column_index(TableHeaders.SYNC)[0]
+        tracker = GlobalExceptionTracker()
+
+        for row in cell_data:
+            cell_item = row[git_fetch_col_index]
+            if isinstance(cell_item, SvgPushButton):  # checking button exists in cell
+                cell_item.clicked.emit()  # trigger signal
+                exception = tracker.get_exception()  # recheck if hidden exception occured
+                if exception:
+                    break
+
+        if not exception:
+            logging.error(
+                f"Completed full table metadata GitHub sync for Houdini {self.current_table_version} with no errors."
+            )
+            StatusBar.message(
+                f"Synced all metadata for applicable Houdini {self._current_table_version} packages.", TextColor.SUCCESS
+            )
+        elif exception and isinstance(exception, RateLimitError):
+            StatusBar.message(
+                "GitHub API rate limiting occured at some point during table metadata sync. Some packages weren't"
+                " synced. Try again later.",
+                TextColor.ERROR,
+            )
+        elif exception and isinstance(exception, RequestConnectionError):
+            StatusBar.message(
+                "A connection error occured trying to reach the GitHub API during table metadata sync. Try again.",
+                TextColor.ERROR,
+            )
+
+        # TODO: print total number of pkgs whose tag lists have been updated
 
     def migrate_packages(self) -> None:
         """

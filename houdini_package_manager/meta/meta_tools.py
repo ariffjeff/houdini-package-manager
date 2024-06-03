@@ -177,3 +177,69 @@ class UserDataManager:
         """Creates the missing file with no data."""
         with open(self.file_path, "w") as file:
             json.dump({}, file)
+
+
+class SingletonMeta(type):
+    """
+    A metaclass to support other classes to make them singletons.
+    """
+
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super().__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
+
+
+class GlobalExceptionTracker(metaclass=SingletonMeta):
+    """
+    Singleton global class for tracking the latest raised exception.
+
+    This was written to work around the issue of exceptions that get raised by
+    a Qt button's emitted signal (set via a slot) but fail to get passed to the
+    caller when the button's signals were called programmatically with something like
+    `some_qpushbutton.clicked.emit()` instead of being clicked in the UI. This meant
+    that exceptions would get printed to the terminal/debugger but not trigger the
+    exception part of a try-catch block.
+
+    This class allows for keeping track of an exception if one is created and
+    then later checking for its existence where try-catch block would usually be.
+    It can effectively be used to mimic a try-catch.
+
+    A single exception must be written, read, and cleared on this object manually
+    with the relevant methods.
+    """
+
+    def __init__(self):
+        self._exception = None
+
+    def set_exception(self, exception) -> None:
+        """
+        Sets the given exception as the most recent exception.
+        """
+
+        if not issubclass(type(exception), Exception):
+            raise TypeError(f"Argument {exception} must be a subclass of Exception.")
+
+        self.clear_exception()
+        self._exception = exception
+
+    def get_exception(self) -> Exception:
+        """
+        Returns the exception that was last set.
+
+        The exception can be of any type with a base class of Exception.
+        """
+
+        exception = self._exception
+        self.clear_exception()
+        return exception
+
+    def clear_exception(self) -> None:
+        """
+        Clears the last set exception by setting the attribute to None.
+        """
+
+        self._exception = None
