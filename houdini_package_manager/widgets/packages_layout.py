@@ -164,6 +164,20 @@ class PackagesWidget(QWidget):
         self._table_version = self.combo_version.currentText().split(" ")[-1]
         return self._table_version
 
+    @property
+    def loaded_tables(self) -> List[PackageTableModel]:
+        """
+        Returns a list of currently loaded PackageTableModel package tables.
+
+        Tables that aren't loaded are ones that the user has not navigated to yet,
+        which hasn't triggered their load.
+        """
+
+        tables = []
+        for i in range(self.stacked_widget.count()):
+            tables.append(self.stacked_widget.widget(i))
+        return tables
+
     def add_packages(self) -> None:
         """
         Switch to the tab for creating packages from local plugins.
