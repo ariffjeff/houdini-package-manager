@@ -103,12 +103,13 @@ class PackagesWidget(QWidget):
         self.button_git_sync.set_hover_status_message(
             "Sync all package metadata from remote repositories for this table."
         )
+
         self.button_git_sync.setToolTip("Sync this table's metadata")
         self.button_git_sync.clicked.connect(self.fetch_all_package_remote_metadata)
 
         self.button_copy = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.MIGRATE)
-        self.button_copy.set_hover_status_message("Copy selected packages to other installed Houdini versions.")
-        self.button_copy.setToolTip("Copy selected packages to other installed Houdini versions")
+        self.button_copy.set_hover_status_message("Copy all packages to other Houdini versions.")
+        self.button_copy.setToolTip("Copy all packages to other Houdini versions")
         self.button_copy.clicked.connect(self.migrate_packages)
 
         self.button_refresh = SvgPushButton(self, BtnSize.SQUARE_DEFAULT, BtnIcon.REFRESH)

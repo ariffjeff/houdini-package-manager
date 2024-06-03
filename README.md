@@ -20,6 +20,21 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 - **Github repository**: <https://github.com/ariffjeff/houdini-package-manager>
 - **PyPI repository**: <https://pypi.org/project/houdini-package-manager>
 
+## Install
+1. Download the latest version from https://houpm.com
+2. Unzip and store the folder anywhere you want.
+3. Create a shortcut of the Houdini_Package_Manager-x.y.z.exe file from the folder.
+4. Now you can run HPM from the shortcut, that's all there is to it!
+
+## Requirements for use
+- Windows (`.exe` distributable)
+    - Only tested on Windows 10.
+- Houdini 19.5+ (older versions untested)
+- A supported version of Houdini must be installed for HPM to launch successfully.
+- An internet connection for the package GitHub syncing features.
+- In very unlikely situations, a version >= Houdini 20.0.x with [patch(es) pertaining to `hconfig.exe`](https://www.sidefx.com/changelog/?journal=&categories=&body=hconfig&version=&build_min=&build_max=&show_versions=on&show_compatibility=on&items_per_page=).
+    - Unfortunately specific user package configurations (`.json` files) cause a program called `hconfig.exe` that ships with Houdini to hang and fail to return valid data, which HPM needs in order to function. I am working with SideFX to fix the issue but in this unlikely scenario HPM might fail to launch or will display that you are missing packages. Make sure you have an up to date version of Houdini with a relevant patch if this applies to you.
+
 ## How it Works
 HPM is a Python application that basically grabs your plugins' package config files and converts them into a nice UI with a bunch of useful functionality.
 
@@ -35,14 +50,8 @@ HPM is a Python application that basically grabs your plugins' package config fi
 - You can create new package configs for plugins you have downloaded to quickly get them into Houdini hassle free.
 - HPM takes the plugin folder path, HDA, or script you provide it and simply creates a new package config from a template, and puts it in `/packages`.
 
-## Install
-1. Download the latest version from https://houpm.com
-2. Unzip and store the folder anywhere you want.
-3. Create a shortcut of the Houdini_Package_Manager-x.y.z.exe file from the folder.
-4. Now you can run HPM from the shortcut, that's all there is to it!
-
 ## Building the project yourself
-Note: This project was primarily tested with Python 3.9.10.
+Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Windows 10.
 
 1. Install the [Poetry dependency manager](https://python-poetry.org/docs/#installation).
 1. Clone [HPM](https://github.com/ariffjeff/houdini-package-manager)
