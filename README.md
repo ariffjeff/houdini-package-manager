@@ -85,10 +85,10 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
             1. Go to `dist/`, find the .exe and run it.
             2. Or do `make run-exe`.
                 - Be aware this doesn't run it directly in the folder its in, which can lead to the issue of relative file paths not being able to find the files they're targetting if the paths have been set improperly... i.e. images failing to load. Make sure you set file paths with `utils.epath()` which automatically handles relative paths correctly for both the dev and build environment.
-    1. If you get unexpected behavior or a crash:
+    1. If you get unexpected behavior, HPM fails to start up, or a crash:
         1. Check the app folder for a .log crash file.
-            - Crash log files currently are timestamped/created immediately upon exe run. If HPM is closed (not from a crash and not via the debug console) then the log file will be deleted.
-        1. Do `make build-exe-log` to make an exe that displays a debug console on run which you can inspect. If any errors occur you'll be able to see them there.
+            - Crash log files are currently timestamped/created immediately upon exe run. If HPM is closed normally (not from a crash and not via the debug console) then the log file will be deleted.
+        1. Do `make build-exe-log` to make an exe that displays a debug console on run. Run the exe normally (not via a `make` command) to get the console to display. If any errors occur, you can inspect them in the console.
 1. Commit 
     - Commit both the version bump (mentioned before) and the new build .zip together.
     - The commit message should just be the version number (e.g. `1.3.2`) for convention.
