@@ -438,9 +438,17 @@ class PackageCollection:
 
     @property
     def houdini_version(self) -> str:
+        """
+        The version of Houdini in major.minor format.
+
+        This verion number is extracted directly from the Houdini install directory path.
+
+        Returns a string.
+        """
+
         if not self.packages_directory:
             return None
-        return self.packages_directory.parent.stem
+        return self.packages_directory.parent.name
 
     def create_pkgs(self) -> None:
         """
