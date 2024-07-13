@@ -246,10 +246,10 @@ class HoudiniInstall:
         Returns a list of the Houdini environment variables.
         """
 
-        def _run_with_this_apps_python_naively(command):
+        def _run_with_this_apps_python_naively(command: Path):
             # naively run given hconfig with this project's python version, which might be incompatible (would return useless data)
 
-            result = subprocess.run([command], shell=True, capture_output=True, text=True).stdout
+            result = subprocess.run([command], cwd=command.parent, shell=True, capture_output=True, text=True).stdout
 
             if result:
                 logging.debug(f"HCONFIG RETURNED:\n{result}\n")
