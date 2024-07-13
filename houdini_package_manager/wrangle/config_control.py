@@ -184,6 +184,13 @@ class HoudiniInstall:
         self._final_debug_logs()
 
     def _final_debug_logs(self) -> None:
+        """
+        Various debug logs to explain the results of this Houdini version's extracted package/plugin data.
+        """
+
+        if not self.packages:
+            return
+
         logging.debug(f"Houdini {self.version.full} PACKAGE CONFIGS:")
         for pkg in self.packages.pkgs.values():
             logging.debug(pkg.config_path)
@@ -195,6 +202,11 @@ class HoudiniInstall:
         logging.debug("\n")
 
     def _get_pkgs(self) -> PackageCollection | None:
+        """
+        Returns the PackageCollection object for this Houdini version.
+        Returns None if the Houdini user preferences directory does not exist as an environment variable.
+        """
+
         HOU_PKG_DIR_KEY = "HOUDINI_USER_PREF_DIR"
         # if hconfig.exe failed to produce the "HOUDINI_USER_PREF_DIR" env var or any env var data
         # because maybe the houdini install is corrupted somehow, then no package data can be retrieved.
@@ -205,6 +217,12 @@ class HoudiniInstall:
 
         if HOU_PKG_DIR_KEY in self.env_vars:
             return PackageCollection(Path(self.env_vars[HOU_PKG_DIR_KEY], "packages"), self.env_vars)
+
+        logging.warning(
+            f"'{HOU_PKG_DIR_KEY}' was missing from Houdini {self.version.front}'s environment variables.\nThis means"
+            " that hconfig.exe probably failed to return it, thus any of this Houdini version's installed packages are"
+            " not able to be found."
+        )
         return None
 
     def _get_env_vars(self) -> list:
@@ -246,34 +264,43 @@ class HoudiniInstall:
         Returns a list of the Houdini environment variables.
         """
 
-        def _run_with_this_apps_python_naively(command):
+        def _run_with_this_apps_python_naively(hconfig_path: Path) -> list[str]:
             # naively run given hconfig with this project's python version, which might be incompatible (would return useless data)
 
-            result = subprocess.run([command], shell=True, capture_output=True, text=True).stdout
+            subproc_return = subprocess.run(
+                [hconfig_path], cwd=hconfig_path.parent, shell=True, capture_output=True, text=True
+            )
+            subproc_stdout = subproc_return.stdout
 
-            if result:
-                logging.debug(f"HCONFIG RETURNED:\n{result}\n")
+            if subproc_stdout:
+                logging.debug(f"HCONFIG RETURNED:\n{subproc_stdout}\n")
             else:
-                logging.error("HCONFIG FAILED TO RETURN ANY DATA!\n")
+                logging.error("HCONFIG FAILED TO RETURN ANY DATA!...")
+                logging.error("Subprocess to hconfig returned:")
+                logging.error(f"args: {subproc_return.args}")
+                logging.error(f"returncode: {subproc_return.returncode}")
+                logging.error(f"stderr: {subproc_return.stderr}\n")
 
-            metadata = result.split("\n")
+            metadata = subproc_stdout.split("\n")
             return metadata
 
-        def _run_with_compatible_python(command, python_exe_path):
+        def _run_with_compatible_python(hconfig_path: Path, python_exe_path: Path) -> list[str]:
             # run hconfig based on the python version it was built for through two-layered subprocess calls.
 
             # THIS CURRENTLY DOES NOT WORK AS HCONFIG WILL STILL RETURN AN ERROR THINKING IT'S BEING CALLED BY THE
             # WRONG PYTHON VERSION, WHICH MAKES NO SENSE.
 
-            command = [
+            command_main = [
                 python_exe_path,
                 "-c",
                 (
-                    f"import subprocess; result = subprocess.run(['{hconfig.as_posix()}'], capture_output=True,"
+                    f"import subprocess; result = subprocess.run(['{hconfig_path.as_posix()}'], capture_output=True,"
                     " text=True); print(result)"
                 ),
             ]
-            result = subprocess.run(command, shell=False, capture_output=True, text=True).stdout
+            result = subprocess.run(
+                command_main, cwd=hconfig_path.parent, shell=False, capture_output=True, text=True
+            ).stdout
 
             if result:
                 logging.debug(f"HCONFIG RETURNED:\n{result}\n")
@@ -438,9 +465,17 @@ class PackageCollection:
 
     @property
     def houdini_version(self) -> str:
+        """
+        The version of Houdini in major.minor format.
+
+        This verion number is extracted directly from the Houdini install directory path.
+
+        Returns a string.
+        """
+
         if not self.packages_directory:
             return None
-        return self.packages_directory.parent.stem
+        return self.packages_directory.parent.name
 
     def create_pkgs(self) -> None:
         """
