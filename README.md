@@ -26,7 +26,10 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 3. Create a shortcut of the Houdini_Package_Manager-x.y.z.exe file from the folder.
 4. Now you can run HPM from the shortcut, that's all there is to it!
 
-## Requirements for use
+
+<details>
+<summary><h2>Requirements for use</h2></summary>
+
 - Windows (`.exe` distributable)
     - Only tested on Windows 10.
 - Houdini 19.5+ (older versions untested)
@@ -34,8 +37,10 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 - An internet connection for the package GitHub syncing features.
 - In very unlikely situations, a version >= Houdini 20.0.x with [patch(es) pertaining to `hconfig.exe`](https://www.sidefx.com/changelog/?journal=&categories=&body=hconfig&version=&build_min=&build_max=&show_versions=on&show_compatibility=on&items_per_page=).
     - Unfortunately specific user package configurations (`.json` files) cause a program called `hconfig.exe` that ships with Houdini to hang and fail to return valid data, which HPM needs in order to function. I am working with SideFX to fix the issue but in this unlikely scenario HPM might fail to launch or will display that you are missing packages. Make sure you have an up to date version of Houdini with a relevant patch if this applies to you.
+</details>
 
-## How it Works
+<details>
+<summary><h2>How it Works</h2></summary>
 HPM is a Python application that basically grabs your plugins' package config files and converts them into a nice UI with a bunch of useful functionality.
 
 #### 1. On a high level, HPM does this for all installed versions of Houdini it finds upon startup:
@@ -49,8 +54,10 @@ HPM is a Python application that basically grabs your plugins' package config fi
 #### 2. Creating package configs for new plugins:
 - You can create new package configs for plugins you have downloaded to quickly get them into Houdini hassle free.
 - HPM takes the plugin folder path, HDA, or script you provide it and simply creates a new package config from a template, and puts it in `/packages`.
+</details>
 
-## Building the project yourself
+<details>
+<summary><h2>Building the project yourself</h2></summary>
 Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Windows 10.
 
 1. Install the [Poetry dependency manager](https://python-poetry.org/docs/#installation).
@@ -107,14 +114,16 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
     1. Click `Generate release notes`.
     1. Add any extra descriptive changes for this release.
     1. Click publish.
-    - PyPI will automatically be updated with the new HPM version via a GitHub action.
+        - PyPI will automatically be updated with the new HPM version via a GitHub action.
+</details>
 
-# TODO
+<details>
+<summary><h2>TODO</h2></summary>
+
 ### Priority bugs
 
 - HPM should warn the user if a .json file contains the "path" in-place-of/next to "HOUDINI_PATH" key since "path" is now deprecated by SESI according to their documentation. Or just auto merge "path" value with "HOUDINI_PATH" value (ignore duplicate paths) - (changing the actual json file to remove "path" in favor of "HOUDINI_PATH"). "hpath" technically should work as well but I couldn't get it to work.
 - unchecking config button dissappears plugin path, even if actual config json is not set to false
-
 
 ### Features:
 
@@ -139,8 +148,9 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
 - search bar for packages - isolates row in table (for when you have a lot of packages)
 
 ### Bugs
-- class PackageConfig:
+- class `PackageConfig`:
     - search paths for plugin HDAs (\otls)
-- _get_houdini_paths() does not account for linux/macos
-- packages_table.py
-    - utilize _main.json to locate loose HDAs and scripts that aren't actual plugin packages
+- `_get_houdini_paths()` does not account for linux/macos
+- `packages_table.py`
+    - utilize `_main.json` to locate loose HDAs and scripts that aren't actual plugin packages
+</details>
