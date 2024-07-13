@@ -184,6 +184,9 @@ class HoudiniInstall:
         self._final_debug_logs()
 
     def _final_debug_logs(self) -> None:
+        if not self.packages:
+            return
+
         logging.debug(f"Houdini {self.version.full} PACKAGE CONFIGS:")
         for pkg in self.packages.pkgs.values():
             logging.debug(pkg.config_path)
