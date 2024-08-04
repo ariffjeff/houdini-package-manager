@@ -60,7 +60,7 @@ HPM is a Python application that basically grabs your plugins' package config fi
 <summary><h2>Building the project yourself</h2></summary>
 Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Windows 10.
 
-1. Install the [Poetry dependency manager](https://python-poetry.org/docs/#installation).
+1. Install the [Poetry dependency manager](https://python-poetry.org/docs/#installing-with-the-official-installer) (using either of the CLI commands).
 1. Clone [HPM](https://github.com/ariffjeff/houdini-package-manager)
     1. Open a terminal, and `cd` to it.
 1. Do `poetry install`
