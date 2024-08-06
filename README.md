@@ -127,6 +127,7 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
 
 ### Features:
 
+- allow user to configure a plugin to not apply to certain Houdini version. i.e. a plugin is obsolete in a newer Houdini version because SideFX adds a node that has the same/better functionality.
 - node tree view editing of package/script/otl dependencies for each houdini version
 - warning dialog for about to overwrite package config when creating a package
 - allow HPM to find loose otls and scripts that aren't in a folder
