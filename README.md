@@ -127,6 +127,7 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
 
 ### Features:
 
+- Be able to create a default plugin folder structure from a template from HPM. (containing /otls, /scripts, /toolbar, etc.)
 - Be able to migrate scripts and otls to other Houdini versions.
 - allow user to configure a plugin to not apply to certain Houdini version. i.e. a plugin is obsolete in a newer Houdini version because SideFX adds a node that has the same/better functionality.
 - node tree view editing of package/script/otl dependencies for each houdini version
