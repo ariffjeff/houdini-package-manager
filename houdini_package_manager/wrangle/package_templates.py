@@ -7,11 +7,22 @@ class PackageTemplates:
     """
 
     @staticmethod
-    def standard(path_to_plugin: Path):
+    def standard(data_path: Path) -> dict:
         """
-        A standard package template.
+        A standard package config JSON template that allows Houdini to find and load data from
+        standard named folders:
+        data_path/
+            /otls/
+            /scripts/
+            /toolbar/
+            /vex/
 
-        Houdini will recognize:
+        Arguments:
+            data_path (pathlib.Path):
+                The path to the directory that contains additional user/company Houdini data folders such as /otls, /scripts, /vex, /toolbars, etc.
+                This is literally just the path that goes into the $HOUDINI_PATH (hpath) env var.
+
+        Package keywords Houdini will recognize:
             HOUDINI_PATH
             hpath (Shortcut to set HOUDINI_PATH. "path" has been deprecated in favor of hpath.)
             HOUDINI_TOOLBAR_PATH
@@ -21,13 +32,17 @@ class PackageTemplates:
             recommends
 
         Note: Do not include empty values for some keys, like recommends,
-        because it was cause older versions of Houdini to crash on startup.
+        because it causes older versions of Houdini to crash on startup.
         """
 
-        if not path_to_plugin.exists():
-            raise FileNotFoundError(f"Does not exist: {path_to_plugin}")
+        if not data_path.exists():
+            raise FileNotFoundError(f"Does not exist: {data_path}")
 
         """
+        Note: HOUDINI_PATH and hpath are sometimes used interchangeably in this
+        documentation since hpath is an alias of HOUDINI_PATH. Use whichever
+        makes the most sense at any given moment.
+
         The following package template is designed to be as simple and
         functional as possible. It leverages the behavior of hconfig.exe,
         which does not overwrite the HOUDINI_PATH environment variable
@@ -46,11 +61,26 @@ class PackageTemplates:
         to ensure that a typical plugin and all its components are
         loaded correctly by Houdini.
 
-        An additional benefit of including the plugin path as a value
-        of HOUDINI_PATH is that HOUDINI_PATH can be used as a variable
-        ("$HOUDINI_PATH") in other parts of the JSON config. hconfig
+        HOUDINI_VEX_PATH is included explicitly since a /vex folder
+        is apparently not recognized by HOUDINI_PATH by default.
+
+        hpath is included explicitly to accommodate the needed inclusion
+        of HOUDINI_VEX_PATH. Putting HOUDINI_PATH in HOUDINI_VEX_PATH
+        like the following causes Houdini not to recognize the vex folder
+        for some reason.
+        "HOUDINI_VEX_PATH": "$HOUDINI_PATH/vex"
+        Therefore HOUDINI_PATH was changed to hpath with the whole config
+        restructured as a workaround.
+
+        An additional benefit of including the data path as a value
+        of USER_DATA is that USER_DATA can be used as a variable
+        ("$USER_DATA") in other parts of the JSON config. hconfig
         will recognize this when parsing the config.
         """
-        package_config = {"env": [{"HOUDINI_PATH": str(path_to_plugin)}]}
+
+        package_config = {
+            "env": [{"USER_DATA": str(data_path)}, {"HOUDINI_VEX_PATH": "$USER_DATA/vex"}],
+            "hpath": "$USER_DATA;",
+        }
 
         return package_config
