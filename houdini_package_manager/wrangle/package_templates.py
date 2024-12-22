@@ -44,13 +44,19 @@ class PackageTemplates:
         makes the most sense at any given moment.
 
         The following package template is designed to be as simple and
-        functional as possible. It leverages the behavior of hconfig.exe,
-        which does not overwrite the HOUDINI_PATH environment variable
-        whenever a new instance of HOUDINI_PATH is found in another JSON
-        config. Instead, it prepends its value to previously set HOUDINI_PATH
-        variables in other package JSON config files by default. Other
-        environment variable key names will have their values overwritten
+        functional as possible. It leverages the behavior of houdini's hconfig executable,
+        which does not overwrite built-in environment variables such as HOUDINI_PATH
+        and HOUDINI_VEX_PATH whenever a new instance of the built-in in env vars are
+        found in another JSON config. Instead, it prepends their value to previously
+        set respective environment variables in other package JSON config files by default.
+        IMPORTANT!!!:
+        Non built-in environment variables will have their values overwritten
         if they are found in multiple package JSON config files.
+        You can test this behavior by finding the directory of where
+        Houdini's hconfig executable lives, opening a terminal, then running
+        `hconfig` to see how Houdini set the values of environment variables
+        that were read from your json package files.
+        List of built-in env vars: https://www.sidefx.com/docs/houdini/ref/env.html
 
         Extra paths that point to a plugin's additional folders, such as
         toolbars, OTLs, and scripts, are not required in the following
@@ -72,15 +78,14 @@ class PackageTemplates:
         Therefore HOUDINI_PATH was changed to hpath with the whole config
         restructured as a workaround.
 
-        An additional benefit of including the data path as a value
-        of USER_DATA is that USER_DATA can be used as a variable
-        ("$USER_DATA") in other parts of the JSON config. hconfig
-        will recognize this when parsing the config.
+        data_path is explicitly copied here to HOUDINI_VEX_PATH instead of
+        doing a reference like "HOUDINI_VEX_PATH": "$hpath/vex" because
+        hconfig simply doesn't recognize the reference for some reason.
         """
 
         package_config = {
-            "env": [{"USER_DATA": str(data_path)}, {"HOUDINI_VEX_PATH": "$USER_DATA/vex"}],
-            "hpath": "$USER_DATA;",
+            "env": [{"HOUDINI_VEX_PATH": f"{str(data_path)}/vex"}],
+            "hpath": f"{str(data_path)}",
         }
 
         return package_config
