@@ -5,6 +5,8 @@ on:
     types: [published]
     branches: [main]
 
+  workflow_dispatch:
+
 jobs:
   
   publish:
@@ -22,13 +24,13 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          poetry run pyinstaller \
+          poetry run pyinstaller -w \
             --name="HPM ${{ steps.vars.outputs.tag }}" \
             --icon="Houdini_Package_Manager/resources/icons/hpm.ico" \
             main.py
       
       - name: Compress executable
-        run: python -c "import shutil; shutil.make_archive('dist/HPM${{ steps.vars.outputs.tag }}', 'zip', 'dist/HPM${{ steps.vars.outputs.tag }}')"
+        run: python -c "import shutil; shutil.make_archive('dist/HPM ${{ steps.vars.outputs.tag }}', 'zip', 'dist/HPM ${{ steps.vars.outputs.tag }}')"
 
       - name: Upload build to release assets
         uses: actions/upload-release-asset@v1
