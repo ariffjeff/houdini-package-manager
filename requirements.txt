@@ -1,0 +1,4 @@
+gitpython^3.1.43
+packaging^23.1
+pyside6^6.4.2
+requests^2.30.0
