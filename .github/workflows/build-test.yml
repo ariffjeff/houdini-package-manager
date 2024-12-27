@@ -20,7 +20,9 @@ jobs:
             libxcb-icccm4 \
             libxkbcommon-x11-0 \
             libxcb-render-util0 \
-            libxcb-keysyms1
+            libxcb-keysyms1 \
+            libxcb-shape \
+            libxcb-image
 
       - name: Export tag
         id: vars
