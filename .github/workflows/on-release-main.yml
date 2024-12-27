@@ -5,6 +5,8 @@ on:
     types: [published]
     branches: [main]
 
+  workflow_dispatch:
+
 jobs:
   
   publish:
