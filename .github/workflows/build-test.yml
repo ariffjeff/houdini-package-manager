@@ -22,5 +22,5 @@ jobs:
         with:
           spec: "abc.py"
           upload_exe_with_name: "HPM 9.9.9"
-          options: --name "HPM 9.9.9", --icon "Houdini_Package_Manager/resources/icons/hpm.ico"
+          options: --name "HPM 9.9.9", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
       
