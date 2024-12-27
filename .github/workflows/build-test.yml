@@ -20,7 +20,7 @@ jobs:
       - name: Build executable - PyInstaller
         uses: sayyid5416/pyinstaller@v1
         with:
-          spec: "ahhmain.py"
+          spec: "houdini_package_manager/main.py"
           upload_exe_with_name: "HPM 9.9.9"
           options: --name "HPM 9.9.9", --icon "Houdini_Package_Manager/resources/icons/hpm.ico", --onefile,
       
