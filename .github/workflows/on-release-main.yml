@@ -44,7 +44,7 @@ jobs:
           upload_exe_with_name: "HPM ${{ steps.vars.outputs.tag }}"
           options: -w, --name "HPM ${{ steps.vars.outputs.tag }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
       
-      - name: Compress executable
+      - name: Compress build
         run: python -c "import shutil; shutil.make_archive('dist/HPM ${{ steps.vars.outputs.tag }}', 'zip', 'dist/HPM ${{ steps.vars.outputs.tag }}')"
 
       - name: Upload build to release assets
