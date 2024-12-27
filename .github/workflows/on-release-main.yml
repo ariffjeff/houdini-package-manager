@@ -5,6 +5,11 @@ on:
     branches: [main]
 
   workflow_dispatch:
+    inputs:
+      tag_version:
+        description: 'Tag version for this release'
+        required: true
+        default: 'x.y.z'
 
 jobs:
   
