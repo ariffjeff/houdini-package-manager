@@ -5,6 +5,11 @@ on:
     branches: [main]
 
   workflow_dispatch:
+    inputs:
+      tag_version:
+        description: 'Tag version for this release'
+        required: true
+        default: 'x.y.z'
 
 jobs:
   
@@ -32,12 +37,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build executable with PyInstaller
-        run: |
-          poetry run pyinstaller -w \
-            --name="HPM ${{ steps.vars.outputs.tag }}" \
-            --icon="Houdini_Package_Manager/resources/icons/hpm.ico" \
-            main.py
+      - name: Build executable - PyInstaller
+        uses: sayyid5416/pyinstaller@v1
+        with:
+          spec: "main.py"
+          upload_exe_with_name: "HPM ${{ steps.vars.outputs.tag }}"
+          options: -w, --name "HPM ${{ steps.vars.outputs.tag }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
       
       - name: Compress executable
         run: python -c "import shutil; shutil.make_archive('dist/HPM ${{ steps.vars.outputs.tag }}', 'zip', 'dist/HPM ${{ steps.vars.outputs.tag }}')"
