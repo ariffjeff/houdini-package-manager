@@ -1,0 +1,26 @@
+name: release-main
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v3
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-poetry-env
+
+      - name: Export tag
+        id: vars
+        run: echo tag=${GITHUB_REF#refs/*/} >> $GITHUB_OUTPUT
+
+      - name: Build executable - PyInstaller
+        uses: sayyid5416/pyinstaller@v1
+        with:
+          spec: "main.py"
+          upload_exe_with_name: "HPM 9.9.9"
+          options: --name "HPM 9.9.9", --icon "Houdini_Package_Manager/resources/icons/hpm.ico", --onefile,
+      
