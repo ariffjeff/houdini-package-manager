@@ -39,6 +39,7 @@ jobs:
 
       - name: Build exe
         run: |
+          pip install pyinstaller
           pyinstaller main.py
 
       - name: Verify built files
