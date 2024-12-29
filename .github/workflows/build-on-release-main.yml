@@ -25,7 +25,7 @@ jobs:
         uses: sayyid5416/pyinstaller@v1
         with:
           spec: "main.py"
-          requirements: "requirements.txt"
+          requirements: "requirements.txt" # specify dependencies because action does not support pyproject.toml
           upload_exe_with_name: "HPM ${{ github.event.inputs.tag || github.ref_name }}"
           options: -w, --name "HPM ${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
 
