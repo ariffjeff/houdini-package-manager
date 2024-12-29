@@ -84,7 +84,6 @@ jobs:
 
       - name: Compress Windows build
         run: |
-          ls -l dist
           zip -r "dist/HPM-${{ github.event.inputs.tag || github.ref_name }}.zip" "dist/HPM-${{ github.event.inputs.tag || github.ref_name }}"
 
       - name: Create Release
@@ -108,9 +107,11 @@ jobs:
           asset_name: "HPM-${{ github.event.inputs.tag || github.ref_name }}.zip"
           asset_content_type: application/zip
 
+      - name: Set up the environment
+        uses: ./.github/actions/setup-poetry-env
+
       - name: Build and publish to PyPI
         run: |
-          source .venv/bin/activate
           poetry version $RELEASE_VERSION
           make build-and-publish
         env: 
