@@ -1,5 +1,5 @@
 export VERSION = $(shell python -c "from houdini_package_manager import __version__; print(__version__)")
-export NAME = Houdini_Package_Manager
+export NAME = HPM
 export EXECUTABLE = $(NAME)-$(VERSION)
 
 # run the app from main.py
