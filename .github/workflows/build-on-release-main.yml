@@ -26,8 +26,8 @@ jobs:
         with:
           spec: "main.py"
           requirements: "requirements.txt" # specify dependencies because action does not support pyproject.toml
-          upload_exe_with_name: "HPM ${{ github.event.inputs.tag || github.ref_name }}"
-          options: -w, --name "HPM ${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
+          upload_exe_with_name: "HPM-${{ github.event.inputs.tag || github.ref_name }}"
+          options: -w, --name "HPM-${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
 
       - name: Verify built files for Windows
         run: ls -R dist/
@@ -57,8 +57,8 @@ jobs:
   #       uses: sayyid5416/pyinstaller@v1
   #       with:
   #         spec: "main.py"
-  #         upload_exe_with_name: "HPM ${{ github.event.inputs.tag || github.ref_name }}"
-  #         options: -w, --name "HPM ${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
+  #         upload_exe_with_name: "HPM-${{ github.event.inputs.tag || github.ref_name }}"
+  #         options: -w, --name "HPM-${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
 
   #     - name: Verify built files for Linux
   #       run: ls -R dist/    
@@ -68,7 +68,9 @@ jobs:
     needs: [windows-build]
     steps:
       - name: Compress Windows build
-        run: zip -r "dist/HPM ${{ github.event.inputs.tag || github.ref_name }}.zip" "dist/HPM ${{ github.event.inputs.tag || github.ref_name }}"
+        run: |
+          ls -l dist
+          zip -r "dist/HPM-${{ github.event.inputs.tag || github.ref_name }}.zip" "dist/HPM-${{ github.event.inputs.tag || github.ref_name }}"
 
       - name: Create Release
         id: create_release
@@ -84,8 +86,8 @@ jobs:
       - name: Upload build artifact to release
         uses: actions/upload-artifact@v4
         with:
-          name: HPM ${{ github.event.inputs.tag || github.ref_name }}.zip - Windows x64 EXE build
-          path: "dist/HPM ${{ github.event.inputs.tag || github.ref_name }}.zip"
+          name: HPM ${{ github.event.inputs.tag || github.ref_name }} - Windows x64 EXE zip
+          path: "dist/HPM-${{ github.event.inputs.tag || github.ref_name }}.zip"
 
       - name: Build and publish to PyPI
         run: |
