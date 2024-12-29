@@ -1,0 +1,53 @@
+name: "build-project"
+description: "Composite action to create a executable with corresponding files. Works for any platform."
+
+inputs:
+  tag_version:
+    description: 'Tag version for the release'
+    required: false
+    default: ${{ github.ref_name }}
+
+outputs:
+  tag:
+    description: "The exported tag value from the composite action."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check out
+      uses: actions/checkout@v3
+
+    - name: Set up the environment
+      uses: ./.github/actions/setup-poetry-env
+
+    - name: Install extra Linux system dependencies for PySide6
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libxcb-icccm4 \
+          libxkbcommon-x11-0 \
+          libxcb-render-util0 \
+          libxcb-keysyms1 \
+          libxcb-shape0 \
+          libxcb-image0
+
+    # Export the tag, using either the input tag_version or GITHUB_REF
+    - name: Export tag
+      id: vars
+      run: |
+        tag=${{ inputs.tag_version }}
+        echo "tag=$tag" >> $GITHUB_OUTPUT  # Ensure it's passed to the workflow output
+
+    - name: Set composite output
+      run: echo "tag=${{ steps.vars.outputs.tag }}" >> $GITHUB_OUTPUT
+
+    - name: Build executable - PyInstaller
+      uses: sayyid5416/pyinstaller@v1
+      with:
+        spec: "main.py"
+        upload_exe_with_name: "HPM ${{ steps.vars.outputs.tag }}"
+        options: -w, --name "HPM ${{ steps.vars.outputs.tag }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
+
+    - name: Verify built files for Linux
+      run: ls -R dist/
