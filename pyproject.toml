@@ -108,4 +108,5 @@ skip_empty = true
 branch = true
 source = ["houdini_package_manager"]
 
-
+[tool.deptry]
+extend_exclude = ["dev"]
