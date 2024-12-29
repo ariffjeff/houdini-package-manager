@@ -25,12 +25,12 @@ jobs:
         uses: sayyid5416/pyinstaller@v1
         with:
           spec: "main.py"
+          requirements: "requirements.txt"
           upload_exe_with_name: "HPM ${{ github.event.inputs.tag || github.ref_name }}"
           options: -w, --name "HPM ${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
 
-      - name: Verify built files for Linux
+      - name: Verify built files for Windows
         run: ls -R dist/
-        shell: bash         
 
   # working linux builder workflow if there is a future need
   # linux-build:
@@ -52,7 +52,6 @@ jobs:
   #           libxcb-keysyms1 \
   #           libxcb-shape0 \
   #           libxcb-image0
-  #       shell: bash
 
   #     - name: Build executable - PyInstaller
   #       uses: sayyid5416/pyinstaller@v1
@@ -62,8 +61,7 @@ jobs:
   #         options: -w, --name "HPM ${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
 
   #     - name: Verify built files for Linux
-  #       run: ls -R dist/
-  #       shell: bash        
+  #       run: ls -R dist/    
 
   release:
     runs-on: ubuntu-latest
