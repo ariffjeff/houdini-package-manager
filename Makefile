@@ -32,8 +32,7 @@ endif
 
 # build app executable from python using pyinstaller
 define build_executable
-	@poetry run pyinstaller $(if $(filter -w,$(1)), -w,) --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" main.py
-	@python -c "import shutil; shutil.copytree('houdini_package_manager/resources', 'dist/${EXECUTABLE}/resources');"
+	@poetry run pyinstaller $(if $(filter -w,$(1)), -w,) --name="${EXECUTABLE}" --icon="Houdini_Package_Manager/resources/icons/hpm.ico" --add-data="houdini_package_manager/resources;resources" main.py
 	@echo "Built: ${EXECUTABLE}"
 endef
 
