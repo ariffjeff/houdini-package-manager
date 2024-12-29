@@ -13,21 +13,18 @@ run-exe:
 	.\dist\${EXECUTABLE}\${EXECUTABLE}.exe
 
 ## create the dist build and zip, and place them in the houpm site dist folder
-# "make prepare TEST=0" to skip testing
 .PHONY: prepare
 prepare:
-ifeq ($(TEST), )
-	make test
-else
-	@echo "Skipping pytests."
-endif
-
+	@echo "Building requirements.txt"
 	make toml-to-req
-	make build-exe
-	make zip
+	@echo "Updating HPM version in houpm HTML."
 	make update-houpm
+	@echo "Creating tagged version commit."
+	@git add .
+	@git commit -m "$(VERSION)"
+	@git tag -a "$(VERSION)" -m "$(VERSION)"
 	@echo "Finished prepare."
-
+	@echo "Push this tagged commit to trigger the GitHub Actions workflow that creates a GitHub release with a new build, and a PyPI release."
 
 # build app executable from python using pyinstaller
 define build_executable
@@ -36,14 +33,28 @@ define build_executable
 endef
 
 # build executable, no console
+# "make build-exe TEST=0" to skip testing
 .PHONY: build-exe
 build-exe:
+ifeq ($(TEST), )
+	make test
+else
+	@echo "Skipping pytests."
+endif
 	$(call build_executable, -w)
+	make zip
 
 # build executable, with console
+# "make build-exe-log TEST=0" to skip testing
 .PHONY: build-exe-log
 build-exe-log:
+ifeq ($(TEST), )
+	make test
+else
+	@echo "Skipping pytests."
+endif
 	$(call build_executable)
+	make zip
 
 # convert pyproject.toml to requirement.txt
 .PHONY: toml-to-req
