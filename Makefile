@@ -22,6 +22,7 @@ else
 	@echo "Skipping pytests."
 endif
 
+	make toml-to-req
 	make build-exe
 	make zip
 	make dist-move
@@ -46,6 +47,10 @@ build-exe:
 build-exe-log:
 	$(call build_executable)
 
+# convert pyproject.toml to requirement.txt
+.PHONY: toml-to-req
+toml-to-req:
+	@python dev/pyproject-to-requirements/convert.py .
 
 # create a copy of the dist build in the HouPM website dist_hpm folder
 .PHONY: dist-move
