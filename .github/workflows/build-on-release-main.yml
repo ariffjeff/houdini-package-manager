@@ -84,7 +84,6 @@ jobs:
 
       - name: Compress Windows build
         run: |
-          ls -l dist
           zip -r "dist/HPM-${{ github.event.inputs.tag || github.ref_name }}.zip" "dist/HPM-${{ github.event.inputs.tag || github.ref_name }}"
 
       - name: Create Release
