@@ -66,8 +66,8 @@ dist-move:
 .PHONY: update-houpm
 update-houpm:
 	@powershell -Command "(Get-Content docs/index.html) \
-	-replace 'Houdini_Package_Manager-[0-9]+\.[0-9]+\.[0-9]+', 'Houdini_Package_Manager-$(VERSION)' \
-	-replace 'Download HPM [0-9]+\.[0-9]+\.[0-9]+', 'Download HPM $(VERSION)' \
+	-replace '[0-9]+\.[0-9]+\.[0-9]+/HPM-[0-9]+\.[0-9]+\.[0-9]+.zip', '$(VERSION)/HPM-$(VERSION).zip' \
+	-replace '>Download HPM [0-9]+\.[0-9]+\.[0-9]+', '>Download HPM $(VERSION)' \
 	| Set-Content docs/index.html"
 	@echo "Updated HPM version html in houpm website..."
 
