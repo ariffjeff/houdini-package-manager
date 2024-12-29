@@ -28,7 +28,7 @@ jobs:
           upload_exe_with_name: "HPM ${{ github.event.inputs.tag || github.ref_name }}"
           options: -w, --name "HPM ${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
 
-      - name: Verify built files for Linux
+      - name: Verify built files for Windows
         run: ls -R dist/
         shell: bash         
 
