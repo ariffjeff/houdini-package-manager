@@ -4,8 +4,8 @@ Convert pyproject.toml to requirements.txt
 """
 from pathlib import Path
 
-import toml
 import click
+import toml
 
 
 class RequirementsConverter:
