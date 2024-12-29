@@ -25,7 +25,6 @@ endif
 	make toml-to-req
 	make build-exe
 	make zip
-	make dist-move
 	make update-houpm
 	@echo "Finished prepare."
 
@@ -50,17 +49,6 @@ build-exe-log:
 .PHONY: toml-to-req
 toml-to-req:
 	@python dev/pyproject-to-requirements/convert.py .
-
-# create a copy of the dist build in the HouPM website dist_hpm folder
-.PHONY: dist-move
-dist-move:
-	@python -c "\
-	import shutil; import os;\
-	shutil.rmtree('docs/dist_hpm', ignore_errors=True);\
-	os.mkdir('docs/dist_hpm');\
-	shutil.copy('dist/$(EXECUTABLE).zip', 'docs/dist_hpm/$(EXECUTABLE).zip');\
-	print('Updated /dist_hpm from /dist');\
-	"
 
 # update HPM version html in houpm website
 .PHONY: update-houpm
