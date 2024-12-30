@@ -24,7 +24,7 @@ prepare:
 	@git commit -m "$(VERSION)"
 	@git tag -a "$(VERSION)" -m "$(VERSION)"
 	@echo "Finished prepare."
-	@echo "Push this tagged commit to trigger the GitHub Actions workflow that creates a GitHub release with a new build, and a PyPI release. "
+	@echo "Push this tagged commit to trigger the GitHub Actions workflow that creates a GitHub release with a new build, and a PyPI release."
 
 # build app executable from python using pyinstaller
 define build_executable
