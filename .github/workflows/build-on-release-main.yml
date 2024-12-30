@@ -2,7 +2,8 @@ name: build-release-main
 
 on:
   push:
-    branches: [main]
+    tags:
+      - '*'
 
   workflow_dispatch:
     inputs:
@@ -27,13 +28,13 @@ jobs:
           spec: "main.py"
           requirements: "requirements.txt" # specify dependencies because action does not support pyproject.toml
           upload_exe_with_name: "HPM-${{ github.event.inputs.tag || github.ref_name }}"
-          options: -w, --name "HPM-${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico",
+          options: -w, --name "HPM-${{ github.event.inputs.tag || github.ref_name }}", --icon "Houdini_Package_Manager/resources/icons/hpm.ico" --add-data "houdini_package_manager/resources;resources",
 
       - name: Verify built files for Windows
         run: ls -R dist/
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-dist
           path: dist/
@@ -77,7 +78,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Windows build artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows-dist
           path: dist/
