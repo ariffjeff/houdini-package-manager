@@ -66,26 +66,10 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
 1. Do `poetry install`
 1. Make your code changes and commit them
     - If you're adding other files/images/vectors/etc., put them somewhere appropriate in `houdini_package_manager/resources/`
-1. Version bump (optional)
-    - Automatic version bump: 
-        1. Do `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate. These will automatically be updated:
-            1. `pyproject.toml`
-            2. `__version__` in `__init__.py`. (if the Poetry [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) plugin is installed)
-            3. The relevant HTML in `houpm.com`. (auto updated later by `make prepare`)
-            4. The final executable and .zip file/folder names. (auto updated later by `make prepare`)
-    - Manual version bump:
-        1. Do `poetry version 1.2.3`
-    - Commit the version bump later along with a new build (keep reading next steps).
-1. Do `make prepare`
-    -  This does all the final build management automatically by running a bunch of other commands.
-    - Review these make commands only if you need to use them individually...
-    1. `make test` runs the project pytests. Skip them with `make prepare TEST=0`
+1. Build the project (for local testing only)
     1. `make build-exe` builds the project. It will appear in `dist/`
         - `resources/` is copied to the build folder automatically so you don't have to worry about it.
         - The build folder and .exe name is determined by the version number set by the result of `poetry version ...` (referenced in the Makefile)
-    1. `make zip` zips the build in `dist/`
-    1. `make dist-move` creates a copy of the dist build in the HouPM website dist_hpm folder.
-    1. `make update-houpm` updates HPM version html in houpm website.
 1. Run/test the build (sanity check)
     1. Run the build
         - Different methods:
@@ -96,25 +80,33 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
         1. Check the app folder for a .log crash file.
             - Crash log files are currently timestamped/created immediately upon exe run. If HPM is closed normally (not from a crash and not via the debug console) then the log file will be deleted.
         1. Do `make build-exe-log` to make an exe that displays a debug console on run. Run the exe normally (not via a `make` command) to get the console to display. If any errors occur, you can inspect them in the console.
-1. Commit 
-    - Commit both the version bump (mentioned before) and the new build .zip together.
-    - The commit message should just be the version number (e.g. `1.3.2`) for convention.
-    - Try not to commit anything else with these for simplicity.
-1. Tag the commit
-    - The tag name should be the version number (e.g. `1.3.2`) for convention.
-    - You can do this by right clicking the commit if you're using a GUI like [GitHub Desktop](https://desktop.github.com/).
-1. Push and pull request
-    1. Name the pull request the version number (e.g. `1.3.2`).
+1. Version bump
+    - Automatic version bump: 
+        1. Do `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate. These will automatically be updated:
+            1. `pyproject.toml`
+            2. `__version__` in `__init__.py`. (if the Poetry [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) plugin is installed)
+            3. The relevant HTML in `houpm.com`. (auto updated later by `make prepare`)
+            4. The final executable and .zip file/folder names. (auto updated later by `make prepare`)
+    - Manual version bump:
+        1. Do `poetry version 1.2.3`
+    - Commit the version bump later (keep reading next steps).
+1. Do `make prepare` when you are ready to push a new semantic version
+    - This step is important because it does some automatic version management. If you skip this step, future GitHub Actions workflows will fail to create a build and release with the correct version numbers (or fail to trigger at all).
+    - This will make a tagged commit which you can simply push if you are confident everything is correct. This will trigger build and release workflows on GitHub.
+    - Requirements done automatically:
+        - The commit message should just be the version number (e.g. `1.3.2`) for convention.
+        - The commit tag should also be the version number (e.g. `1.3.2`). This directly affects the future build and release name.
+        - houpm.com's HTML is updated with the new HPM version number.
+        - Some other source code is updated with the new HPM version number.
+        - Try not to commit anything else with these for simplicity.
+1. Push the commit
+    - Workflows to build and release will trigger automatically because they are looking for a pushed tag. (It's also possible to push tags without a commit.)
+- Pull request to main
+    1. Name the pull request the version number (e.g. `1.3.2`) (for simplicity).
     1. Merge to the relevant branch.
-    - Hopefully you haven't pushed directly to main.
-1. Create a new release
-    1. On GitHub, go to Releases.
-    1. Select the tag version number (e.g. `1.3.2`) from the dropdown.
-    1. Name the title the same version number.
+1. Edit the generated release
     1. Click `Generate release notes`.
     1. Add any extra descriptive changes for this release.
-    1. Click publish.
-        - PyPI will automatically be updated with the new HPM version via a GitHub action.
 </details>
 
 <details>
