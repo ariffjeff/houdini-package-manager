@@ -982,6 +982,10 @@ class Package:
             Split a combined string of multiple paths into individual paths.
             Removes trailing separators.
             """
+            
+            if not string:
+                return []
+
             if string[-2:] == ";&":
                 string = string[:-2]
             elif string[-1] == ";":
