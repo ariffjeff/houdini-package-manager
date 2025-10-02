@@ -82,7 +82,7 @@ Note: See `pyproject.toml` to know the python version this project requires for 
         1. Do `make build-exe-log` to make an exe that displays a debug console on run. Run the exe normally (not via a `make` command) to get the console to display. If any errors occur, you can inspect them in the console.
 1. Version bump
     - Automatic version bump: 
-        1. Do `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate. These will automatically be updated:
+        1. Do `poetry version <type>`. Replace `<type>` with either `major`, `minor`, or `patch`. These will also be automatically updated:
             1. `pyproject.toml`
             2. `__version__` in `__init__.py`. (if the Poetry [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) plugin is installed)
             3. The relevant HTML in `houpm.com`. (auto updated later by `make prepare`)
