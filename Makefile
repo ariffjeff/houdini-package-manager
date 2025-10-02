@@ -12,9 +12,27 @@ run:
 run-exe:
 	.\dist\${EXECUTABLE}\${EXECUTABLE}.exe
 
+.PHONY: check-poetry-lock
+check-poetry-lock:
+	@echo "Checking Poetry lock file consistency with 'pyproject.toml'..."
+	@powershell -Command \
+		"poetry check 2>&1 | Tee-Object -Variable output | Out-Null; \
+		if ($$output -match 'pyproject.toml changed significantly since poetry.lock was last generated') { \
+			Write-Host '------------------------------------------------------------'; \
+			Write-Host 'ERROR: poetry.lock is out of sync with pyproject.toml.'; \
+			Write-Host 'Please run ''poetry lock'', review the changes to poetry.lock,'; \
+			Write-Host 'commit them, and then try again.'; \
+			Write-Host '------------------------------------------------------------'; \
+			exit 1 \
+		} else { \
+			exit 0 \
+		}"
+	@echo "poetry.lock is consistent with pyproject.toml."
+
 ## create the dist build and zip, and place them in the houpm site dist folder
 .PHONY: prepare
 prepare:
+	@$(MAKE) check-poetry-lock
 	@echo "Building requirements.txt"
 	make toml-to-req
 	@echo "Updating HPM version in houpm HTML."

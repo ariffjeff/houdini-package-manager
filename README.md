@@ -91,6 +91,7 @@ Note: See `pyproject.toml` to know the python version this project requires for 
         1. Do `poetry version 1.2.3`
     - Commit the version bump later (keep reading next steps).
 1. Do `make prepare` when you are ready to push a new semantic version
+    - **This step checks that your `poetry.lock` file is in sync with `pyproject.toml`. If they are out of sync, the process will stop and instruct you to run `poetry lock`, review and commit the changes, and try again.**
     - This step is important because it does some automatic version management. If you skip this step, future GitHub Actions workflows will fail to create a build and release with the correct version numbers (or fail to trigger at all).
     - This will make a tagged commit which you can simply push if you are confident everything is correct. This will trigger build and release workflows on GitHub.
     - Requirements done automatically:
