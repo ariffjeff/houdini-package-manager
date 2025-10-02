@@ -29,4 +29,4 @@ jobs:
         run: poetry run deptry .
 
       - name: Check Poetry lock file consistency
-        run: poetry lock --check
+        run: poetry check
