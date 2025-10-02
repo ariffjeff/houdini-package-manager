@@ -8,7 +8,8 @@ import git
 import git.exc
 import requests
 
-from houdini_package_manager.meta.meta_tools import RateLimitError, RequestConnectionError, UserDataManager
+from houdini_package_manager.meta.meta_tools import RateLimitError, RequestConnectionError
+from houdini_package_manager.meta.user_data_manager import UserDataManager
 from houdini_package_manager.wrangle.url import Url
 
 

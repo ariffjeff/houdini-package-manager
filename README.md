@@ -58,7 +58,7 @@ HPM is a Python application that basically grabs your plugins' package config fi
 
 <details>
 <summary><h2>Building the project yourself</h2></summary>
-Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Windows 10.
+Note: See `pyproject.toml` to know the python version this project requires for testing and building.
 
 1. Install the [Poetry dependency manager](https://python-poetry.org/docs/#installing-with-the-official-installer) (using either of the CLI commands).
 1. Clone [HPM](https://github.com/ariffjeff/houdini-package-manager)
@@ -80,9 +80,11 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
         1. Check the app folder for a .log crash file.
             - Crash log files are currently timestamped/created immediately upon exe run. If HPM is closed normally (not from a crash and not via the debug console) then the log file will be deleted.
         1. Do `make build-exe-log` to make an exe that displays a debug console on run. Run the exe normally (not via a `make` command) to get the console to display. If any errors occur, you can inspect them in the console.
+1. Do `make check`
+    1. If there are any errors, you must fix them before continuing otherwise GitHub Actions workflows later will fail. If you fixed any errors, run the command again to be sure the checking caught all errors and was able to proceed to subsequent checks.
 1. Version bump
     - Automatic version bump: 
-        1. Do `poetry version minor`. Use `major` or `patch` in place of `minor` if appropriate. These will automatically be updated:
+        1. Do `poetry version <type>`. Replace `<type>` with either `major`, `minor`, or `patch`. These will also be automatically updated:
             1. `pyproject.toml`
             2. `__version__` in `__init__.py`. (if the Poetry [poetry-bumpversion](https://pypi.org/project/poetry-bumpversion/) plugin is installed)
             3. The relevant HTML in `houpm.com`. (auto updated later by `make prepare`)
@@ -91,6 +93,7 @@ Note: This project was primarily tested with Python 3.9.10 and 3.10.10 on Window
         1. Do `poetry version 1.2.3`
     - Commit the version bump later (keep reading next steps).
 1. Do `make prepare` when you are ready to push a new semantic version
+    - **This step checks that your `poetry.lock` file is in sync with `pyproject.toml`. If they are out of sync, the process will stop and instruct you to run `poetry lock`, review and commit the changes, and try again.**
     - This step is important because it does some automatic version management. If you skip this step, future GitHub Actions workflows will fail to create a build and release with the correct version numbers (or fail to trigger at all).
     - This will make a tagged commit which you can simply push if you are confident everything is correct. This will trigger build and release workflows on GitHub.
     - Requirements done automatically:
