@@ -80,6 +80,8 @@ Note: See `pyproject.toml` to know the python version this project requires for 
         1. Check the app folder for a .log crash file.
             - Crash log files are currently timestamped/created immediately upon exe run. If HPM is closed normally (not from a crash and not via the debug console) then the log file will be deleted.
         1. Do `make build-exe-log` to make an exe that displays a debug console on run. Run the exe normally (not via a `make` command) to get the console to display. If any errors occur, you can inspect them in the console.
+1. Do `make check`
+    1. If there are any errors, you must fix them before continuing otherwise GitHub Actions workflows later will fail. If you fixed any errors, run the command again to be sure the checking caught all errors and was able to proceed to subsequent checks.
 1. Version bump
     - Automatic version bump: 
         1. Do `poetry version <type>`. Replace `<type>` with either `major`, `minor`, or `patch`. These will also be automatically updated:
