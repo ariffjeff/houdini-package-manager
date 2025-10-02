@@ -982,7 +982,7 @@ class Package:
             Split a combined string of multiple paths into individual paths.
             Removes trailing separators.
             """
-            
+
             if not string:
                 return []
 
