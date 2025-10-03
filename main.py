@@ -8,9 +8,10 @@ from houdini_package_manager.main import main
 if __name__ == "__main__":
     fmt = "%(levelname)s %(asctime)s - %(message)s"
 
-    # crash log file name currently stamped with program start time, not the crash time
+    # The log file name is currently stamped with program start time, not the crash time.
+    # If the program does not crash, the log file is deleted when HPM is closed.
     current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    FILENAME = f"Houdini_Package_Manager-{__version__}_crash.{current_time}.log"
+    FILENAME = f"Houdini_Package_Manager_{__version__}_{current_time}.log"
 
     logging.basicConfig(filename=FILENAME, filemode="w", format=fmt, level=logging.DEBUG)
 
