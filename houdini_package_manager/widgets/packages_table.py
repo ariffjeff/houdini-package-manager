@@ -430,7 +430,7 @@ class CellWidgets:
         pkg_name = parent._current_package().pkg_name
         if pkg_name[-5:] != ".json":
             pkg_name += ".json"
-        button_warning.set_hover_status_message(f"Can't process package, error(s) in config: {pkg_name}")
+        button_warning.set_hover_status_message(f"Can't process package, error(s) in config: {pkg_name}. JSON might have trailing commas or other syntax errors. Fix errors then refresh this table.")
         button_warning.setToolTip(warnings)
         button_warning.setProperty("path", config_path)
         button_warning.clicked.connect(parent.open_path)
