@@ -797,7 +797,10 @@ class Package:
             with open(self.config_path) as f:
                 data = json.load(f)
         except json.decoder.JSONDecodeError:
-            logging.warning(f"Invalid JSON (might fail to resolve/parse). Possible cause is trailing commas or other syntax errors: {self.config_path}")
+            logging.warning(
+                "Invalid JSON (might fail to resolve/parse). Possible cause is trailing commas or other syntax errors:"
+                f" {self.config_path}"
+            )
             self.warnings.append("Invalid JSON! Possible trailing commas or other syntax errors. Fix then refresh.")
             try:
                 with open(self.config_path) as f:
