@@ -1,15 +1,16 @@
 import json
 import logging
 import os
-from pathlib import Path
 import platform
 from enum import Enum
+from pathlib import Path
 
 
 class HPMPathsEnum(Enum):
     """
     Enum for predefined file paths used by Houdini Package Manager.
     """
+
     PACKAGE_REPO_DATA = "package_repo_data.json"
 
 
