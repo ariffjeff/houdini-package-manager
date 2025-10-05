@@ -2,6 +2,15 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
+from enum import Enum
+
+
+class HPMPathsEnum(Enum):
+    """
+    Enum for predefined file paths used by Houdini Package Manager.
+    """
+    PACKAGE_REPO_DATA = "package_repo_data.json"
 
 
 class UserDataManager:
@@ -18,7 +27,23 @@ class UserDataManager:
     """
 
     def __init__(self):
-        self.file_path = Path("houdini_package_manager/user/package_repo_data.json")
+        self.file_path = self.get_user_data_path(HPMPathsEnum.PACKAGE_REPO_DATA.value)
+
+    def get_user_data_path(self, filename: str) -> Path:
+        """
+        Returns the path to the user data file.
+        The file will be created if it doesn't exist.
+        """
+
+        if platform.system() == "Windows":
+            base = os.getenv("APPDATA")
+        elif platform.system() == "Darwin":
+            base = os.path.expanduser("~/Library/Application Support")
+        else:
+            base = os.path.expanduser("~/.local/share")
+        data_dir = Path(base) / "HoudiniPackageManager"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return data_dir / filename
 
     def _read_data(self) -> dict:
         """
