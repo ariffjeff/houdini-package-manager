@@ -10,6 +10,7 @@ from itertools import takewhile
 from pathlib import Path
 
 from houdini_package_manager.meta.meta_tools import TableHeaders
+from houdini_package_manager.meta.user_data_manager import UserDataManager
 from houdini_package_manager.wrangle.repository import GitProject
 from houdini_package_manager.wrangle.url import Url
 
@@ -452,7 +453,7 @@ class PackageCollection:
         self.pkgs = {}  # Package objects
         self.package_plugin_matches = {}
 
-        self.PACKAGES_GIT_DATA_PATH = Path("houdini_package_manager/user_data/package_repo_data.json")
+        self.PACKAGES_GIT_DATA_PATH = UserDataManager().file_path
 
         if get_data:
             self.create_pkgs()
