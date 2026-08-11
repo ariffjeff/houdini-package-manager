@@ -23,7 +23,7 @@ A comprehensive GUI package manager for Houdini. Manage all your plugins and cre
 ## Install
 1. Download the latest version from https://houpm.com
 2. Unzip and store the folder anywhere you want.
-3. Create a shortcut of the Houdini_Package_Manager-x.y.z.exe file from the folder.
+3. Create a shortcut of the HPM-x.y.z.exe file from the folder.
 4. Now you can run HPM from the shortcut, that's all there is to it!
 
 
