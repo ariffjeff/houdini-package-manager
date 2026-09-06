@@ -1,1 +1,39 @@
+@import '@xyflow/svelte/dist/style.css' layer(base);
 @import 'tailwindcss';
+
+:root {
+	font-family: 'Avenir Next', 'Trebuchet MS', sans-serif;
+	color: #1f2c2d;
+	background: #eef1ed;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+}
+
+html,
+body {
+	min-height: 100%;
+	margin: 0;
+}
+
+body {
+	min-width: 320px;
+	background:
+		linear-gradient(rgba(39, 55, 54, 0.035) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(39, 55, 54, 0.035) 1px, transparent 1px),
+		linear-gradient(135deg, #f5f5ef 0%, #e9efeb 100%);
+	background-size:
+		32px 32px,
+		32px 32px,
+		auto;
+}
+
+button,
+input {
+	font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible {
+	outline: 3px solid rgba(59, 155, 130, 0.34);
+	outline-offset: 2px;
+}

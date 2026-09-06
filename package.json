@@ -41,5 +41,8 @@
 		"vite": "^8.0.16",
 		"vitest": "^4.1.8",
 		"vitest-browser-svelte": "^2.1.1"
+	},
+	"dependencies": {
+		"@xyflow/svelte": "^1.6.6"
 	}
 }
