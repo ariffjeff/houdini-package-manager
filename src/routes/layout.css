@@ -3,10 +3,20 @@
 
 :root {
 	font-family: 'Avenir Next', 'Trebuchet MS', sans-serif;
-	color: #1f2c2d;
-	background: #eef1ed;
+	color: #edf4f1;
+	background: #101518;
+	color-scheme: dark;
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
+	--page: #101518;
+	--surface: rgba(22, 31, 34, 0.86);
+	--surface-raised: rgba(30, 42, 44, 0.92);
+	--surface-muted: rgba(255, 255, 255, 0.06);
+	--line: rgba(211, 232, 225, 0.14);
+	--line-strong: rgba(211, 232, 225, 0.24);
+	--text: #edf4f1;
+	--text-muted: #98aaa4;
+	--text-dim: #71827c;
 }
 
 html,
@@ -16,15 +26,24 @@ body {
 }
 
 body {
-	min-width: 320px;
+	color: var(--text);
 	background:
-		linear-gradient(rgba(39, 55, 54, 0.035) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(39, 55, 54, 0.035) 1px, transparent 1px),
-		linear-gradient(135deg, #f5f5ef 0%, #e9efeb 100%);
-	background-size:
-		32px 32px,
-		32px 32px,
-		auto;
+		radial-gradient(circle at 12% 0%, rgba(50, 110, 98, 0.2), transparent 32rem),
+		linear-gradient(135deg, #101b1d 0%, #120f14 100%);
+}
+
+.svelte-flow__attribution {
+	border-radius: 0 6px;
+	background: rgba(0, 0, 0, 0);
+	outline: 1px solid rgba(255, 255, 255, 0.1);
+
+	a {
+		color: rgb(255, 255, 255);
+	}
+}
+
+.svelte-flow__controls {
+	margin-bottom: 30px;
 }
 
 button,

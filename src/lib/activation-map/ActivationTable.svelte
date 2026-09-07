@@ -75,9 +75,9 @@
 <style>
 	.table-wrap {
 		overflow-x: auto;
-		border: 1px solid rgba(38, 53, 55, 0.1);
+		border: 1px solid var(--line);
 		border-radius: 8px;
-		background: rgba(251, 252, 248, 0.78);
+		background: var(--surface);
 	}
 
 	table {
@@ -90,13 +90,13 @@
 	th,
 	td {
 		padding: 16px 18px;
-		border-bottom: 1px solid rgba(38, 53, 55, 0.08);
+		border-bottom: 1px solid var(--line);
 		vertical-align: middle;
 	}
 
 	thead th {
-		background: rgba(230, 236, 231, 0.72);
-		color: #5d716c;
+		background: var(--surface-muted);
+		color: #a8bbb4;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
 		font-weight: 500;
@@ -111,7 +111,7 @@
 
 	thead th small {
 		margin-top: 5px;
-		color: #8a9a94;
+		color: var(--text-dim);
 		font-size: 9px;
 		letter-spacing: 0.02em;
 		text-transform: none;
@@ -128,7 +128,7 @@
 
 	.plugin-row.is-selected th,
 	.plugin-row.is-selected td {
-		background: rgba(232, 242, 237, 0.68);
+		background: rgba(57, 155, 130, 0.1);
 	}
 
 	.plugin-name,
@@ -152,7 +152,7 @@
 	}
 
 	.plugin-name span {
-		color: #85938e;
+		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
 	}
@@ -175,12 +175,12 @@
 	.plugin-name:hover,
 	.plugin-name:focus-visible {
 		outline: none;
-		background: rgba(52, 74, 72, 0.08);
+		background: rgba(255, 255, 255, 0.07);
 	}
 
 	.status-cell small {
 		grid-column: 2;
-		color: #8b9993;
+		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
 		font-weight: 400;
@@ -215,7 +215,7 @@
 
 	.empty-row {
 		padding: 42px 18px;
-		color: #71817b;
+		color: var(--text-muted);
 		text-align: center;
 	}
 </style>

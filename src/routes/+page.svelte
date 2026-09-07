@@ -11,6 +11,7 @@
 		statusLabel,
 		targetFor
 	} from '$lib/activation-map/fixtures';
+	import logo from '$lib/assets/hpm.svg';
 
 	type ViewMode = 'map' | 'table';
 
@@ -102,41 +103,41 @@
 	/>
 </svelte:head>
 
-<div class="app-shell">
-	<header class="topbar">
-		<a class="brand" href={resolve('/')} aria-label="HPM home">
-			<span class="brand-mark">H</span>
-			<span>
-				<strong>HPM</strong>
-				<small>Houdini package manager</small>
-			</span>
+<div class="min-h-screen px-3.5 pb-7 sm:px-6 lg:px-10 lg:pb-13.5">
+	<header
+		class="mx-auto flex max-w-370 flex-wrap items-center gap-4.5 border-white/10 py-4.5 lg:flex-nowrap lg:gap-10 lg:py-5.5"
+	>
+		<a class="flex items-center" href={resolve('/')} aria-label="HPM home">
+			<img class="h-7.5 w-auto" src={logo} alt="HPM logo" />
 		</a>
-		<nav aria-label="Primary navigation">
+		<nav
+			class="order-3 flex w-full items-center justify-between gap-2 overflow-x-auto lg:order-0 lg:mr-auto lg:w-auto lg:justify-start lg:gap-6.5"
+			aria-label="Primary navigation"
+		>
 			<a class="active" href="#library">Library</a>
 			<a href="#discover">Discover</a>
 			<a href="#installs">Houdini installs</a>
 			<a href="#activity">Activity</a>
 		</nav>
-		<div class="topbar-status"><span></span> Local workspace</div>
+		<div class="topbar-status ml-auto lg:ml-0"><span></span> Local workspace</div>
 	</header>
 
-	<main>
-		<section class="page-intro">
-			<div>
-				<p class="section-kicker">Library / Activation surface</p>
-			</div>
-			<div class="intro-stats" aria-label="Activation summary">
-				<div><strong>{activationPlugins.length}</strong><span>plugins</span></div>
-				<div><strong>{activationInstalls.length}</strong><span>installs</span></div>
-				<div class="attention-stat">
-					<strong>{attentionCount}</strong><span>review states</span>
+	<main class="mx-auto max-w-370">
+		<section
+			class="rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-[0_18px_55px_rgba(0,0,0,0.22)] lg:p-6.5"
+			id="library"
+		>
+			<div
+				class="workspace-header flex flex-col gap-5 border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between"
+			>
+				<div class="intro-stats" aria-label="Activation summary">
+					<div><strong>{activationPlugins.length}</strong><span>plugins</span></div>
+					<div><strong>{activationInstalls.length}</strong><span>installs</span></div>
+					<div class="attention-stat">
+						<strong>{attentionCount}</strong><span>review states</span>
+					</div>
 				</div>
-			</div>
-		</section>
-
-		<section class="workspace" id="library">
-			<div class="workspace-header">
-				<div class="workspace-actions">
+				<div class="workspace-actions flex w-full flex-wrap items-center gap-3 lg:w-auto">
 					<div class="view-switch" role="group" aria-label="Library view">
 						<button
 							type="button"
@@ -155,7 +156,7 @@
 							Table
 						</button>
 					</div>
-					<label class="search-field">
+					<label class="search-field min-w-[150px] flex-1 sm:w-[190px] sm:flex-none">
 						<span class="sr-only">Filter plugins or installs</span>
 						<span class="search-icon">/</span>
 						<input bind:value={searchQuery} type="search" placeholder="Filter library" />
@@ -239,7 +240,7 @@
 						{:else}
 							<div class="detail-empty">
 								<span class="empty-mark">+</span>
-								<p>Select a plugin or install to inspect its targets.</p>
+								<p>Select a node to inspect its targets.</p>
 							</div>
 						{/if}
 					</aside>
@@ -258,76 +259,16 @@
 </div>
 
 <style>
-	.app-shell {
-		min-height: 100vh;
-		padding: 0 42px 54px;
-	}
-
-	.topbar {
-		display: flex;
-		max-width: 1480px;
-		margin: 0 auto;
-		padding: 22px 0 18px;
-		align-items: center;
-		gap: 40px;
-		border-bottom: 1px solid rgba(38, 53, 55, 0.1);
-	}
-
-	.brand {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		color: #1f2c2d;
-		text-decoration: none;
-	}
-
-	.brand-mark {
-		display: grid;
-		width: 32px;
-		height: 32px;
-		place-items: center;
-		border-radius: 7px;
-		background: #243738;
-		color: #e9c35b;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 15px;
-		font-weight: 700;
-	}
-
-	.brand strong,
-	.brand small {
-		display: block;
-	}
-
-	.brand strong {
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 14px;
-		letter-spacing: 0.08em;
-	}
-
-	.brand small {
-		margin-top: 2px;
-		color: #7b8983;
-		font-size: 10px;
-	}
-
-	nav {
-		display: flex;
-		align-items: center;
-		gap: 26px;
-		margin-right: auto;
-	}
-
 	nav a {
 		padding: 8px 0;
-		color: #778680;
+		color: var(--text-dim);
 		font-size: 12px;
 		text-decoration: none;
 	}
 
 	nav a:hover,
 	nav a.active {
-		color: #1f2c2d;
+		color: var(--text);
 	}
 
 	nav a.active {
@@ -338,7 +279,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		color: #71817b;
+		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
 		letter-spacing: 0.04em;
@@ -353,21 +294,9 @@
 		box-shadow: 0 0 0 4px rgba(57, 155, 130, 0.12);
 	}
 
-	main {
-		max-width: 1480px;
-		margin: 0 auto;
-	}
-
-	.page-intro {
-		display: flex;
-		justify-content: space-between;
-		gap: 40px;
-		padding: 64px 0 52px;
-	}
-
 	.section-kicker {
 		margin: 0 0 12px;
-		color: #7e8d87;
+		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
 		letter-spacing: 0.1em;
@@ -389,7 +318,7 @@
 	.intro-stats div {
 		min-width: 82px;
 		padding-left: 14px;
-		border-left: 1px solid rgba(38, 53, 55, 0.16);
+		border-left: 1px solid var(--line-strong);
 	}
 
 	.intro-stats strong,
@@ -404,7 +333,7 @@
 
 	.intro-stats span {
 		margin-top: 4px;
-		color: #82918b;
+		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
 		letter-spacing: 0.05em;
@@ -412,37 +341,15 @@
 	}
 
 	.intro-stats .attention-stat strong {
-		color: #c15b48;
-	}
-
-	.workspace {
-		padding: 26px;
-		border: 1px solid rgba(38, 53, 55, 0.1);
-		border-radius: 10px;
-		background: rgba(246, 248, 243, 0.76);
-		box-shadow: 0 18px 55px rgba(39, 55, 54, 0.08);
-	}
-
-	.workspace-header {
-		display: flex;
-		align-items: end;
-		justify-content: space-between;
-		gap: 24px;
-		margin-bottom: 22px;
-	}
-
-	.workspace-actions {
-		display: flex;
-		align-items: center;
-		gap: 12px;
+		color: #f07b67;
 	}
 
 	.view-switch {
 		display: flex;
 		padding: 3px;
-		border: 1px solid rgba(38, 53, 55, 0.12);
+		border: 1px solid var(--line);
 		border-radius: 6px;
-		background: #e6ece7;
+		background: var(--surface-muted);
 	}
 
 	.view-switch button {
@@ -451,16 +358,16 @@
 		border: 0;
 		border-radius: 4px;
 		background: transparent;
-		color: #71817b;
+		color: var(--text-muted);
 		cursor: pointer;
 		font-size: 11px;
 		font-weight: 600;
 	}
 
 	.view-switch button.active {
-		background: #fbfcf8;
-		box-shadow: 0 2px 7px rgba(39, 55, 54, 0.1);
-		color: #243738;
+		background: var(--surface-raised);
+		box-shadow: 0 2px 7px rgba(0, 0, 0, 0.22);
+		color: var(--text);
 	}
 
 	.search-field {
@@ -469,10 +376,10 @@
 		gap: 9px;
 		width: 190px;
 		padding: 7px 11px;
-		border: 1px solid rgba(38, 53, 55, 0.12);
+		border: 1px solid var(--line);
 		border-radius: 6px;
-		background: #fbfcf8;
-		color: #7b8b84;
+		background: var(--surface-raised);
+		color: var(--text-muted);
 	}
 
 	.search-icon {
@@ -487,12 +394,12 @@
 		border: 0;
 		outline: 0;
 		background: transparent;
-		color: #243738;
+		color: var(--text);
 		font-size: 12px;
 	}
 
 	.search-field input::placeholder {
-		color: #9aa7a1;
+		color: #71827c;
 	}
 
 	.map-layout {
@@ -510,14 +417,13 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 16px;
-		padding: 14px 2px 0;
 	}
 
 	.status-legend {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 13px;
-		color: #788982;
+		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
 		letter-spacing: 0.02em;
@@ -550,7 +456,7 @@
 	}
 
 	.surface-count {
-		color: #7c8b85;
+		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
 		white-space: nowrap;
@@ -559,7 +465,6 @@
 	.detail-panel {
 		min-height: 620px;
 		padding: 24px;
-		border-left: 1px solid rgba(38, 53, 55, 0.1);
 	}
 
 	.detail-panel h3 {
@@ -571,7 +476,7 @@
 
 	.detail-description {
 		margin-bottom: 18px;
-		color: #6f8079;
+		color: var(--text-muted);
 		font-size: 13px;
 		line-height: 1.55;
 	}
@@ -585,9 +490,9 @@
 
 	.detail-meta span {
 		padding: 5px 7px;
-		border: 1px solid rgba(38, 53, 55, 0.1);
+		border: 1px solid var(--line);
 		border-radius: 4px;
-		color: #647670;
+		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
 	}
@@ -596,7 +501,7 @@
 		display: flex;
 		justify-content: space-between;
 		margin-bottom: 12px;
-		color: #70817a;
+		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
 		letter-spacing: 0.07em;
@@ -615,7 +520,7 @@
 		justify-content: space-between;
 		gap: 12px;
 		padding: 12px 0;
-		border-top: 1px solid rgba(38, 53, 55, 0.09);
+		border-top: 1px solid var(--line);
 	}
 
 	.target-item strong,
@@ -630,7 +535,7 @@
 
 	.target-item small {
 		margin-top: 4px;
-		color: #899791;
+		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
 	}
@@ -638,7 +543,7 @@
 	.status-pill {
 		padding: 5px 7px;
 		border-radius: 4px;
-		background: rgba(57, 155, 130, 0.1);
+		background: rgba(57, 155, 130, 0.16);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
 		font-weight: 600;
@@ -647,15 +552,15 @@
 
 	.status-pill.status-disabled,
 	.status-pill.status-missing {
-		background: rgba(173, 119, 105, 0.11);
+		background: rgba(173, 119, 105, 0.18);
 	}
 
 	.status-pill.status-warning {
-		background: rgba(211, 155, 56, 0.13);
+		background: rgba(211, 155, 56, 0.18);
 	}
 
 	.status-pill.status-incompatible {
-		background: rgba(223, 109, 88, 0.12);
+		background: rgba(223, 109, 88, 0.18);
 	}
 
 	.install-facts {
@@ -667,7 +572,7 @@
 
 	.install-facts div {
 		padding: 10px 9px;
-		border: 1px solid rgba(38, 53, 55, 0.1);
+		border: 1px solid var(--line);
 		border-radius: 5px;
 	}
 
@@ -678,7 +583,7 @@
 
 	.install-facts span {
 		margin-bottom: 5px;
-		color: #85948e;
+		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 8px;
 		text-transform: uppercase;
@@ -695,7 +600,7 @@
 		justify-content: center;
 		flex-direction: column;
 		gap: 12px;
-		color: #84938d;
+		color: var(--text-muted);
 		text-align: center;
 	}
 
@@ -711,9 +616,9 @@
 		width: 36px;
 		height: 36px;
 		place-items: center;
-		border: 1px dashed #a5b2ac;
+		border: 1px dashed var(--line-strong);
 		border-radius: 50%;
-		color: #82938b;
+		color: var(--text-muted);
 		font-size: 20px;
 	}
 
@@ -729,11 +634,6 @@
 	}
 
 	@media (max-width: 1100px) {
-		.app-shell {
-			padding-right: 24px;
-			padding-left: 24px;
-		}
-
 		.map-layout {
 			grid-template-columns: minmax(0, 1fr);
 		}
@@ -751,57 +651,8 @@
 	}
 
 	@media (max-width: 760px) {
-		.app-shell {
-			padding: 0 14px 28px;
-		}
-
-		.topbar {
-			flex-wrap: wrap;
-			gap: 18px;
-		}
-
-		nav {
-			order: 3;
-			width: 100%;
-			justify-content: space-between;
-			gap: 8px;
-			overflow-x: auto;
-		}
-
 		nav a {
 			white-space: nowrap;
-		}
-
-		.topbar-status {
-			margin-left: auto;
-		}
-
-		.page-intro {
-			flex-direction: column;
-			padding: 42px 0 34px;
-		}
-
-		.intro-stats {
-			align-self: start;
-		}
-
-		.workspace {
-			padding: 16px;
-		}
-
-		.workspace-header {
-			align-items: start;
-			flex-direction: column;
-		}
-
-		.workspace-actions {
-			width: 100%;
-			flex-wrap: wrap;
-		}
-
-		.search-field {
-			flex: 1;
-			min-width: 150px;
 		}
 
 		.surface-footer {
