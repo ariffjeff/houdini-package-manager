@@ -74,7 +74,10 @@
 
 <style>
 	.table-wrap {
+		height: calc(100dvh - 320px);
+		max-height: calc(100dvh - 320px);
 		overflow-x: auto;
+		overflow-y: auto;
 		border: 1px solid var(--line);
 		border-radius: 8px;
 		background: var(--surface);
@@ -89,7 +92,7 @@
 
 	th,
 	td {
-		padding: 16px 18px;
+		padding: 10px 14px;
 		border-bottom: 1px solid var(--line);
 		vertical-align: middle;
 	}
@@ -217,5 +220,12 @@
 		padding: 42px 18px;
 		color: var(--text-muted);
 		text-align: center;
+	}
+
+	@media (max-width: 760px) {
+		.table-wrap {
+			height: calc(100dvh - 390px);
+			max-height: calc(100dvh - 390px);
+		}
 	}
 </style>

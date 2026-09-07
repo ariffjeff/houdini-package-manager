@@ -1,24 +1,99 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
 	import {
-		activationEdges,
-		activationInstalls,
-		activationNodes,
-		activationPlugins,
-		activationTargets,
+		createActivationGraph,
+		isOfficialPlugin,
+		OFFICIAL_NODE_ID,
 		statusLabel,
 		targetFor
-	} from '$lib/activation-map/fixtures';
+	} from '$lib/activation-map/model';
+	import type {
+		ActivationEdge,
+		ActivationNode,
+		ActivationTarget,
+		HoudiniDiscoveryDiagnostic,
+		HoudiniInstall,
+		PluginRecord
+	} from '$lib/activation-map/types';
+	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
 	import logo from '$lib/assets/hpm.svg';
+	import { installHoudiniPlugin, scanHoudiniWorkspace } from '$lib/houdini/client';
 
 	type ViewMode = 'map' | 'table';
+	type ScanStage = 'installs' | 'plugins' | 'git';
+	type ScanState = 'pending' | 'loading' | 'ready' | 'error';
+	type ScanStatus = { state: ScanState; error: string };
+	type ScanAction = ScanStage | 'all';
+	type ActionState = 'idle' | 'working' | 'success' | 'error';
+
+	const scanStages: Array<{ stage: ScanStage; label: string }> = [
+		{
+			stage: 'installs',
+			label: 'Houdini installs'
+		},
+		{
+			stage: 'plugins',
+			label: 'Plugin inventory'
+		},
+		{
+			stage: 'git',
+			label: 'Remote Git metadata'
+		}
+	];
+	const scanStageLabels: Record<ScanStage, string> = {
+		installs: 'Houdini installs',
+		plugins: 'plugin inventory',
+		git: 'remote Git metadata'
+	};
 
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
 	let selectedNodeId = $state<string | null>(null);
+	let activeScan = $state<ScanAction | null>('all');
+	let initialScanStarted = false;
+	let initialScanComplete = $state(false);
+	let hasDiscoverySnapshot = $state(false);
+	let scanStatuses = $state<Record<ScanStage, ScanStatus>>({
+		installs: { state: 'pending', error: '' },
+		plugins: { state: 'pending', error: '' },
+		git: { state: 'pending', error: '' }
+	});
+	let scannedAt = $state<string | null>(null);
+	let discoveryDiagnostics = $state<HoudiniDiscoveryDiagnostic[]>([]);
+	let activationPlugins = $state<PluginRecord[]>([]);
+	let activationInstalls = $state<HoudiniInstall[]>([]);
+	let activationTargets = $state<ActivationTarget[]>([]);
+	let installVersion = $state('');
+	let installScope = $state<'global' | 'install'>('global');
+	let installTargetId = $state('');
+	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
+	let installMessage = $state('');
+	let gitSyncState = $state<ActionState>('idle');
+	let gitSyncMessage = $state('');
 
+	let activationGraph = $derived(
+		createActivationGraph(activationPlugins, activationInstalls, activationTargets)
+	);
+	let activationNodes = $derived<ActivationNode[]>(activationGraph.nodes);
+	let activationEdges = $derived<ActivationEdge[]>(activationGraph.edges);
+	let scanError = $derived.by(() => {
+		const failedStage = scanStages.find(({ stage }) => scanStatuses[stage].state === 'error');
+		return failedStage ? scanStatuses[failedStage.stage].error : '';
+	});
+	let discoveryState = $derived<'loading' | 'ready' | 'error'>(
+		activeScan === 'all' && !initialScanComplete ? 'loading' : scanError ? 'error' : 'ready'
+	);
+	let isScanActive = $derived(activeScan !== null);
+	let activeScanLabel = $derived(
+		activeScan === 'all'
+			? 'Scanning workspace'
+			: activeScan
+				? `Scanning ${scanStageLabels[activeScan]}`
+				: ''
+	);
 	let enabledCount = $derived(
 		activationTargets.filter((target) => target.status === 'enabled').length
 	);
@@ -28,8 +103,22 @@
 		).length
 	);
 	let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
+	let selectedGraphNodeId = $derived.by(() => {
+		if (!selectedNodeId) return null;
+		if (activationNodes.some((node) => node.id === selectedNodeId)) return selectedNodeId;
+
+		if (selectedNodeId.startsWith('plugin:')) {
+			const pluginId = selectedNodeId.slice('plugin:'.length);
+			const plugin = activationPlugins.find((item) => item.id === pluginId);
+			if (plugin && isOfficialPlugin(plugin)) return OFFICIAL_NODE_ID;
+		}
+
+		return selectedNodeId;
+	});
 	let selectedNode = $derived(
-		selectedNodeId ? activationNodes.find((node) => node.id === selectedNodeId) : undefined
+		selectedGraphNodeId
+			? activationNodes.find((node) => node.id === selectedGraphNodeId)
+			: undefined
 	);
 	let selectedPlugin = $derived(
 		selectedNode?.data.kind === 'plugin'
@@ -41,6 +130,14 @@
 			? activationInstalls.find((install) => install.id === selectedNode.id)
 			: undefined
 	);
+	let selectedOfficialPlugins = $derived(
+		selectedNode?.data.kind === 'official' ? activationPlugins.filter(isOfficialPlugin) : []
+	);
+	let selectedPluginVersions = $derived(selectedPlugin?.availableVersions ?? []);
+	let requestedInstallVersion = $derived(
+		installVersion || selectedPluginVersions[0] || selectedPlugin?.version || ''
+	);
+	let requestedInstallId = $derived(installTargetId);
 	let filteredPlugins = $derived.by(() => {
 		if (!normalizedQuery) return activationPlugins;
 
@@ -52,14 +149,16 @@
 		);
 	});
 	let mapNodes = $derived(
-		activationNodes.map((node) => ({ ...node, selected: node.id === selectedNodeId }))
+		activationNodes.map((node) => ({ ...node, selected: node.id === selectedGraphNodeId }))
 	);
 	let visibleMapNodes = $derived.by(() => {
 		if (!normalizedQuery) return mapNodes;
 
 		const matchingIds = activationNodes
 			.filter((node) =>
-				`${node.data.label} ${node.data.meta}`.toLowerCase().includes(normalizedQuery)
+				(node.data.searchText ?? `${node.data.label} ${node.data.meta}`)
+					.toLowerCase()
+					.includes(normalizedQuery)
 			)
 			.map((node) => node.id);
 
@@ -83,6 +182,11 @@
 			return activationTargets.filter((target) => target.pluginId === selectedPlugin.id);
 		}
 
+		if (selectedOfficialPlugins.length) {
+			const officialIds = selectedOfficialPlugins.map((plugin) => plugin.id);
+			return activationTargets.filter((target) => officialIds.includes(target.pluginId));
+		}
+
 		if (selectedInstall) {
 			return activationTargets.filter((target) => target.installId === selectedInstall.id);
 		}
@@ -90,9 +194,177 @@
 		return [];
 	});
 
+	function scanStateLabel(state: ScanState) {
+		return state[0].toUpperCase() + state.slice(1);
+	}
+
+	function applyDiscovery(response: HoudiniDiscoveryResponse) {
+		activationPlugins = response.plugins;
+		activationInstalls = response.installs;
+		activationTargets = response.targets;
+		discoveryDiagnostics = response.diagnostics;
+		scannedAt = response.scannedAt;
+		hasDiscoverySnapshot = true;
+	}
+
+	function selectDefaultNode(response: HoudiniDiscoveryResponse) {
+		const selectionStillExists = selectedNodeId
+			? selectedNodeId === OFFICIAL_NODE_ID
+				? response.plugins.some(isOfficialPlugin)
+				: response.plugins.some((plugin) => `plugin:${plugin.id}` === selectedNodeId) ||
+					response.installs.some((install) => install.id === selectedNodeId)
+			: false;
+		if (selectionStillExists) return;
+
+		const firstUserPlugin = response.plugins.find((plugin) => !isOfficialPlugin(plugin));
+		const firstPlugin = firstUserPlugin ?? response.plugins[0];
+		selectedNodeId = firstPlugin ? `plugin:${firstPlugin.id}` : (response.installs[0]?.id ?? null);
+	}
+
+	function setScanStatus(stage: ScanStage, state: ScanState, error = '') {
+		scanStatuses[stage] = { state, error };
+	}
+
+	function getErrorMessage(error: unknown) {
+		return error instanceof Error ? error.message : String(error);
+	}
+
 	function selectNode(id: string | null) {
 		selectedNodeId = id;
+		installVersion = '';
+		installState = 'idle';
+		installMessage = '';
+		gitSyncState = 'idle';
+		gitSyncMessage = '';
 	}
+
+	async function installSelectedPlugin() {
+		const plugin = selectedPlugin;
+		if (
+			!plugin ||
+			!requestedInstallVersion ||
+			!selectedPluginVersions.includes(requestedInstallVersion) ||
+			(installScope === 'install' && !requestedInstallId)
+		) {
+			return;
+		}
+
+		installState = 'working';
+		installMessage = '';
+		try {
+			const result = await installHoudiniPlugin({
+				pluginId: plugin.id,
+				version: requestedInstallVersion,
+				scope: installScope,
+				installId: installScope === 'install' ? requestedInstallId : undefined
+			});
+			applyDiscovery(result.discovery);
+			installState = 'success';
+			installMessage = result.message;
+		} catch (error) {
+			installState = 'error';
+			installMessage = getErrorMessage(error);
+		}
+	}
+
+	async function performScanStage(stage: ScanStage, pluginIds: string[] = []) {
+		setScanStatus(stage, 'loading');
+		const response = await scanHoudiniWorkspace({
+			stage,
+			...(pluginIds.length ? { pluginIds: [...pluginIds] } : {})
+		});
+		applyDiscovery(response);
+		setScanStatus(stage, 'ready');
+		return response;
+	}
+
+	async function runStage(stage: ScanStage, pluginIds: string[] = []): Promise<boolean> {
+		if (activeScan !== null) return false;
+
+		activeScan = stage;
+		try {
+			const response = await performScanStage(stage, pluginIds);
+			selectDefaultNode(response);
+			return true;
+		} catch (error) {
+			setScanStatus(stage, 'error', getErrorMessage(error));
+			return false;
+		} finally {
+			activeScan = null;
+		}
+	}
+
+	async function syncSelectedPluginGit() {
+		const plugin = selectedPlugin;
+		if (!plugin?.repositoryUrl || isScanActive) return;
+
+		gitSyncState = 'working';
+		gitSyncMessage = '';
+		const synced = await runStage('git', [plugin.id]);
+		if (selectedPlugin?.id !== plugin.id) return;
+
+		if (synced) {
+			gitSyncState = 'success';
+			gitSyncMessage = 'Git metadata synced';
+		} else {
+			gitSyncState = 'error';
+			gitSyncMessage = scanStatuses.git.error || 'Git metadata sync failed';
+		}
+	}
+
+	async function runInitialScan() {
+		if (initialScanStarted && activeScan !== null) return;
+
+		initialScanStarted = true;
+		activeScan = 'all';
+		const initialStages: ScanStage[] = ['installs', 'plugins'];
+		for (const stage of initialStages) setScanStatus(stage, 'pending');
+
+		let currentStage: ScanStage = 'installs';
+		try {
+			let response: HoudiniDiscoveryResponse | undefined;
+			for (const stage of initialStages) {
+				currentStage = stage;
+				response = await performScanStage(stage);
+			}
+			if (response) {
+				selectDefaultNode(response);
+				initialScanComplete = true;
+			}
+		} catch (error) {
+			setScanStatus(currentStage, 'error', getErrorMessage(error));
+		} finally {
+			activeScan = null;
+		}
+	}
+
+	async function runGlobalScan() {
+		if (activeScan !== null) return;
+
+		activeScan = 'all';
+		for (const { stage } of scanStages) setScanStatus(stage, 'pending');
+
+		let currentStage: ScanStage = 'installs';
+		try {
+			let response: HoudiniDiscoveryResponse | undefined;
+			for (const { stage } of scanStages) {
+				currentStage = stage;
+				response = await performScanStage(stage);
+			}
+			if (response) {
+				selectDefaultNode(response);
+				initialScanComplete = true;
+			}
+		} catch (error) {
+			setScanStatus(currentStage, 'error', getErrorMessage(error));
+		} finally {
+			activeScan = null;
+		}
+	}
+
+	onMount(() => {
+		void runInitialScan();
+	});
 </script>
 
 <svelte:head>
@@ -105,7 +377,7 @@
 
 <div class="min-h-screen px-3.5 pb-7 sm:px-6 lg:px-10 lg:pb-13.5">
 	<header
-		class="mx-auto flex max-w-370 flex-wrap items-center gap-4.5 border-white/10 py-4.5 lg:flex-nowrap lg:gap-10 lg:py-5.5"
+		class="mx-auto flex flex-wrap items-center gap-4.5 border-white/10 py-4.5 lg:flex-nowrap lg:gap-10 lg:py-5.5"
 	>
 		<a class="flex items-center" href={resolve('/')} aria-label="HPM home">
 			<img class="h-7.5 w-auto" src={logo} alt="HPM logo" />
@@ -119,14 +391,68 @@
 			<a href="#installs">Houdini installs</a>
 			<a href="#activity">Activity</a>
 		</nav>
-		<div class="topbar-status ml-auto lg:ml-0"><span></span> Local workspace</div>
+		<div class="topbar-status ml-auto lg:ml-0">
+			<span class:status-error={Boolean(scanError)}></span>
+			{#if isScanActive}
+				{activeScanLabel}
+			{:else if scanError}
+				Scan needs attention
+			{:else}
+				{activationInstalls.length} installs scanned
+			{/if}
+		</div>
 	</header>
 
-	<main class="mx-auto max-w-370">
+	<main class="mx-auto">
 		<section
 			class="rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-[0_18px_55px_rgba(0,0,0,0.22)] lg:p-6.5"
 			id="library"
 		>
+			<div class="scan-status-panel" aria-labelledby="scan-status-title">
+				<div class="scan-status-header">
+					<div>
+						<p class="section-kicker">Workspace scan</p>
+						<h2 id="scan-status-title">Discovery stages</h2>
+					</div>
+					<button
+						type="button"
+						class="rescan-button"
+						disabled={isScanActive}
+						onclick={() => void runGlobalScan()}>Rescan all</button
+					>
+				</div>
+				<div class="scan-status-grid">
+					{#each scanStages as scan (scan.stage)}
+						<article class="scan-card">
+							<div class="scan-card-heading">
+								<div>
+									<h3 id={`scan-${scan.stage}-title`}>{scan.label}</h3>
+								</div>
+								<span
+									class={['scan-state', `scan-state-${scanStatuses[scan.stage].state}`]}
+									aria-label={`${scan.label}: ${scanStateLabel(scanStatuses[scan.stage].state)}`}
+								>
+									{scanStateLabel(scanStatuses[scan.stage].state)}
+								</span>
+							</div>
+							{#if scanStatuses[scan.stage].error}
+								<p class="scan-card-error" aria-live="polite">
+									{scanStatuses[scan.stage].error}
+								</p>
+							{/if}
+							<button
+								type="button"
+								class="scan-action"
+								aria-label={`${scan.stage === 'git' ? 'Sync' : 'Scan'} ${scan.label}`}
+								disabled={isScanActive}
+								onclick={() => void runStage(scan.stage)}
+							>
+								{scan.stage === 'git' ? 'Sync' : 'Scan'}
+							</button>
+						</article>
+					{/each}
+				</div>
+			</div>
 			<div
 				class="workspace-header flex flex-col gap-5 border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between"
 			>
@@ -156,7 +482,7 @@
 							Table
 						</button>
 					</div>
-					<label class="search-field min-w-[150px] flex-1 sm:w-[190px] sm:flex-none">
+					<label class="search-field min-w-37.5 flex-1 sm:w-47.5 sm:flex-none">
 						<span class="sr-only">Filter plugins or installs</span>
 						<span class="search-icon">/</span>
 						<input bind:value={searchQuery} type="search" placeholder="Filter library" />
@@ -164,7 +490,31 @@
 				</div>
 			</div>
 
-			{#if view === 'map'}
+			{#if discoveryState === 'loading'}
+				<div class="workspace-state" aria-live="polite">
+					<span class="state-mark">...</span>
+					<h2>Scanning Houdini installs</h2>
+					<p>Running each discovered install's hconfig and inventorying package JSON files.</p>
+				</div>
+			{:else if discoveryState === 'error' && !hasDiscoverySnapshot}
+				<div class="workspace-state" aria-live="assertive">
+					<span class="state-mark error">!</span>
+					<h2>Houdini discovery is unavailable</h2>
+					<p>{scanError}</p>
+					<button type="button" class="rescan-button" onclick={() => void runInitialScan()}
+						>Try again</button
+					>
+				</div>
+			{:else if !activationInstalls.length}
+				<div class="workspace-state">
+					<span class="state-mark">+</span>
+					<h2>No Houdini installs detected</h2>
+					<p>
+						HPM needs a Houdini installation with a readable hconfig executable before it can build
+						this workspace.
+					</p>
+				</div>
+			{:else if view === 'map'}
 				<div class="map-layout">
 					<div class="map-column">
 						<ActivationMap nodes={visibleMapNodes} edges={visibleMapEdges} onselect={selectNode} />
@@ -185,8 +535,126 @@
 							<p class="detail-description">{selectedPlugin.description}</p>
 							<div class="detail-meta">
 								<span>{selectedPlugin.version}</span>
+								{#if selectedPlugin.installedVersions && selectedPlugin.installedVersions.length > 1}
+									<span>{selectedPlugin.installedVersions.length} installed versions</span>
+								{/if}
+								{#if selectedPlugin.versionSource === 'git'}<span>Git tag / ref</span>{/if}
 								<span>{selectedPlugin.license}</span>
 								<span>{selectedPlugin.source}</span>
+							</div>
+							{#if selectedPlugin.sources?.length}
+								<div class="source-list">
+									<div class="target-heading">
+										<span>Discovered sources</span>
+										<span>{selectedPlugin.sources.length}</span>
+									</div>
+									<div class="target-list">
+										{#each selectedPlugin.sources as source (source.path)}
+											<div class="target-item">
+												<div>
+													<strong>{source.version ?? 'Unversioned source'}</strong>
+													<small>{source.path}</small>
+												</div>
+												<span
+													class={[
+														'status-pill',
+														source.exists ? 'status-enabled' : 'status-missing'
+													]}
+												>
+													{source.exists ? 'Available' : 'Missing'}
+												</span>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/if}
+							{#if selectedPlugin.stalePaths?.length}
+								<div class="source-list">
+									<div class="target-heading">
+										<span>Stale HPM references</span>
+										<span>{selectedPlugin.stalePaths.length}</span>
+									</div>
+									<div class="target-list">
+										{#each selectedPlugin.stalePaths as stalePath (stalePath)}
+											<div class="target-item">
+												<div><small>{stalePath}</small></div>
+												<span class="status-pill status-missing">Removed</span>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/if}
+							<div class="plugin-actions">
+								{#if selectedPlugin.repositoryUrl}
+									<button
+										type="button"
+										class="sync-button"
+										disabled={isScanActive || gitSyncState === 'working'}
+										onclick={() => void syncSelectedPluginGit()}
+									>
+										{gitSyncState === 'working' ? 'Syncing Git...' : 'Sync Git'}
+									</button>
+									{#if gitSyncMessage}
+										<p class={['git-sync-message', `is-${gitSyncState}`]} aria-live="polite">
+											{gitSyncMessage}
+										</p>
+									{/if}
+									<a
+										class="source-button"
+										href={selectedPlugin.repositoryUrl}
+										target="_blank"
+										rel="external noopener noreferrer">Open source</a
+									>
+								{/if}
+								{#if selectedPluginVersions.length}
+									<div class="install-controls">
+										<label>
+											<span>Version</span>
+											<select
+												value={requestedInstallVersion}
+												onchange={(event) =>
+													(installVersion = (event.currentTarget as HTMLSelectElement).value)}
+											>
+												{#each selectedPluginVersions as version (version)}
+													<option value={version}>{version}</option>
+												{/each}
+											</select>
+										</label>
+										<label>
+											<span>Install scope</span>
+											<select bind:value={installScope}>
+												<option value="global">All Houdini installs</option>
+												<option value="install">One Houdini install</option>
+											</select>
+										</label>
+										{#if installScope === 'install'}
+											<label>
+												<span>Target install</span>
+												<select bind:value={installTargetId}>
+													<option value="" hidden>Select an install</option>
+													{#each activationInstalls as install (install.id)}
+														<option value={install.id}>{install.label} / {install.build}</option>
+													{/each}
+												</select>
+											</label>
+										{/if}
+										<button
+											type="button"
+											class="install-button"
+											disabled={installState === 'working' ||
+												!requestedInstallVersion ||
+												(installScope === 'install' && !requestedInstallId)}
+											onclick={() => void installSelectedPlugin()}
+										>
+											{installState === 'working' ? 'Installing...' : 'Install version'}
+										</button>
+									</div>
+								{/if}
+								{#if installMessage}
+									<p class={['install-message', `is-${installState}`]} aria-live="polite">
+										{installMessage}
+									</p>
+								{/if}
 							</div>
 							<div class="target-heading">
 								<span>Target installs</span>
@@ -194,7 +662,7 @@
 							</div>
 							<div class="target-list">
 								{#each activationInstalls as install (install.id)}
-									{@const target = targetFor(selectedPlugin.id, install.id)}
+									{@const target = targetFor(activationTargets, selectedPlugin.id, install.id)}
 									{#if target}
 										<div class="target-item">
 											<div>
@@ -208,17 +676,77 @@
 									{/if}
 								{/each}
 							</div>
+						{:else if selectedOfficialPlugins.length}
+							<p class="section-kicker">Official package group</p>
+							<h3>Official Houdini packages</h3>
+							<p class="detail-description">
+								These package configs ship with Houdini or SideFX Labs and are grouped here to keep
+								the map focused on user-installed plugins.
+							</p>
+							<div class="detail-meta">
+								<span>SideFX</span>
+								<span>{selectedOfficialPlugins.length} package configs</span>
+								<span>Install + site roots</span>
+							</div>
+							<div class="target-heading">
+								<span>Included packages</span>
+								<span>{selectedOfficialPlugins.length}</span>
+							</div>
+							<div class="target-list">
+								{#each selectedOfficialPlugins as plugin (plugin.id)}
+									{@const packageTargets = activationTargets.filter(
+										(target) => target.pluginId === plugin.id
+									)}
+									{@const enabledTargets = packageTargets.filter(
+										(target) => target.status === 'enabled'
+									).length}
+									<div class="target-item">
+										<div>
+											<strong>{plugin.name}</strong>
+											<small
+												>{plugin.packageFile} / {plugin.origin} / {enabledTargets} enabled targets</small
+											>
+										</div>
+										<span class="status-pill status-enabled">Official</span>
+									</div>
+								{/each}
+							</div>
 						{:else if selectedInstall}
 							<p class="section-kicker">Install detail</p>
 							<h3>{selectedInstall.label}</h3>
 							<p class="detail-description">
-								{selectedInstall.role}. Package files are resolved from {selectedInstall.userPreferences}.
+								{selectedInstall.role}. hconfig resolved {selectedInstall.packageCount} package configs
+								for this install.
 							</p>
 							<div class="install-facts">
 								<div><span>Build</span><strong>{selectedInstall.build}</strong></div>
 								<div><span>Platform</span><strong>{selectedInstall.platform}</strong></div>
 								<div><span>Packages</span><strong>{selectedInstall.packageCount}</strong></div>
 							</div>
+							<div class="path-facts">
+								<div><span>HFS</span><code>{selectedInstall.hfs}</code></div>
+								<div><span>hconfig</span><code>{selectedInstall.hconfig}</code></div>
+								<div>
+									<span>User preferences</span><code>{selectedInstall.userPreferences}</code>
+								</div>
+								<div>
+									<span>User package directory</span><code>{selectedInstall.packageDirectory}</code>
+								</div>
+							</div>
+							<div class="package-roots">
+								<span>Scanned package roots</span>
+								{#each selectedInstall.packageRoots as root (root.path)}
+									<code>{root.origin}: {root.path}</code>
+								{/each}
+							</div>
+							{#if selectedInstall.diagnostics.length}
+								<div class="diagnostics">
+									<strong>Scan diagnostics</strong>
+									{#each selectedInstall.diagnostics as diagnostic (diagnostic)}
+										<p>{diagnostic}</p>
+									{/each}
+								</div>
+							{/if}
 							<div class="target-heading">
 								<span>Plugin targets</span>
 								<span>{selectedTargets.length}</span>
@@ -255,6 +783,18 @@
 				/>
 			{/if}
 		</section>
+		{#if hasDiscoverySnapshot && (discoveryDiagnostics.length || scannedAt)}
+			<div class="scan-footer">
+				<span
+					>{discoveryDiagnostics.length
+						? `${discoveryDiagnostics.length} workspace diagnostics`
+						: 'hconfig scan complete'}</span
+				>
+				{#if scannedAt}<time datetime={scannedAt}
+						>Scanned {new Date(scannedAt).toLocaleString()}</time
+					>{/if}
+			</div>
+		{/if}
 	</main>
 </div>
 
@@ -292,6 +832,128 @@
 		border-radius: 50%;
 		background: #399b82;
 		box-shadow: 0 0 0 4px rgba(57, 155, 130, 0.12);
+	}
+
+	.topbar-status span.status-error {
+		background: #df6d58;
+		box-shadow: 0 0 0 4px rgba(223, 109, 88, 0.12);
+	}
+
+	.scan-status-panel {
+		margin-bottom: 20px;
+		padding-bottom: 18px;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.scan-status-header {
+		display: flex;
+		align-items: end;
+		justify-content: space-between;
+		gap: 16px;
+		margin-bottom: 12px;
+	}
+
+	.scan-status-header h2 {
+		margin: 0;
+		font-size: 18px;
+		font-weight: 600;
+	}
+
+	.scan-status-grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 10px;
+	}
+
+	.scan-card {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.025);
+	}
+
+	.scan-card-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
+	.scan-card h3 {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.scan-state {
+		padding: 4px 6px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 8px;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		white-space: nowrap;
+	}
+
+	.scan-state-loading {
+		border-color: rgba(211, 155, 56, 0.45);
+		color: #d39b38;
+	}
+
+	.scan-state-ready {
+		border-color: rgba(57, 155, 130, 0.45);
+		color: #399b82;
+	}
+
+	.scan-state-error {
+		border-color: rgba(223, 109, 88, 0.45);
+		color: #df6d58;
+	}
+
+	.scan-card-error {
+		margin: 0;
+		color: #df6d58;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+	}
+
+	.scan-action {
+		width: 100%;
+		min-height: 32px;
+		margin-top: auto;
+		padding: 7px 9px;
+		border: 1px solid var(--line-strong);
+		border-radius: 5px;
+		background: var(--surface-raised);
+		color: var(--text);
+		cursor: pointer;
+		font-size: 10px;
+		font-weight: 600;
+		line-height: 1.3;
+		text-align: center;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+
+	.scan-action:hover,
+	.scan-action:focus-visible {
+		border-color: #399b82;
+		outline: none;
+	}
+
+	.scan-action:disabled,
+	.rescan-button:disabled {
+		cursor: wait;
+		opacity: 0.55;
 	}
 
 	.section-kicker {
@@ -402,14 +1064,82 @@
 		color: #71827c;
 	}
 
+	.rescan-button {
+		padding: 8px 11px;
+		border: 1px solid var(--line-strong);
+		border-radius: 5px;
+		background: var(--surface-muted);
+		color: var(--text);
+		cursor: pointer;
+		font-size: 11px;
+		font-weight: 600;
+	}
+
+	.rescan-button:hover,
+	.rescan-button:focus-visible {
+		border-color: #399b82;
+		outline: none;
+	}
+
+	.workspace-state {
+		display: flex;
+		min-height: min(420px, calc(100dvh - 280px));
+		align-items: center;
+		justify-content: center;
+		flex-direction: column;
+		gap: 10px;
+		padding: 32px;
+		color: var(--text-muted);
+		text-align: center;
+	}
+
+	.workspace-state h2,
+	.workspace-state p {
+		max-width: 470px;
+		margin: 0;
+	}
+
+	.workspace-state h2 {
+		color: var(--text);
+		font-size: 22px;
+		font-weight: 600;
+	}
+
+	.workspace-state p {
+		font-size: 13px;
+		line-height: 1.55;
+	}
+
+	.state-mark {
+		display: grid;
+		width: 40px;
+		height: 40px;
+		place-items: center;
+		border: 1px dashed var(--line-strong);
+		border-radius: 50%;
+		color: #399b82;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 16px;
+	}
+
+	.state-mark.error {
+		border-color: #df6d58;
+		color: #df6d58;
+	}
+
 	.map-layout {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 300px;
+		height: calc(100dvh - 320px);
+		min-height: 0;
+		grid-template-columns: minmax(0, 1fr) 550px;
 		gap: 18px;
 	}
 
 	.map-column {
+		display: flex;
+		flex-direction: column;
 		min-width: 0;
+		min-height: 0;
 	}
 
 	.surface-footer {
@@ -463,7 +1193,8 @@
 	}
 
 	.detail-panel {
-		min-height: 620px;
+		min-height: 0;
+		overflow-y: auto;
 		padding: 24px;
 	}
 
@@ -495,6 +1226,120 @@
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
+	}
+
+	.plugin-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-bottom: 30px;
+		padding: 12px;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		background: var(--surface-muted);
+	}
+
+	.source-button,
+	.sync-button,
+	.install-button {
+		align-self: flex-start;
+		padding: 7px 10px;
+		border: 1px solid var(--line-strong);
+		border-radius: 5px;
+		background: var(--surface-raised);
+		color: var(--text);
+		cursor: pointer;
+		font-size: 11px;
+		font-weight: 600;
+		text-decoration: none;
+	}
+
+	.source-button:hover,
+	.source-button:focus-visible,
+	.sync-button:hover,
+	.sync-button:focus-visible,
+	.install-button:hover,
+	.install-button:focus-visible {
+		border-color: #399b82;
+		outline: none;
+	}
+
+	.install-button:disabled {
+		cursor: wait;
+		opacity: 0.55;
+	}
+
+	.sync-button:disabled {
+		cursor: wait;
+		opacity: 0.55;
+	}
+
+	.git-sync-message {
+		margin: 0;
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.45;
+	}
+
+	.git-sync-message.is-success {
+		color: #399b82;
+	}
+
+	.git-sync-message.is-error {
+		color: #df6d58;
+	}
+
+	.install-controls {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 9px;
+	}
+
+	.install-controls label {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 5px;
+	}
+
+	.install-controls label span {
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 8px;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+	}
+
+	.install-controls select {
+		min-width: 0;
+		padding: 7px 8px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
+		font-size: 11px;
+	}
+
+	.install-controls .install-button {
+		grid-column: 1 / -1;
+		justify-self: start;
+	}
+
+	.install-message {
+		margin: 0;
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.45;
+	}
+
+	.install-message.is-success {
+		color: #399b82;
+	}
+
+	.install-message.is-error {
+		color: #df6d58;
 	}
 
 	.target-heading {
@@ -581,6 +1426,99 @@
 		display: block;
 	}
 
+	.path-facts {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-bottom: 28px;
+	}
+
+	.path-facts div {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding-bottom: 8px;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.path-facts span,
+	.path-facts code,
+	.diagnostics strong,
+	.diagnostics p,
+	.scan-footer {
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+	}
+
+	.path-facts span {
+		color: var(--text-dim);
+		font-size: 8px;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+	}
+
+	.path-facts code {
+		overflow-wrap: anywhere;
+		color: var(--text-muted);
+		font-size: 10px;
+		line-height: 1.4;
+	}
+
+	.package-roots {
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+		margin: -18px 0 24px;
+	}
+
+	.package-roots > span {
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 8px;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+	}
+
+	.package-roots code {
+		overflow-wrap: anywhere;
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.4;
+	}
+
+	.diagnostics {
+		margin-bottom: 24px;
+		padding: 10px;
+		border: 1px solid rgba(223, 109, 88, 0.32);
+		border-radius: 5px;
+		background: rgba(223, 109, 88, 0.07);
+	}
+
+	.diagnostics strong {
+		color: #df6d58;
+		font-size: 9px;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+	}
+
+	.diagnostics p {
+		margin: 7px 0 0;
+		color: var(--text-muted);
+		font-size: 10px;
+		line-height: 1.45;
+	}
+
+	.scan-footer {
+		display: flex;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 10px 3px 0;
+		color: var(--text-dim);
+		font-size: 9px;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+	}
+
 	.install-facts span {
 		margin-bottom: 5px;
 		color: var(--text-dim);
@@ -595,7 +1533,7 @@
 
 	.detail-empty {
 		display: flex;
-		min-height: 560px;
+		min-height: 280px;
 		align-items: center;
 		justify-content: center;
 		flex-direction: column;
@@ -635,22 +1573,44 @@
 
 	@media (max-width: 1100px) {
 		.map-layout {
+			height: calc(100dvh - 340px);
 			grid-template-columns: minmax(0, 1fr);
+			grid-template-rows: minmax(0, 1fr) minmax(0, 0.72fr);
 		}
 
 		.detail-panel {
-			min-height: auto;
+			min-height: 0;
 			padding: 24px 4px 4px;
+			overflow-y: auto;
 			border-top: 1px solid rgba(38, 53, 55, 0.1);
 			border-left: 0;
 		}
 
 		.detail-empty {
-			min-height: 180px;
+			min-height: 160px;
 		}
 	}
 
 	@media (max-width: 760px) {
+		.scan-status-header {
+			align-items: stretch;
+			flex-direction: column;
+		}
+
+		.scan-status-header .rescan-button {
+			width: 100%;
+			white-space: normal;
+		}
+
+		.scan-status-grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.map-layout {
+			height: calc(100dvh - 350px);
+			grid-template-rows: minmax(0, 1fr) minmax(0, 0.8fr);
+		}
+
 		nav a {
 			white-space: nowrap;
 		}

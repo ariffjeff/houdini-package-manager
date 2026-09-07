@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		Background,
 		Controls,
 		// MiniMap,
 		SvelteFlow,
@@ -20,6 +19,7 @@
 
 	const nodeTypes = {
 		plugin: ActivationNode,
+		official: ActivationNode,
 		install: ActivationNode
 	} satisfies NodeTypes;
 
@@ -61,8 +61,9 @@
 <style>
 	.flow-shell {
 		position: relative;
-		min-height: 620px;
-		height: 100%;
+		min-height: 0;
+		flex: 1;
+		height: auto;
 		width: 100%;
 		overflow: hidden;
 		border: 1px solid var(--line);

@@ -1,30 +1,19 @@
 import type { Edge, Node } from '@xyflow/svelte';
+import type { PackageOrigin } from '../houdini/types';
 
-export type ActivationNodeKind = 'plugin' | 'install';
+export type {
+	HoudiniDiscoveryDiagnostic,
+	HoudiniDiscoveryResponse,
+	HoudiniInstall,
+	HoudiniPlatform,
+	InstallHealth,
+	PackageOrigin,
+	PluginRecord
+} from '../houdini/types';
+
+export type ActivationNodeKind = 'plugin' | 'official' | 'install';
 
 export type ActivationStatus = 'enabled' | 'disabled' | 'warning' | 'incompatible' | 'missing';
-
-export type PluginRecord = {
-	id: string;
-	name: string;
-	description: string;
-	version: string;
-	license: string;
-	source: string;
-	tags: string[];
-};
-
-export type HoudiniInstall = {
-	id: string;
-	label: string;
-	version: string;
-	build: string;
-	platform: string;
-	architecture: string;
-	role: string;
-	userPreferences: string;
-	packageCount: number;
-};
 
 export type ActivationTarget = {
 	pluginId: string;
@@ -32,6 +21,8 @@ export type ActivationTarget = {
 	status: ActivationStatus;
 	artifactVersion: string | null;
 	packageFile: string;
+	packagePath: string | null;
+	origin: PackageOrigin | null;
 	note: string;
 };
 
@@ -43,10 +34,15 @@ export type ActivationNodeData = {
 	status: ActivationStatus;
 	statusLabel: string;
 	accent: string;
+	hasGitRepository?: boolean;
+	gitSyncedAt?: string | null;
+	searchText?: string;
+	pluginIds?: string[];
 };
 
 export type ActivationEdgeData = {
 	pluginId: string;
+	pluginIds: string[];
 	installId: string;
 	status: ActivationStatus;
 	artifactVersion: string | null;
