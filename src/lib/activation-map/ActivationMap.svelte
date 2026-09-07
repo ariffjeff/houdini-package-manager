@@ -50,9 +50,10 @@
 		onnodeclick={handleNodeClick}
 		onselectionchange={handleSelectionChange}
 		onpaneclick={handlePaneClick}
+		attributionPosition="bottom-left"
+		style="color: white;"
 	>
-		<Background gap={28} size={1} patternColor="#c8d3ce" />
-		<Controls />
+		<Controls showZoom={false} />
 		<!-- <MiniMap /> -->
 	</SvelteFlow>
 </div>
@@ -64,9 +65,9 @@
 		height: 100%;
 		width: 100%;
 		overflow: hidden;
-		border: 1px solid rgba(38, 53, 55, 0.1);
+		border: 1px solid var(--line);
 		border-radius: 8px;
-		background: #e9eeea;
+		background: #151d20;
 	}
 
 	:global(.svelte-flow) {
@@ -75,21 +76,21 @@
 
 	:global(.svelte-flow__controls) {
 		overflow: hidden;
-		border: 1px solid rgba(38, 53, 55, 0.14);
+		border: 1px solid var(--line-strong);
 		border-radius: 7px;
-		box-shadow: 0 6px 18px rgba(39, 55, 54, 0.08);
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
 	}
 
 	:global(.svelte-flow__controls-button) {
-		border-bottom-color: rgba(38, 53, 55, 0.1);
-		background: #fbfcf8;
-		fill: #334447;
+		border-bottom-color: var(--line);
+		background: #202d30;
+		fill: #d5e4df;
 	}
 
 	:global(.svelte-flow__minimap) {
-		border: 1px solid rgba(38, 53, 55, 0.14);
+		border: 1px solid var(--line-strong);
 		border-radius: 7px;
-		background: rgba(251, 252, 248, 0.9);
-		box-shadow: 0 6px 18px rgba(39, 55, 54, 0.08);
+		background: rgba(24, 34, 36, 0.92);
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
 	}
 </style>

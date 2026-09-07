@@ -35,11 +35,11 @@
 		width: 100%;
 		height: 100%;
 		overflow: hidden;
-		border: 1px solid rgba(38, 53, 55, 0.13);
+		border: 1px solid var(--line-strong);
 		border-radius: 10px;
-		background: rgba(251, 252, 248, 0.96);
-		box-shadow: 0 8px 24px rgba(39, 55, 54, 0.08);
-		color: #1f2c2d;
+		background: #202b2d;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+		color: #edf4f1;
 		transition:
 			border-color 160ms ease,
 			box-shadow 160ms ease,
@@ -49,7 +49,7 @@
 	.activation-node.is-selected {
 		border-color: var(--node-accent);
 		box-shadow:
-			0 10px 28px rgba(39, 55, 54, 0.16),
+			0 10px 28px rgba(0, 0, 0, 0.32),
 			0 0 0 3px color-mix(in srgb, var(--node-accent) 22%, transparent);
 		transform: translateY(-2px);
 	}
@@ -87,7 +87,7 @@
 	}
 
 	.node-eyebrow {
-		color: #70807b;
+		color: #8ca099;
 	}
 
 	.node-state {
@@ -114,7 +114,7 @@
 	}
 
 	.node-meta {
-		color: #82908a;
+		color: #91a39d;
 		letter-spacing: 0.04em;
 		text-transform: none;
 	}
@@ -122,7 +122,7 @@
 	:global(.svelte-flow__handle) {
 		width: 9px;
 		height: 9px;
-		border: 2px solid #fbfcf8;
+		border: 2px solid #202b2d;
 		background: var(--node-accent);
 	}
 </style>
