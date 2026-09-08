@@ -1,12 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import type { HoudiniScanRequest, InstallPluginRequest } from '../../houdini/types.js';
+import type {
+	HoudiniPluginAction,
+	HoudiniScanRequest,
+	InstallPluginRequest
+} from '../../houdini/types.js';
 import { discoverHoudiniWorkspace, scanHoudiniWorkspace } from './discovery.js';
-import { installHoudiniPlugin } from './installer.js';
+import { installHoudiniPlugin, runHoudiniPluginAction } from './installer.js';
 
 const endpoint = '/__hpm/houdini/installs';
 const scanEndpoint = '/__hpm/houdini/scan';
 const installEndpoint = '/__hpm/houdini/install';
+const pluginActionEndpoint = '/__hpm/houdini/plugin-action';
 
 export function houdiniDiscoveryPlugin(): Plugin {
 	const handleRequest = async (
@@ -18,7 +23,9 @@ export function houdiniDiscoveryPlugin(): Plugin {
 		const isDiscoveryRequest = request.method === 'GET' && url.pathname === endpoint;
 		const isScanRequest = request.method === 'POST' && url.pathname === scanEndpoint;
 		const isInstallRequest = request.method === 'POST' && url.pathname === installEndpoint;
-		if (!isDiscoveryRequest && !isScanRequest && !isInstallRequest) {
+		const isPluginActionRequest =
+			request.method === 'POST' && url.pathname === pluginActionEndpoint;
+		if (!isDiscoveryRequest && !isScanRequest && !isInstallRequest && !isPluginActionRequest) {
 			next();
 			return;
 		}
@@ -34,10 +41,12 @@ export function houdiniDiscoveryPlugin(): Plugin {
 				? await discoverHoudiniWorkspace()
 				: isScanRequest
 					? await scanHoudiniWorkspace(await readJsonBody<HoudiniScanRequest>(request))
-					: await installHoudiniPlugin(
-							await readJsonBody<InstallPluginRequest>(request),
-							abortController.signal
-						);
+					: isInstallRequest
+						? await installHoudiniPlugin(
+								await readJsonBody<InstallPluginRequest>(request),
+								abortController.signal
+							)
+						: await runHoudiniPluginAction(await readJsonBody<HoudiniPluginAction>(request));
 			response.statusCode = 200;
 			response.setHeader('content-type', 'application/json; charset=utf-8');
 			response.setHeader('cache-control', 'no-store');

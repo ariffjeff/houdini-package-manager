@@ -1,14 +1,16 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { discoverHoudiniWorkspace } from './discovery.js';
+import { discoverHoudiniWorkspace, scanHoudiniWorkspace } from './discovery.js';
 import type {
 	HoudiniInstall,
 	InstallPluginRequest,
 	InstallPluginResponse,
-	PluginRecord
+	PluginRecord,
+	HoudiniPluginAction,
+	HoudiniPluginActionResponse
 } from '../../houdini/types.js';
 
 const execFileAsync = promisify(execFile);
@@ -62,6 +64,107 @@ export async function installHoudiniPlugin(
 		message: `${plugin.name} ${request.version} installed for ${targetLabel}.`,
 		discovery
 	};
+}
+
+export async function runHoudiniPluginAction(
+	request: HoudiniPluginAction
+): Promise<HoudiniPluginActionResponse> {
+	if (
+		!request ||
+		typeof request !== 'object' ||
+		typeof request.pluginId !== 'string' ||
+		!request.pluginId.trim()
+	) {
+		throw new Error('A plugin id is required.');
+	}
+	if (request.action === 'open-source') {
+		if (typeof request.sourcePath !== 'string' || !request.sourcePath.trim()) {
+			throw new Error('A source path is required.');
+		}
+	} else if (typeof request.installId !== 'string' || !request.installId.trim()) {
+		throw new Error('An install id is required.');
+	}
+
+	const current = await scanHoudiniWorkspace({
+		stage: 'plugins',
+		pluginIds: [request.pluginId]
+	});
+	const plugin = current.plugins.find((candidate) => candidate.id === request.pluginId);
+	if (!plugin) throw new Error(`Plugin ${request.pluginId} was not found in the discovery scan.`);
+
+	if (request.action === 'open-source') {
+		const source = plugin.sources?.find(
+			(candidate) => samePath(candidate.path, request.sourcePath) && candidate.exists
+		);
+		if (!source) throw new Error(`${plugin.name} has no available source folder at that path.`);
+		await openPath(source.path);
+		return { message: `Opened ${plugin.name} source folder.` };
+	}
+
+	if (request.action === 'open-package-folder') {
+		const install = current.installs.find((candidate) => candidate.id === request.installId);
+		if (!install) throw new Error(`${plugin.name} was not found for this Houdini install.`);
+		const packageRoot = documentsPackageRoot(install);
+		if (!packageRoot) {
+			throw new Error(`${plugin.name} has no Documents package folder for this Houdini install.`);
+		}
+		await openPath(packageRoot);
+		return { message: `Opened ${install.label} package folder.` };
+	}
+
+	if (request.action !== 'open-config' && request.action !== 'set-enabled') {
+		throw new Error('Unknown plugin action.');
+	}
+
+	const target = current.targets.find(
+		(candidate) =>
+			candidate.pluginId === request.pluginId && candidate.installId === request.installId
+	);
+	if (!target?.packagePath) {
+		throw new Error(`${plugin.name} has no discovered package config for this Houdini install.`);
+	}
+
+	if (request.action === 'open-config') {
+		await openPath(target.packagePath);
+		return { message: `Opened ${target.packageFile}.` };
+	}
+
+	if (request.action === 'set-enabled') {
+		await setPackageEnabled(target.packagePath, request.enabled);
+		const discovery = await scanHoudiniWorkspace({
+			stage: 'plugins',
+			pluginIds: [request.pluginId]
+		});
+		return {
+			message: `${plugin.name} ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`,
+			discovery
+		};
+	}
+
+	throw new Error('Unknown plugin action.');
+}
+
+function samePath(left: string, right: string): boolean {
+	const normalizedLeft = path.normalize(left);
+	const normalizedRight = path.normalize(right);
+	return process.platform === 'win32'
+		? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+		: normalizedLeft === normalizedRight;
+}
+
+function documentsPackageRoot(install: HoudiniInstall): string | null {
+	const expectedVersionDirectory = `houdini${install.version}`.toLowerCase();
+	return (
+		install.packageRoots.find(({ path: root, origin }) => {
+			const normalizedRoot = path.normalize(root);
+			return (
+				origin === 'user' &&
+				path.basename(normalizedRoot).toLowerCase() === 'packages' &&
+				path.basename(path.dirname(normalizedRoot)).toLowerCase() === expectedVersionDirectory &&
+				path.basename(path.dirname(path.dirname(normalizedRoot))).toLowerCase() === 'documents'
+			);
+		})?.path ?? null
+	);
 }
 
 export function validateInstallPluginRequest(request: InstallPluginRequest): void {
@@ -198,6 +301,55 @@ async function writeManagedPackage(
 		version
 	};
 	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
+}
+
+async function setPackageEnabled(packagePath: string, enabled: boolean): Promise<void> {
+	let packageValue: Record<string, unknown>;
+	try {
+		const parsed = JSON.parse(await readFile(packagePath, 'utf8')) as unknown;
+		if (!isRecord(parsed)) throw new Error('Package JSON root must be an object.');
+		packageValue = parsed;
+	} catch (error) {
+		throw new Error(
+			`Cannot update ${path.basename(packagePath)}: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error }
+		);
+	}
+
+	packageValue.enable = enabled;
+	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
+}
+
+async function openPath(target: string): Promise<void> {
+	try {
+		await stat(target);
+	} catch (error) {
+		throw new Error(
+			`Cannot open ${target}: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error }
+		);
+	}
+
+	const command =
+		process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+	const normalizedTarget = path.normalize(target);
+	const args =
+		process.platform === 'win32'
+			? ['/d', '/c', 'start', '', '/b', normalizedTarget]
+			: [normalizedTarget];
+
+	await new Promise<void>((resolve, reject) => {
+		const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
+		child.once('error', (error) => {
+			reject(
+				new Error(
+					`Cannot open ${target} with ${command}: ${error instanceof Error ? error.message : String(error)}`,
+					{ cause: error }
+				)
+			);
+		});
+		child.once('close', () => resolve());
+	});
 }
 
 async function runGit(cwd: string | undefined, args: string[]): Promise<string> {

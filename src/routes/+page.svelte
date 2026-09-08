@@ -20,7 +20,11 @@
 	} from '$lib/activation-map/types';
 	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
 	import logo from '$lib/assets/hpm.svg';
-	import { installHoudiniPlugin, scanHoudiniWorkspace } from '$lib/houdini/client';
+	import {
+		installHoudiniPlugin,
+		runHoudiniPluginAction,
+		scanHoudiniWorkspace
+	} from '$lib/houdini/client';
 
 	type ViewMode = 'map' | 'table';
 	type ScanStage = 'installs' | 'plugins' | 'git';
@@ -74,6 +78,8 @@
 	let installController: AbortController | null = null;
 	let gitSyncState = $state<ActionState>('idle');
 	let gitSyncMessage = $state('');
+	let pluginActionState = $state<ActionState>('idle');
+	let pluginActionMessage = $state('');
 
 	let activationGraph = $derived(
 		createActivationGraph(activationPlugins, activationInstalls, activationTargets)
@@ -194,7 +200,6 @@
 
 		return [];
 	});
-
 	function scanStateLabel(state: ScanState) {
 		return state[0].toUpperCase() + state.slice(1);
 	}
@@ -237,6 +242,50 @@
 		installMessage = '';
 		gitSyncState = 'idle';
 		gitSyncMessage = '';
+		pluginActionState = 'idle';
+		pluginActionMessage = '';
+	}
+
+	async function refreshSelectedPlugin() {
+		const plugin = selectedPlugin;
+		if (!plugin || isScanActive) return;
+		pluginActionState = 'working';
+		pluginActionMessage = '';
+		const refreshed = await runStage('plugins', [plugin.id]);
+		if (selectedPlugin?.id !== plugin.id) return;
+		if (refreshed) {
+			pluginActionState = 'success';
+			pluginActionMessage = 'Plugin refreshed';
+		} else {
+			pluginActionState = 'error';
+			pluginActionMessage = scanStatuses.plugins.error || 'Plugin refresh failed';
+		}
+	}
+
+	async function runSelectedPluginAction(
+		request:
+			| { action: 'open-config' | 'open-package-folder'; installId: string }
+			| { action: 'open-source'; sourcePath: string }
+			| { action: 'set-enabled'; installId: string; enabled: boolean }
+	) {
+		const plugin = selectedPlugin;
+		if (!plugin || isScanActive || pluginActionState === 'working') return;
+
+		pluginActionState = 'working';
+		pluginActionMessage = '';
+		try {
+			const result = await runHoudiniPluginAction({ pluginId: plugin.id, ...request });
+			if (result.discovery) applyDiscovery(result.discovery);
+			pluginActionState = 'success';
+			pluginActionMessage = result.message;
+		} catch (error) {
+			pluginActionState = 'error';
+			pluginActionMessage = getErrorMessage(error);
+		}
+	}
+
+	function stopActionPropagation(event: MouseEvent) {
+		event.stopPropagation();
 	}
 
 	async function installSelectedPlugin() {
@@ -570,31 +619,66 @@
 									</div>
 									<div class="target-list">
 										{#each selectedPlugin.sources as source (source.path)}
-											<div class="target-item">
+											<div class="target-item target-item-actions">
 												<div>
 													<strong>{source.version ?? 'Unversioned source'}</strong>
 													<small>{source.path}</small>
 												</div>
-												<span
-													class={[
-														'status-pill',
-														source.exists ? 'status-enabled' : 'status-missing'
-													]}
-												>
-													{source.exists ? 'Available' : 'Missing'}
-												</span>
+												<div class="target-actions">
+													<span
+														class={[
+															'status-pill',
+															source.exists ? 'status-enabled' : 'status-missing'
+														]}
+													>
+														{source.exists ? 'Available' : 'Missing'}
+													</span>
+													<div
+														class="node-action-row"
+														aria-label={`${source.version ?? 'Source'} plugin actions`}
+													>
+														<button
+															type="button"
+															class="node-action-button"
+															aria-label={`Open plugin folder for ${selectedPlugin.name} at ${source.path}`}
+															disabled={!source.exists ||
+																isScanActive ||
+																pluginActionState === 'working'}
+															onclick={(event) => {
+																stopActionPropagation(event);
+																void runSelectedPluginAction({
+																	action: 'open-source',
+																	sourcePath: source.path
+																});
+															}}
+														>
+															Open plugin folder
+														</button>
+													</div>
+												</div>
 											</div>
 										{/each}
 									</div>
 								</div>
 							{/if}
 							<div class="plugin-actions">
+								{#if pluginActionMessage}
+									<p
+										class={['plugin-action-message', `is-${pluginActionState}`]}
+										aria-live="polite"
+									>
+										{pluginActionMessage}
+									</p>
+								{/if}
 								{#if selectedPlugin.repositoryUrl}
 									<button
 										type="button"
 										class="sync-button"
 										disabled={isScanActive || gitSyncState === 'working'}
-										onclick={() => void syncSelectedPluginGit()}
+										onclick={(event) => {
+											stopActionPropagation(event);
+											void syncSelectedPluginGit();
+										}}
 									>
 										{gitSyncState === 'working' ? 'Syncing Git...' : 'Sync Git'}
 									</button>
@@ -673,14 +757,76 @@
 								{#each activationInstalls as install (install.id)}
 									{@const target = targetFor(activationTargets, selectedPlugin.id, install.id)}
 									{#if target}
-										<div class="target-item">
+										<div class="target-item target-item-actions">
 											<div>
 												<strong>{install.label}</strong>
 												<small>{install.platform} / {install.build}</small>
 											</div>
-											<span class={['status-pill', `status-${target.status}`]}
-												>{statusLabel(target.status)}</span
-											>
+											<div class="target-actions">
+												<span class={['status-pill', `status-${target.status}`]}
+													>{statusLabel(target.status)}</span
+												>
+												<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
+													<button
+														type="button"
+														class="node-action-button"
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void refreshSelectedPlugin();
+														}}
+													>
+														{pluginActionState === 'working' ? 'Working...' : 'Rescan plugin'}
+													</button>
+													<button
+														type="button"
+														class="node-action-button"
+														aria-label={`Open JSON config for ${install.label}`}
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'open-config',
+																installId: install.id
+															});
+														}}
+													>
+														Open JSON config
+													</button>
+													<button
+														type="button"
+														class="node-action-button"
+														aria-label={`Open packages folder for ${install.label}`}
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'open-package-folder',
+																installId: install.id
+															});
+														}}
+													>
+														Open packages folder
+													</button>
+													<button
+														type="button"
+														class="node-action-button"
+														class:danger={target.status === 'enabled'}
+														aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'set-enabled',
+																installId: install.id,
+																enabled: target.status !== 'enabled'
+															});
+														}}
+													>
+														{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
+													</button>
+												</div>
+											</div>
 										</div>
 									{/if}
 								{/each}
@@ -1248,6 +1394,58 @@
 		background: var(--surface-muted);
 	}
 
+	.node-action-row {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 6px;
+	}
+
+	.node-action-button {
+		min-width: 0;
+		padding: 7px 8px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: var(--surface-raised);
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 10px;
+		font-weight: 600;
+		line-height: 1.25;
+	}
+
+	.node-action-button:hover,
+	.node-action-button:focus-visible {
+		border-color: #399b82;
+		color: var(--text);
+		outline: none;
+	}
+
+	.node-action-button.danger {
+		border-color: rgba(223, 109, 88, 0.42);
+		color: #df6d58;
+	}
+
+	.node-action-button:disabled {
+		cursor: wait;
+		opacity: 0.55;
+	}
+
+	.plugin-action-message {
+		margin: 0;
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.45;
+	}
+
+	.plugin-action-message.is-success {
+		color: #399b82;
+	}
+
+	.plugin-action-message.is-error {
+		color: #df6d58;
+	}
+
 	.source-button,
 	.sync-button,
 	.install-button,
@@ -1385,6 +1583,23 @@
 		gap: 12px;
 		padding: 12px 0;
 		border-top: 1px solid var(--line);
+	}
+
+	.target-item-actions {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.target-actions {
+		display: flex;
+		width: 100%;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 10px;
+	}
+
+	.target-actions .node-action-row {
+		flex: 1;
 	}
 
 	.target-item strong,
