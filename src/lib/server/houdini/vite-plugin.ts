@@ -24,11 +24,20 @@ export function houdiniDiscoveryPlugin(): Plugin {
 		}
 
 		try {
+			const abortController = new AbortController();
+			const abortInstall = () => {
+				if (!response.writableEnded) abortController.abort();
+			};
+			request.once('aborted', abortInstall);
+			response.once('close', abortInstall);
 			const result = isDiscoveryRequest
 				? await discoverHoudiniWorkspace()
 				: isScanRequest
 					? await scanHoudiniWorkspace(await readJsonBody<HoudiniScanRequest>(request))
-					: await installHoudiniPlugin(await readJsonBody<InstallPluginRequest>(request));
+					: await installHoudiniPlugin(
+							await readJsonBody<InstallPluginRequest>(request),
+							abortController.signal
+						);
 			response.statusCode = 200;
 			response.setHeader('content-type', 'application/json; charset=utf-8');
 			response.setHeader('cache-control', 'no-store');

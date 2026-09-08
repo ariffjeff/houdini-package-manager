@@ -71,6 +71,7 @@
 	let installTargetId = $state('');
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
+	let installController: AbortController | null = null;
 	let gitSyncState = $state<ActionState>('idle');
 	let gitSyncMessage = $state('');
 
@@ -251,20 +252,39 @@
 
 		installState = 'working';
 		installMessage = '';
+		const controller = new AbortController();
+		installController = controller;
 		try {
-			const result = await installHoudiniPlugin({
-				pluginId: plugin.id,
-				version: requestedInstallVersion,
-				scope: installScope,
-				installId: installScope === 'install' ? requestedInstallId : undefined
-			});
+			const result = await installHoudiniPlugin(
+				{
+					pluginId: plugin.id,
+					version: requestedInstallVersion,
+					scope: installScope,
+					installId: installScope === 'install' ? requestedInstallId : undefined
+				},
+				controller.signal
+			);
 			applyDiscovery(result.discovery);
 			installState = 'success';
 			installMessage = result.message;
 		} catch (error) {
-			installState = 'error';
-			installMessage = getErrorMessage(error);
+			if (
+				controller.signal.aborted ||
+				(error instanceof DOMException && error.name === 'AbortError')
+			) {
+				installState = 'idle';
+				installMessage = 'Installation cancelled.';
+			} else {
+				installState = 'error';
+				installMessage = getErrorMessage(error);
+			}
+		} finally {
+			if (installController === controller) installController = null;
 		}
+	}
+
+	function cancelInstall() {
+		installController?.abort();
 	}
 
 	async function performScanStage(stage: ScanStage, pluginIds: string[] = []) {
@@ -632,6 +652,11 @@
 										>
 											{installState === 'working' ? 'Installing...' : 'Install version'}
 										</button>
+										{#if installState === 'working'}
+											<button type="button" class="cancel-button" onclick={cancelInstall}>
+												Cancel installation
+											</button>
+										{/if}
 									</div>
 								{/if}
 								{#if installMessage}
@@ -1225,7 +1250,8 @@
 
 	.source-button,
 	.sync-button,
-	.install-button {
+	.install-button,
+	.cancel-button {
 		align-self: flex-start;
 		padding: 7px 10px;
 		border: 1px solid var(--line-strong);
@@ -1243,7 +1269,9 @@
 	.sync-button:hover,
 	.sync-button:focus-visible,
 	.install-button:hover,
-	.install-button:focus-visible {
+	.install-button:focus-visible,
+	.cancel-button:hover,
+	.cancel-button:focus-visible {
 		border-color: #399b82;
 		outline: none;
 	}
@@ -1308,6 +1336,13 @@
 	.install-controls .install-button {
 		grid-column: 1 / -1;
 		justify-self: start;
+	}
+
+	.install-controls .cancel-button {
+		grid-column: 1 / -1;
+		justify-self: start;
+		border-color: rgba(223, 109, 88, 0.5);
+		color: #df6d58;
 	}
 
 	.install-message {

@@ -15,9 +15,11 @@ const execFileAsync = promisify(execFile);
 const commandTimeout = 120_000;
 
 export async function installHoudiniPlugin(
-	request: InstallPluginRequest
+	request: InstallPluginRequest,
+	signal?: AbortSignal
 ): Promise<InstallPluginResponse> {
 	validateInstallPluginRequest(request);
+	throwIfAborted(signal);
 
 	const current = await discoverHoudiniWorkspace();
 	const plugin = current.plugins.find((candidate) => candidate.id === request.pluginId);
@@ -34,9 +36,10 @@ export async function installHoudiniPlugin(
 
 	const pluginSlug = slugify(plugin);
 	const repositoryPath = await managedRepositoryPath(pluginSlug, request, installs[0]);
-	await ensureGitCheckout(plugin.repositoryUrl, request.version, repositoryPath);
+	await ensureGitCheckout(plugin.repositoryUrl, request.version, repositoryPath, signal);
 
 	for (const install of installs) {
+		throwIfAborted(signal);
 		const packageDirectory = await writableUserPackageDirectory(install);
 		await mkdir(packageDirectory, { recursive: true });
 		const existingTarget = current.targets.find(
@@ -48,9 +51,10 @@ export async function installHoudiniPlugin(
 		);
 		const packagePath =
 			existingTarget?.packagePath ?? path.join(packageDirectory, plugin.packageFile);
-		await writeManagedPackage(packagePath, plugin, request.version, repositoryPath);
+		await writeManagedPackage(packagePath, plugin, request.version, repositoryPath, signal);
 	}
 
+	throwIfAborted(signal);
 	const discovery = await discoverHoudiniWorkspace();
 	const targetLabel =
 		request.scope === 'global' ? 'all detected Houdini installs' : installs[0].label;
@@ -130,11 +134,14 @@ async function writableUserPackageDirectory(install: HoudiniInstall): Promise<st
 async function ensureGitCheckout(
 	repositoryUrl: string,
 	version: string,
-	destination: string
+	destination: string,
+	signal?: AbortSignal
 ): Promise<void> {
-	if (await isDirectory(destination)) {
+	throwIfAborted(signal);
+	const destinationExists = await isDirectory(destination);
+	if (destinationExists) {
 		if (await runGit(destination, ['rev-parse', '--is-inside-work-tree'])) {
-			await runGitRequired(destination, ['fetch', '--tags', '--prune', 'origin']);
+			await runGitRequired(destination, ['fetch', '--tags', '--prune', 'origin'], signal);
 		} else if (await hasEntries(destination)) {
 			throw new Error(`Managed plugin directory is not a Git checkout: ${destination}`);
 		} else {
@@ -142,20 +149,34 @@ async function ensureGitCheckout(
 		}
 	}
 
-	if (!(await isDirectory(destination))) {
+	if (!destinationExists) {
+		throwIfAborted(signal);
 		await mkdir(path.dirname(destination), { recursive: true });
-		await runGitRequired(undefined, ['clone', '--no-checkout', repositoryUrl, destination]);
+		try {
+			await runGitRequired(
+				undefined,
+				['clone', '--no-checkout', repositoryUrl, destination],
+				signal
+			);
+		} catch (error) {
+			if (signal?.aborted) {
+				await rm(destination, { recursive: true, force: true });
+			}
+			throw error;
+		}
 	}
 
-	await runGitRequired(destination, ['checkout', '--detach', version]);
+	await runGitRequired(destination, ['checkout', '--detach', version], signal);
 }
 
 async function writeManagedPackage(
 	packagePath: string,
 	plugin: PluginRecord,
 	version: string,
-	repositoryPath: string
+	repositoryPath: string,
+	signal?: AbortSignal
 ): Promise<void> {
+	throwIfAborted(signal);
 	let packageValue: Record<string, unknown> = {};
 	try {
 		const existing = JSON.parse(await readFile(packagePath, 'utf8')) as unknown;
@@ -194,19 +215,30 @@ async function runGit(cwd: string | undefined, args: string[]): Promise<string> 
 	}
 }
 
-async function runGitRequired(cwd: string | undefined, args: string[]): Promise<string> {
+async function runGitRequired(
+	cwd: string | undefined,
+	args: string[],
+	signal?: AbortSignal
+): Promise<string> {
 	try {
 		const result = await execFileAsync('git', args, {
 			cwd,
 			encoding: 'utf8',
 			maxBuffer: 1024 * 1024,
 			timeout: commandTimeout,
-			windowsHide: true
+			windowsHide: true,
+			signal
 		});
 		return result.stdout.trim();
 	} catch (error) {
 		const commandError = error as Error & { stderr?: string };
 		throw new Error(commandError.stderr?.trim() || commandError.message, { cause: error });
+	}
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+	if (signal?.aborted) {
+		throw new DOMException('Plugin installation was cancelled.', 'AbortError');
 	}
 }
 

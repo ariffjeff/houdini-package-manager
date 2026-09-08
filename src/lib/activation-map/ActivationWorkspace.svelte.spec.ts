@@ -135,6 +135,13 @@ function stubDiscovery() {
 		vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const requestUrl = typeof input === 'string' ? input : input.toString();
 			const requestPath = new URL(requestUrl, 'http://localhost').pathname;
+			if (requestPath === '/__hpm/houdini/install') {
+				return new Promise<never>((_, reject) => {
+					init?.signal?.addEventListener('abort', () =>
+						reject(new DOMException('The operation was aborted.', 'AbortError'))
+					);
+				});
+			}
 			if (requestPath !== '/__hpm/houdini/scan') {
 				throw new Error(`Unexpected request: ${requestPath}`);
 			}
@@ -286,5 +293,22 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Sync Git', exact: true }))
 			.not.toBeInTheDocument();
+	});
+
+	it('cancels a remote plugin installation', async () => {
+		stubDiscovery();
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Install version' }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Cancel installation' }))
+			.toBeInTheDocument();
+
+		await page.getByRole('button', { name: 'Cancel installation' }).click();
+		await expect
+			.element(page.getByText('Installation cancelled.', { exact: true }))
+			.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: 'Install version' })).toBeInTheDocument();
 	});
 });

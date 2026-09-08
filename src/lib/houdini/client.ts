@@ -48,12 +48,14 @@ export async function scanHoudiniWorkspace(
 }
 
 export async function installHoudiniPlugin(
-	request: InstallPluginRequest
+	request: InstallPluginRequest,
+	signal?: AbortSignal
 ): Promise<InstallPluginResponse> {
 	const response = await fetch('/__hpm/houdini/install', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(request)
+		body: JSON.stringify(request),
+		signal
 	});
 	if (!response.ok) {
 		let message = `Plugin installation failed with HTTP ${response.status}.`;
