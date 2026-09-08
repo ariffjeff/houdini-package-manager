@@ -100,6 +100,9 @@ UNSET_VALUE := '<not defined>'
 				packageDirectory
 			)
 		).toEqual([pluginDirectory, toolsDirectory]);
+		expect(
+			resolvePackagePaths({ path: [pluginDirectory, `${pluginDirectory};`] }, {}, packageDirectory)
+		).toEqual([pluginDirectory]);
 	});
 
 	it('reports deleted plugin paths without treating the package config as active', async () => {
@@ -122,7 +125,7 @@ UNSET_VALUE := '<not defined>'
 				missingPaths: [],
 				stalePaths: [missingPath]
 			})
-		).toBe('warning');
+		).toBe('enabled');
 		expect(
 			resolvePackageTargetStatus({
 				valid: true,

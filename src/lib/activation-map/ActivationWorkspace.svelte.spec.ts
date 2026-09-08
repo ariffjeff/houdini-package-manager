@@ -200,7 +200,7 @@ describe('activation workspace', () => {
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByText('C:/Users/test/Documents/HPM/plugins/mops', { exact: true }))
-			.toBeInTheDocument();
+			.not.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('link', { name: 'Open source' }))
 			.toHaveAttribute('href', 'https://github.com/toadstorm/MOPS');

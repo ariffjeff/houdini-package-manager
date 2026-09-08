@@ -568,22 +568,6 @@
 									</div>
 								</div>
 							{/if}
-							{#if selectedPlugin.stalePaths?.length}
-								<div class="source-list">
-									<div class="target-heading">
-										<span>Stale HPM references</span>
-										<span>{selectedPlugin.stalePaths.length}</span>
-									</div>
-									<div class="target-list">
-										{#each selectedPlugin.stalePaths as stalePath (stalePath)}
-											<div class="target-item">
-												<div><small>{stalePath}</small></div>
-												<span class="status-pill status-missing">Removed</span>
-											</div>
-										{/each}
-									</div>
-								</div>
-							{/if}
 							<div class="plugin-actions">
 								{#if selectedPlugin.repositoryUrl}
 									<button
