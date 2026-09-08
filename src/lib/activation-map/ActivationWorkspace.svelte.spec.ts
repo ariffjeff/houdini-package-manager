@@ -4,6 +4,13 @@ import { render } from 'vitest-browser-svelte';
 import Page from '../../routes/+page.svelte';
 
 let scanRequests: Array<{ stage: string; pluginIds?: string[] }> = [];
+let pluginActionRequests: Array<{
+	action: string;
+	pluginId: string;
+	installId?: string;
+	sourcePath?: string;
+	enabled?: boolean;
+}> = [];
 
 const discoveryResponse = {
 	installs: [
@@ -91,7 +98,7 @@ const discoveryResponse = {
 		{
 			pluginId: 'package:mops',
 			installId: 'install:houdini-21.0-455-test',
-			status: 'warning',
+			status: 'enabled',
 			artifactVersion: null,
 			packageFile: 'MOPS.json',
 			packagePath: 'C:/Users/test/Documents/houdini21.0/packages/MOPS.json',
@@ -128,13 +135,51 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-function stubDiscovery() {
+function stubDiscovery(response = discoveryResponse) {
 	scanRequests = [];
+	pluginActionRequests = [];
 	vi.stubGlobal(
 		'fetch',
 		vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const requestUrl = typeof input === 'string' ? input : input.toString();
 			const requestPath = new URL(requestUrl, 'http://localhost').pathname;
+			if (requestPath === '/__hpm/houdini/plugin-action') {
+				const request = JSON.parse(String(init?.body)) as {
+					action: string;
+					pluginId: string;
+					installId?: string;
+					sourcePath?: string;
+					enabled?: boolean;
+				};
+				pluginActionRequests.push(request);
+				return new Response(
+					JSON.stringify({
+						message:
+							request.action === 'set-enabled'
+								? `MOPS ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`
+								: 'Plugin refreshed',
+						discovery:
+							request.action === 'set-enabled'
+								? {
+										...response,
+										targets: response.targets.map((target) =>
+											target.pluginId === request.pluginId && target.installId === request.installId
+												? { ...target, status: request.enabled ? 'enabled' : 'disabled' }
+												: target
+										)
+									}
+								: undefined
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			}
+			if (requestPath === '/__hpm/houdini/install') {
+				return new Promise<never>((_, reject) => {
+					init?.signal?.addEventListener('abort', () =>
+						reject(new DOMException('The operation was aborted.', 'AbortError'))
+					);
+				});
+			}
 			if (requestPath !== '/__hpm/houdini/scan') {
 				throw new Error(`Unexpected request: ${requestPath}`);
 			}
@@ -143,8 +188,8 @@ function stubDiscovery() {
 			scanRequests.push(request);
 			return new Response(
 				JSON.stringify({
-					...discoveryResponse,
-					plugins: discoveryResponse.plugins.map((plugin) => ({
+					...response,
+					plugins: response.plugins.map((plugin) => ({
 						...plugin,
 						gitSyncedAt:
 							request.stage === 'git' && (request.pluginIds ?? ['package:mops']).includes(plugin.id)
@@ -162,6 +207,78 @@ function stubDiscovery() {
 		})
 	);
 }
+
+it('hides target-specific actions for a missing plugin target', async () => {
+	const missingTargetResponse = {
+		...discoveryResponse,
+		targets: discoveryResponse.targets.map((target) =>
+			target.pluginId === 'package:mops' ? { ...target, status: 'missing' as const } : target
+		)
+	};
+	stubDiscovery(missingTargetResponse);
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Rescan plugin', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }))
+		.toBeInTheDocument();
+	await page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }).click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toEqual({
+			action: 'open-package-folder',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test'
+		});
+	await expect
+		.element(page.getByRole('button', { name: 'Open JSON config for Houdini 21.0' }))
+		.not.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Enable plugin for Houdini 21.0' }))
+		.not.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Disable plugin for Houdini 21.0' }))
+		.not.toBeInTheDocument();
+});
+
+it('groups plugin targets that share a Houdini minor version', async () => {
+	const secondInstallId = 'install:houdini-21.0-456-test';
+	const groupedResponse = {
+		...discoveryResponse,
+		installs: [
+			...discoveryResponse.installs,
+			{
+				...discoveryResponse.installs[0],
+				id: secondInstallId,
+				build: '456',
+				hfs: 'C:/Program Files/Side Effects Software/Houdini 21.0.456'
+			}
+		],
+		targets: [
+			...discoveryResponse.targets,
+			{ ...discoveryResponse.targets[0], installId: secondInstallId }
+		]
+	};
+	stubDiscovery(groupedResponse);
+	render(Page);
+
+	await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
+	await expect.element(page.getByText('Windows / 455, 456', { exact: true })).toBeInTheDocument();
+
+	await page
+		.getByRole('button', { name: 'Open JSON config for Houdini 21.0', exact: true })
+		.click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toMatchObject({
+			action: 'open-config',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test'
+		});
+});
 
 describe('activation workspace', () => {
 	it('selects an install from the map and updates the detail rail', async () => {
@@ -200,7 +317,7 @@ describe('activation workspace', () => {
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByText('C:/Users/test/Documents/HPM/plugins/mops', { exact: true }))
-			.toBeInTheDocument();
+			.not.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('link', { name: 'Open source' }))
 			.toHaveAttribute('href', 'https://github.com/toadstorm/MOPS');
@@ -286,5 +403,96 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Sync Git', exact: true }))
 			.not.toBeInTheDocument();
+	});
+
+	it('cancels a remote plugin installation', async () => {
+		stubDiscovery();
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Install version' }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Cancel installation' }))
+			.toBeInTheDocument();
+
+		await page.getByRole('button', { name: 'Cancel installation' }).click();
+		await expect
+			.element(page.getByText('Installation cancelled.', { exact: true }))
+			.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: 'Install version' })).toBeInTheDocument();
+	});
+
+	it('refreshes and toggles the selected plugin config', async () => {
+		stubDiscovery();
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Rescan plugin' }).click();
+		await expect
+			.poll(() => scanRequests.at(-1))
+			.toEqual({
+				stage: 'plugins',
+				pluginIds: ['package:mops']
+			});
+		await expect.element(page.getByText('Plugin refreshed', { exact: true })).toBeInTheDocument();
+
+		await page.getByRole('button', { name: 'Open JSON config for Houdini 21.0' }).click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toEqual({
+				action: 'open-config',
+				pluginId: 'package:mops',
+				installId: 'install:houdini-21.0-455-test'
+			});
+		await expect
+			.poll(() => scanRequests.at(-1))
+			.toEqual({
+				stage: 'plugins',
+				pluginIds: ['package:mops']
+			});
+
+		await page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }).click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toEqual({
+				action: 'open-package-folder',
+				pluginId: 'package:mops',
+				installId: 'install:houdini-21.0-455-test'
+			});
+
+		await page
+			.getByRole('button', {
+				name: 'Open plugin folder for MOPS at C:/Users/test/Desktop/DCC/MOPS'
+			})
+			.click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toEqual({
+				action: 'open-source',
+				pluginId: 'package:mops',
+				sourcePath: 'C:/Users/test/Desktop/DCC/MOPS'
+			});
+
+		await page.getByRole('button', { name: 'Disable plugin for Houdini 21.0' }).click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toEqual({
+				action: 'set-enabled',
+				pluginId: 'package:mops',
+				installId: 'install:houdini-21.0-455-test',
+				enabled: false
+			});
+		await expect
+			.poll(() => scanRequests.at(-1))
+			.toEqual({
+				stage: 'plugins',
+				pluginIds: ['package:mops']
+			});
+		await expect
+			.element(page.getByText('MOPS disabled for the selected Houdini install.', { exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Enable plugin for Houdini 21.0' }))
+			.toBeInTheDocument();
 	});
 });

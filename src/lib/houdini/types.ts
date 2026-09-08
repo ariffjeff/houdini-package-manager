@@ -103,3 +103,14 @@ export type InstallPluginResponse = {
 	message: string;
 	discovery: HoudiniDiscoveryResponse;
 };
+
+export type HoudiniPluginAction =
+	| { action: 'open-config'; pluginId: string; installId: string }
+	| { action: 'open-package-folder'; pluginId: string; installId: string }
+	| { action: 'open-source'; pluginId: string; sourcePath: string }
+	| { action: 'set-enabled'; pluginId: string; installId: string; enabled: boolean };
+
+export type HoudiniPluginActionResponse = {
+	message: string;
+	discovery?: HoudiniDiscoveryResponse;
+};

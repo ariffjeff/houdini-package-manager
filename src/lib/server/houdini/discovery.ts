@@ -297,7 +297,9 @@ function updateInstallPackageData(
 ): HoudiniInstall {
 	const hasInvalidPackage = [...packages.values()].some((packageConfig) => !packageConfig.valid);
 	const hasMissingPackagePath = [...packages.values()].some(
-		(packageConfig) => packageConfig.missingPaths.length || packageConfig.stalePaths.length
+		(packageConfig) =>
+			packageConfig.missingPaths.length ||
+			(!packageConfig.existingPaths.length && packageConfig.stalePaths.length)
 	);
 	const diagnostics = install.diagnostics.filter(
 		(diagnostic) =>
@@ -641,11 +643,9 @@ async function readPackageConfigs(
 						? existingPaths.length
 							? `Resolved through ${existingPaths[0]}; missing ${missingPaths[0]}`
 							: `Missing plugin path: ${missingPaths[0]}`
-						: stalePaths.length
-							? `HPM source removed: ${stalePaths[0]}`
-							: paths.length
-								? `Resolved through ${paths[0]}`
-								: 'Discovered from a Houdini package configuration.',
+						: existingPaths.length
+							? `Resolved through ${existingPaths[0]}`
+							: 'No available plugin source found.',
 					version: versionInfo.version,
 					license: 'Not declared',
 					source: existingPaths[0] ?? paths[0] ?? directory,
@@ -755,7 +755,7 @@ export function mergePluginSources(sources: PluginSource[]): PluginSource[] {
 	const merged = new Map<string, PluginSource>();
 
 	for (const source of sources) {
-		const key = path.normalize(source.path).toLowerCase();
+		const key = sourcePathKey(source.path);
 		const existing = merged.get(key);
 		if (!existing) {
 			merged.set(key, { ...source });
@@ -781,6 +781,10 @@ export function mergePluginSources(sources: PluginSource[]): PluginSource[] {
 
 function uniqueStrings(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
+}
+
+function sourcePathKey(value: string): string {
+	return path.normalize(value.replace(/[;]+$/, '')).toLowerCase();
 }
 
 function isManagedHpmPath(candidate: string, packageValue?: Record<string, unknown>): boolean {
@@ -840,7 +844,11 @@ export function resolvePackagePaths(
 		.map((entry) => expandPackagePath(entry, packageVariables))
 		.map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(packageDirectory, entry)))
 		.map((entry) => path.normalize(entry))
-		.filter((entry, index, all) => entry && all.indexOf(entry) === index);
+		.filter(
+			(entry, index, all) =>
+				entry &&
+				all.findIndex((candidate) => sourcePathKey(candidate) === sourcePathKey(entry)) === index
+		);
 }
 
 export async function findMissingPackagePaths(paths: string[]): Promise<string[]> {
@@ -874,7 +882,6 @@ export function resolvePackageTargetStatus(
 	if (packageConfig.missingPaths.length && !packageConfig.existingPaths.length) return 'missing';
 	if (packageConfig.stalePaths?.length && !packageConfig.existingPaths.length) return 'missing';
 	if (packageConfig.missingPaths.length) return 'warning';
-	if (packageConfig.stalePaths?.length) return 'warning';
 	return packageConfig.enabled ? 'enabled' : 'disabled';
 }
 
@@ -922,7 +929,7 @@ function expandPackagePath(value: string, variables: Record<string, string>): st
 		expanded = next;
 	}
 
-	return expanded.replace(/[/\\]+$/, '');
+	return expanded.replace(/[;]+$/, '').replace(/[/\\]+$/, '');
 }
 
 function splitHoudiniPath(value: string | undefined, variables: Record<string, string>): string[] {

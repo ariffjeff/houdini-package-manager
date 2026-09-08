@@ -1,23 +1,27 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { discoverHoudiniWorkspace } from './discovery.js';
+import { discoverHoudiniWorkspace, scanHoudiniWorkspace } from './discovery.js';
 import type {
 	HoudiniInstall,
 	InstallPluginRequest,
 	InstallPluginResponse,
-	PluginRecord
+	PluginRecord,
+	HoudiniPluginAction,
+	HoudiniPluginActionResponse
 } from '../../houdini/types.js';
 
 const execFileAsync = promisify(execFile);
 const commandTimeout = 120_000;
 
 export async function installHoudiniPlugin(
-	request: InstallPluginRequest
+	request: InstallPluginRequest,
+	signal?: AbortSignal
 ): Promise<InstallPluginResponse> {
 	validateInstallPluginRequest(request);
+	throwIfAborted(signal);
 
 	const current = await discoverHoudiniWorkspace();
 	const plugin = current.plugins.find((candidate) => candidate.id === request.pluginId);
@@ -34,9 +38,10 @@ export async function installHoudiniPlugin(
 
 	const pluginSlug = slugify(plugin);
 	const repositoryPath = await managedRepositoryPath(pluginSlug, request, installs[0]);
-	await ensureGitCheckout(plugin.repositoryUrl, request.version, repositoryPath);
+	await ensureGitCheckout(plugin.repositoryUrl, request.version, repositoryPath, signal);
 
 	for (const install of installs) {
+		throwIfAborted(signal);
 		const packageDirectory = await writableUserPackageDirectory(install);
 		await mkdir(packageDirectory, { recursive: true });
 		const existingTarget = current.targets.find(
@@ -48,9 +53,10 @@ export async function installHoudiniPlugin(
 		);
 		const packagePath =
 			existingTarget?.packagePath ?? path.join(packageDirectory, plugin.packageFile);
-		await writeManagedPackage(packagePath, plugin, request.version, repositoryPath);
+		await writeManagedPackage(packagePath, plugin, request.version, repositoryPath, signal);
 	}
 
+	throwIfAborted(signal);
 	const discovery = await discoverHoudiniWorkspace();
 	const targetLabel =
 		request.scope === 'global' ? 'all detected Houdini installs' : installs[0].label;
@@ -58,6 +64,107 @@ export async function installHoudiniPlugin(
 		message: `${plugin.name} ${request.version} installed for ${targetLabel}.`,
 		discovery
 	};
+}
+
+export async function runHoudiniPluginAction(
+	request: HoudiniPluginAction
+): Promise<HoudiniPluginActionResponse> {
+	if (
+		!request ||
+		typeof request !== 'object' ||
+		typeof request.pluginId !== 'string' ||
+		!request.pluginId.trim()
+	) {
+		throw new Error('A plugin id is required.');
+	}
+	if (request.action === 'open-source') {
+		if (typeof request.sourcePath !== 'string' || !request.sourcePath.trim()) {
+			throw new Error('A source path is required.');
+		}
+	} else if (typeof request.installId !== 'string' || !request.installId.trim()) {
+		throw new Error('An install id is required.');
+	}
+
+	const current = await scanHoudiniWorkspace({
+		stage: 'plugins',
+		pluginIds: [request.pluginId]
+	});
+	const plugin = current.plugins.find((candidate) => candidate.id === request.pluginId);
+	if (!plugin) throw new Error(`Plugin ${request.pluginId} was not found in the discovery scan.`);
+
+	if (request.action === 'open-source') {
+		const source = plugin.sources?.find(
+			(candidate) => samePath(candidate.path, request.sourcePath) && candidate.exists
+		);
+		if (!source) throw new Error(`${plugin.name} has no available source folder at that path.`);
+		await openPath(source.path);
+		return { message: `Opened ${plugin.name} source folder.` };
+	}
+
+	if (request.action === 'open-package-folder') {
+		const install = current.installs.find((candidate) => candidate.id === request.installId);
+		if (!install) throw new Error(`${plugin.name} was not found for this Houdini install.`);
+		const packageRoot = documentsPackageRoot(install);
+		if (!packageRoot) {
+			throw new Error(`${plugin.name} has no Documents package folder for this Houdini install.`);
+		}
+		await openPath(packageRoot);
+		return { message: `Opened ${install.label} package folder.` };
+	}
+
+	if (request.action !== 'open-config' && request.action !== 'set-enabled') {
+		throw new Error('Unknown plugin action.');
+	}
+
+	const target = current.targets.find(
+		(candidate) =>
+			candidate.pluginId === request.pluginId && candidate.installId === request.installId
+	);
+	if (!target?.packagePath) {
+		throw new Error(`${plugin.name} has no discovered package config for this Houdini install.`);
+	}
+
+	if (request.action === 'open-config') {
+		await openPath(target.packagePath);
+		return { message: `Opened ${target.packageFile}.` };
+	}
+
+	if (request.action === 'set-enabled') {
+		await setPackageEnabled(target.packagePath, request.enabled);
+		const discovery = await scanHoudiniWorkspace({
+			stage: 'plugins',
+			pluginIds: [request.pluginId]
+		});
+		return {
+			message: `${plugin.name} ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`,
+			discovery
+		};
+	}
+
+	throw new Error('Unknown plugin action.');
+}
+
+function samePath(left: string, right: string): boolean {
+	const normalizedLeft = path.normalize(left);
+	const normalizedRight = path.normalize(right);
+	return process.platform === 'win32'
+		? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+		: normalizedLeft === normalizedRight;
+}
+
+function documentsPackageRoot(install: HoudiniInstall): string | null {
+	const expectedVersionDirectory = `houdini${install.version}`.toLowerCase();
+	return (
+		install.packageRoots.find(({ path: root, origin }) => {
+			const normalizedRoot = path.normalize(root);
+			return (
+				origin === 'user' &&
+				path.basename(normalizedRoot).toLowerCase() === 'packages' &&
+				path.basename(path.dirname(normalizedRoot)).toLowerCase() === expectedVersionDirectory &&
+				path.basename(path.dirname(path.dirname(normalizedRoot))).toLowerCase() === 'documents'
+			);
+		})?.path ?? null
+	);
 }
 
 export function validateInstallPluginRequest(request: InstallPluginRequest): void {
@@ -130,11 +237,14 @@ async function writableUserPackageDirectory(install: HoudiniInstall): Promise<st
 async function ensureGitCheckout(
 	repositoryUrl: string,
 	version: string,
-	destination: string
+	destination: string,
+	signal?: AbortSignal
 ): Promise<void> {
-	if (await isDirectory(destination)) {
+	throwIfAborted(signal);
+	const destinationExists = await isDirectory(destination);
+	if (destinationExists) {
 		if (await runGit(destination, ['rev-parse', '--is-inside-work-tree'])) {
-			await runGitRequired(destination, ['fetch', '--tags', '--prune', 'origin']);
+			await runGitRequired(destination, ['fetch', '--tags', '--prune', 'origin'], signal);
 		} else if (await hasEntries(destination)) {
 			throw new Error(`Managed plugin directory is not a Git checkout: ${destination}`);
 		} else {
@@ -142,20 +252,34 @@ async function ensureGitCheckout(
 		}
 	}
 
-	if (!(await isDirectory(destination))) {
+	if (!destinationExists) {
+		throwIfAborted(signal);
 		await mkdir(path.dirname(destination), { recursive: true });
-		await runGitRequired(undefined, ['clone', '--no-checkout', repositoryUrl, destination]);
+		try {
+			await runGitRequired(
+				undefined,
+				['clone', '--no-checkout', repositoryUrl, destination],
+				signal
+			);
+		} catch (error) {
+			if (signal?.aborted) {
+				await rm(destination, { recursive: true, force: true });
+			}
+			throw error;
+		}
 	}
 
-	await runGitRequired(destination, ['checkout', '--detach', version]);
+	await runGitRequired(destination, ['checkout', '--detach', version], signal);
 }
 
 async function writeManagedPackage(
 	packagePath: string,
 	plugin: PluginRecord,
 	version: string,
-	repositoryPath: string
+	repositoryPath: string,
+	signal?: AbortSignal
 ): Promise<void> {
+	throwIfAborted(signal);
 	let packageValue: Record<string, unknown> = {};
 	try {
 		const existing = JSON.parse(await readFile(packagePath, 'utf8')) as unknown;
@@ -179,6 +303,58 @@ async function writeManagedPackage(
 	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
 }
 
+async function setPackageEnabled(packagePath: string, enabled: boolean): Promise<void> {
+	let packageValue: Record<string, unknown>;
+	try {
+		const parsed = JSON.parse(await readFile(packagePath, 'utf8')) as unknown;
+		if (!isRecord(parsed)) throw new Error('Package JSON root must be an object.');
+		packageValue = parsed;
+	} catch (error) {
+		throw new Error(
+			`Cannot update ${path.basename(packagePath)}: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error }
+		);
+	}
+
+	packageValue.enable = enabled;
+	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
+}
+
+async function openPath(target: string): Promise<void> {
+	let targetStats;
+	try {
+		targetStats = await stat(target);
+	} catch (error) {
+		throw new Error(
+			`Cannot open ${target}: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error }
+		);
+	}
+
+	const command =
+		process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+	const normalizedTarget = path.normalize(target);
+	const args =
+		process.platform === 'win32'
+			? targetStats.isDirectory()
+				? ['/d', '/c', 'start', '', '/b', 'explorer.exe', normalizedTarget]
+				: ['/d', '/c', 'start', '', '/b', normalizedTarget]
+			: [normalizedTarget];
+
+	await new Promise<void>((resolve, reject) => {
+		const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
+		child.once('error', (error) => {
+			reject(
+				new Error(
+					`Cannot open ${target} with ${command}: ${error instanceof Error ? error.message : String(error)}`,
+					{ cause: error }
+				)
+			);
+		});
+		child.once('close', () => resolve());
+	});
+}
+
 async function runGit(cwd: string | undefined, args: string[]): Promise<string> {
 	try {
 		const result = await execFileAsync('git', args, {
@@ -194,19 +370,30 @@ async function runGit(cwd: string | undefined, args: string[]): Promise<string> 
 	}
 }
 
-async function runGitRequired(cwd: string | undefined, args: string[]): Promise<string> {
+async function runGitRequired(
+	cwd: string | undefined,
+	args: string[],
+	signal?: AbortSignal
+): Promise<string> {
 	try {
 		const result = await execFileAsync('git', args, {
 			cwd,
 			encoding: 'utf8',
 			maxBuffer: 1024 * 1024,
 			timeout: commandTimeout,
-			windowsHide: true
+			windowsHide: true,
+			signal
 		});
 		return result.stdout.trim();
 	} catch (error) {
 		const commandError = error as Error & { stderr?: string };
 		throw new Error(commandError.stderr?.trim() || commandError.message, { cause: error });
+	}
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+	if (signal?.aborted) {
+		throw new DOMException('Plugin installation was cancelled.', 'AbortError');
 	}
 }
 

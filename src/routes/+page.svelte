@@ -20,7 +20,11 @@
 	} from '$lib/activation-map/types';
 	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
 	import logo from '$lib/assets/hpm.svg';
-	import { installHoudiniPlugin, scanHoudiniWorkspace } from '$lib/houdini/client';
+	import {
+		installHoudiniPlugin,
+		runHoudiniPluginAction,
+		scanHoudiniWorkspace
+	} from '$lib/houdini/client';
 
 	type ViewMode = 'map' | 'table';
 	type ScanStage = 'installs' | 'plugins' | 'git';
@@ -28,6 +32,11 @@
 	type ScanStatus = { state: ScanState; error: string };
 	type ScanAction = ScanStage | 'all';
 	type ActionState = 'idle' | 'working' | 'success' | 'error';
+	type PluginTargetGroup = {
+		representativeInstall: HoudiniInstall;
+		target: ActivationTarget;
+		installs: HoudiniInstall[];
+	};
 
 	const scanStages: Array<{ stage: ScanStage; label: string }> = [
 		{
@@ -71,8 +80,11 @@
 	let installTargetId = $state('');
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
+	let installController: AbortController | null = null;
 	let gitSyncState = $state<ActionState>('idle');
 	let gitSyncMessage = $state('');
+	let pluginActionState = $state<ActionState>('idle');
+	let pluginActionMessage = $state('');
 
 	let activationGraph = $derived(
 		createActivationGraph(activationPlugins, activationInstalls, activationTargets)
@@ -193,7 +205,45 @@
 
 		return [];
 	});
+	let selectedPluginTargetGroups = $derived.by(() => {
+		const plugin = selectedPlugin;
+		if (!plugin) return [];
 
+		const groups: PluginTargetGroup[] = [];
+		for (const install of activationInstalls) {
+			const target = targetFor(activationTargets, plugin.id, install.id);
+			if (!target) continue;
+
+			const existing = groups.find(
+				(group) => group.representativeInstall.version === install.version
+			);
+			if (existing) {
+				existing.installs.push(install);
+				continue;
+			}
+
+			groups.push({
+				representativeInstall: install,
+				target,
+				installs: [install]
+			});
+		}
+
+		return groups;
+	});
+
+	function installBuildLabel(installs: HoudiniInstall[]): string {
+		const platforms = [...new Set(installs.map((install) => install.platform))];
+		if (platforms.length === 1) {
+			const builds = [...new Set(installs.map((install) => install.build))];
+			return `${platforms[0]} / ${builds.join(', ')}`;
+		}
+
+		return installs
+			.map((install) => `${install.platform} / ${install.build}`)
+			.filter((label, index, labels) => labels.indexOf(label) === index)
+			.join(', ');
+	}
 	function scanStateLabel(state: ScanState) {
 		return state[0].toUpperCase() + state.slice(1);
 	}
@@ -236,6 +286,50 @@
 		installMessage = '';
 		gitSyncState = 'idle';
 		gitSyncMessage = '';
+		pluginActionState = 'idle';
+		pluginActionMessage = '';
+	}
+
+	async function refreshSelectedPlugin() {
+		const plugin = selectedPlugin;
+		if (!plugin || isScanActive) return;
+		pluginActionState = 'working';
+		pluginActionMessage = '';
+		const refreshed = await runStage('plugins', [plugin.id]);
+		if (selectedPlugin?.id !== plugin.id) return;
+		if (refreshed) {
+			pluginActionState = 'success';
+			pluginActionMessage = 'Plugin refreshed';
+		} else {
+			pluginActionState = 'error';
+			pluginActionMessage = scanStatuses.plugins.error || 'Plugin refresh failed';
+		}
+	}
+
+	async function runSelectedPluginAction(
+		request:
+			| { action: 'open-config' | 'open-package-folder'; installId: string }
+			| { action: 'open-source'; sourcePath: string }
+			| { action: 'set-enabled'; installId: string; enabled: boolean }
+	) {
+		const plugin = selectedPlugin;
+		if (!plugin || isScanActive || pluginActionState === 'working') return;
+
+		pluginActionState = 'working';
+		pluginActionMessage = '';
+		try {
+			const result = await runHoudiniPluginAction({ pluginId: plugin.id, ...request });
+			if (result.discovery) applyDiscovery(result.discovery);
+			pluginActionState = 'success';
+			pluginActionMessage = result.message;
+		} catch (error) {
+			pluginActionState = 'error';
+			pluginActionMessage = getErrorMessage(error);
+		}
+	}
+
+	function stopActionPropagation(event: MouseEvent) {
+		event.stopPropagation();
 	}
 
 	async function installSelectedPlugin() {
@@ -251,20 +345,39 @@
 
 		installState = 'working';
 		installMessage = '';
+		const controller = new AbortController();
+		installController = controller;
 		try {
-			const result = await installHoudiniPlugin({
-				pluginId: plugin.id,
-				version: requestedInstallVersion,
-				scope: installScope,
-				installId: installScope === 'install' ? requestedInstallId : undefined
-			});
+			const result = await installHoudiniPlugin(
+				{
+					pluginId: plugin.id,
+					version: requestedInstallVersion,
+					scope: installScope,
+					installId: installScope === 'install' ? requestedInstallId : undefined
+				},
+				controller.signal
+			);
 			applyDiscovery(result.discovery);
 			installState = 'success';
 			installMessage = result.message;
 		} catch (error) {
-			installState = 'error';
-			installMessage = getErrorMessage(error);
+			if (
+				controller.signal.aborted ||
+				(error instanceof DOMException && error.name === 'AbortError')
+			) {
+				installState = 'idle';
+				installMessage = 'Installation cancelled.';
+			} else {
+				installState = 'error';
+				installMessage = getErrorMessage(error);
+			}
+		} finally {
+			if (installController === controller) installController = null;
 		}
+	}
+
+	function cancelInstall() {
+		installController?.abort();
 	}
 
 	async function performScanStage(stage: ScanStage, pluginIds: string[] = []) {
@@ -550,47 +663,66 @@
 									</div>
 									<div class="target-list">
 										{#each selectedPlugin.sources as source (source.path)}
-											<div class="target-item">
+											<div class="target-item target-item-actions">
 												<div>
 													<strong>{source.version ?? 'Unversioned source'}</strong>
 													<small>{source.path}</small>
 												</div>
-												<span
-													class={[
-														'status-pill',
-														source.exists ? 'status-enabled' : 'status-missing'
-													]}
-												>
-													{source.exists ? 'Available' : 'Missing'}
-												</span>
-											</div>
-										{/each}
-									</div>
-								</div>
-							{/if}
-							{#if selectedPlugin.stalePaths?.length}
-								<div class="source-list">
-									<div class="target-heading">
-										<span>Stale HPM references</span>
-										<span>{selectedPlugin.stalePaths.length}</span>
-									</div>
-									<div class="target-list">
-										{#each selectedPlugin.stalePaths as stalePath (stalePath)}
-											<div class="target-item">
-												<div><small>{stalePath}</small></div>
-												<span class="status-pill status-missing">Removed</span>
+												<div class="target-actions">
+													<span
+														class={[
+															'status-pill',
+															source.exists ? 'status-enabled' : 'status-missing'
+														]}
+													>
+														{source.exists ? 'Available' : 'Missing'}
+													</span>
+													<div
+														class="node-action-row"
+														aria-label={`${source.version ?? 'Source'} plugin actions`}
+													>
+														<button
+															type="button"
+															class="node-action-button"
+															aria-label={`Open plugin folder for ${selectedPlugin.name} at ${source.path}`}
+															disabled={!source.exists ||
+																isScanActive ||
+																pluginActionState === 'working'}
+															onclick={(event) => {
+																stopActionPropagation(event);
+																void runSelectedPluginAction({
+																	action: 'open-source',
+																	sourcePath: source.path
+																});
+															}}
+														>
+															Open plugin folder
+														</button>
+													</div>
+												</div>
 											</div>
 										{/each}
 									</div>
 								</div>
 							{/if}
 							<div class="plugin-actions">
+								{#if pluginActionMessage}
+									<p
+										class={['plugin-action-message', `is-${pluginActionState}`]}
+										aria-live="polite"
+									>
+										{pluginActionMessage}
+									</p>
+								{/if}
 								{#if selectedPlugin.repositoryUrl}
 									<button
 										type="button"
 										class="sync-button"
 										disabled={isScanActive || gitSyncState === 'working'}
-										onclick={() => void syncSelectedPluginGit()}
+										onclick={(event) => {
+											stopActionPropagation(event);
+											void syncSelectedPluginGit();
+										}}
 									>
 										{gitSyncState === 'working' ? 'Syncing Git...' : 'Sync Git'}
 									</button>
@@ -648,6 +780,11 @@
 										>
 											{installState === 'working' ? 'Installing...' : 'Install version'}
 										</button>
+										{#if installState === 'working'}
+											<button type="button" class="cancel-button" onclick={cancelInstall}>
+												Cancel installation
+											</button>
+										{/if}
 									</div>
 								{/if}
 								{#if installMessage}
@@ -658,22 +795,87 @@
 							</div>
 							<div class="target-heading">
 								<span>Target installs</span>
-								<span>{selectedTargets.length}</span>
+								<span>{selectedPluginTargetGroups.length}</span>
 							</div>
 							<div class="target-list">
-								{#each activationInstalls as install (install.id)}
-									{@const target = targetFor(activationTargets, selectedPlugin.id, install.id)}
-									{#if target}
-										<div class="target-item">
-											<div>
-												<strong>{install.label}</strong>
-												<small>{install.platform} / {install.build}</small>
-											</div>
+								{#each selectedPluginTargetGroups as group (group.representativeInstall.version)}
+									{@const install = group.representativeInstall}
+									{@const target = group.target}
+									<div class="target-item target-item-actions">
+										<div>
+											<strong>{install.label}</strong>
+											<small>{installBuildLabel(group.installs)}</small>
+										</div>
+										<div class="target-actions">
 											<span class={['status-pill', `status-${target.status}`]}
 												>{statusLabel(target.status)}</span
 											>
+											<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
+												<button
+													type="button"
+													class="node-action-button"
+													disabled={isScanActive || pluginActionState === 'working'}
+													onclick={(event) => {
+														stopActionPropagation(event);
+														void refreshSelectedPlugin();
+													}}
+												>
+													{pluginActionState === 'working' ? 'Working...' : 'Rescan config'}
+												</button>
+												{#if target.status !== 'missing'}
+													<button
+														type="button"
+														class="node-action-button"
+														aria-label={`Open JSON config for ${install.label}`}
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'open-config',
+																installId: install.id
+															});
+														}}
+													>
+														Open config
+													</button>
+												{/if}
+												<button
+													type="button"
+													class="node-action-button"
+													aria-label={`Open packages folder for ${install.label}`}
+													disabled={isScanActive || pluginActionState === 'working'}
+													onclick={(event) => {
+														stopActionPropagation(event);
+														void runSelectedPluginAction({
+															action: 'open-package-folder',
+															installId: install.id
+														});
+													}}
+												>
+													Open /packages
+												</button>
+												{#if target.status !== 'missing'}
+													<button
+														type="button"
+														class="node-action-button"
+														class:danger={target.status === 'enabled'}
+														aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'set-enabled',
+																installId: install.id,
+																enabled: target.status !== 'enabled'
+															});
+														}}
+													>
+														{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
+													</button>
+												{/if}
+											</div>
 										</div>
-									{/if}
+									</div>
 								{/each}
 							</div>
 						{:else if selectedOfficialPlugins.length}
@@ -1239,9 +1441,62 @@
 		background: var(--surface-muted);
 	}
 
+	.node-action-row {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 6px;
+	}
+
+	.node-action-button {
+		min-width: 0;
+		padding: 7px 8px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: var(--surface-raised);
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 10px;
+		font-weight: 600;
+		line-height: 1.25;
+	}
+
+	.node-action-button:hover,
+	.node-action-button:focus-visible {
+		border-color: #399b82;
+		color: var(--text);
+		outline: none;
+	}
+
+	.node-action-button.danger {
+		border-color: rgba(223, 109, 88, 0.42);
+		color: #df6d58;
+	}
+
+	.node-action-button:disabled {
+		cursor: wait;
+		opacity: 0.55;
+	}
+
+	.plugin-action-message {
+		margin: 0;
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.45;
+	}
+
+	.plugin-action-message.is-success {
+		color: #399b82;
+	}
+
+	.plugin-action-message.is-error {
+		color: #df6d58;
+	}
+
 	.source-button,
 	.sync-button,
-	.install-button {
+	.install-button,
+	.cancel-button {
 		align-self: flex-start;
 		padding: 7px 10px;
 		border: 1px solid var(--line-strong);
@@ -1259,7 +1514,9 @@
 	.sync-button:hover,
 	.sync-button:focus-visible,
 	.install-button:hover,
-	.install-button:focus-visible {
+	.install-button:focus-visible,
+	.cancel-button:hover,
+	.cancel-button:focus-visible {
 		border-color: #399b82;
 		outline: none;
 	}
@@ -1326,6 +1583,13 @@
 		justify-self: start;
 	}
 
+	.install-controls .cancel-button {
+		grid-column: 1 / -1;
+		justify-self: start;
+		border-color: rgba(223, 109, 88, 0.5);
+		color: #df6d58;
+	}
+
 	.install-message {
 		margin: 0;
 		color: var(--text-muted);
@@ -1366,6 +1630,23 @@
 		gap: 12px;
 		padding: 12px 0;
 		border-top: 1px solid var(--line);
+	}
+
+	.target-item-actions {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.target-actions {
+		display: flex;
+		width: 100%;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 10px;
+	}
+
+	.target-actions .node-action-row {
+		flex: 1;
 	}
 
 	.target-item strong,

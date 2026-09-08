@@ -76,6 +76,38 @@ UNSET_VALUE := '<not defined>'
 		});
 	});
 
+	it('keeps Documents package roots separated by Houdini minor version', () => {
+		if (process.platform !== 'win32') return;
+
+		const houdini19Roots = packageRoots(
+			'C:/Program Files/Side Effects Software/Houdini 19.5.805',
+			'C:/Users/test/Documents/houdini19.5',
+			'19.5',
+			{}
+		);
+		const houdini20Roots = packageRoots(
+			'C:/Program Files/Side Effects Software/Houdini 20.0.653',
+			'C:/Users/test/Documents/houdini20.0',
+			'20.0',
+			{}
+		);
+
+		expect(houdini19Roots).toContainEqual({
+			directory: path.join(os.homedir(), 'Documents', 'houdini19.5', 'packages'),
+			origin: 'user'
+		});
+		expect(houdini20Roots).toContainEqual({
+			directory: path.join(os.homedir(), 'Documents', 'houdini20.0', 'packages'),
+			origin: 'user'
+		});
+		expect(houdini19Roots.map(({ directory }) => directory)).not.toContain(
+			path.join(os.homedir(), 'Documents', 'houdini20.0', 'packages')
+		);
+		expect(houdini20Roots.map(({ directory }) => directory)).not.toContain(
+			path.join(os.homedir(), 'Documents', 'houdini19.5', 'packages')
+		);
+	});
+
 	it('normalizes Git remotes into browser-friendly repository URLs', () => {
 		expect(normalizeRepositoryUrl('git@github.com:toadstorm/MOPS.git')).toBe(
 			'https://github.com/toadstorm/MOPS'
@@ -100,6 +132,9 @@ UNSET_VALUE := '<not defined>'
 				packageDirectory
 			)
 		).toEqual([pluginDirectory, toolsDirectory]);
+		expect(
+			resolvePackagePaths({ path: [pluginDirectory, `${pluginDirectory};`] }, {}, packageDirectory)
+		).toEqual([pluginDirectory]);
 	});
 
 	it('reports deleted plugin paths without treating the package config as active', async () => {
@@ -122,7 +157,7 @@ UNSET_VALUE := '<not defined>'
 				missingPaths: [],
 				stalePaths: [missingPath]
 			})
-		).toBe('warning');
+		).toBe('enabled');
 		expect(
 			resolvePackageTargetStatus({
 				valid: true,
