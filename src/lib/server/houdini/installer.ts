@@ -321,8 +321,9 @@ async function setPackageEnabled(packagePath: string, enabled: boolean): Promise
 }
 
 async function openPath(target: string): Promise<void> {
+	let targetStats;
 	try {
-		await stat(target);
+		targetStats = await stat(target);
 	} catch (error) {
 		throw new Error(
 			`Cannot open ${target}: ${error instanceof Error ? error.message : String(error)}`,
@@ -335,7 +336,9 @@ async function openPath(target: string): Promise<void> {
 	const normalizedTarget = path.normalize(target);
 	const args =
 		process.platform === 'win32'
-			? ['/d', '/c', 'start', '', '/b', normalizedTarget]
+			? targetStats.isDirectory()
+				? ['/d', '/c', 'start', '', '/b', 'explorer.exe', normalizedTarget]
+				: ['/d', '/c', 'start', '', '/b', normalizedTarget]
 			: [normalizedTarget];
 
 	await new Promise<void>((resolve, reject) => {

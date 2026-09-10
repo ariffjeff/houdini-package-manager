@@ -225,6 +225,14 @@ it('hides target-specific actions for a missing plugin target', async () => {
 	await expect
 		.element(page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }))
 		.toBeInTheDocument();
+	await page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }).click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toEqual({
+			action: 'open-package-folder',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test'
+		});
 	await expect
 		.element(page.getByRole('button', { name: 'Open JSON config for Houdini 21.0' }))
 		.not.toBeInTheDocument();

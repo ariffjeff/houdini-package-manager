@@ -65,7 +65,7 @@ it('opens an existing discovered source folder', async () => {
 	expect(childProcessMocks.spawn).toHaveBeenCalledWith(
 		process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open',
 		process.platform === 'win32'
-			? ['/d', '/c', 'start', '', '/b', path.normalize(sourcePath)]
+			? ['/d', '/c', 'start', '', '/b', 'explorer.exe', path.normalize(sourcePath)]
 			: [path.normalize(sourcePath)],
 		{ stdio: 'ignore', windowsHide: true }
 	);
@@ -96,7 +96,18 @@ it('opens the selected install Documents package folder without a package target
 			}
 		],
 		plugins: [{ id: pluginId, name: 'AJTools' }],
-		targets: []
+		targets: [
+			{
+				pluginId,
+				installId,
+				status: 'missing',
+				artifactVersion: null,
+				packageFile: 'AJTools.json',
+				packagePath: null,
+				origin: null,
+				note: 'No package config with this name was found for this Houdini install.'
+			}
+		]
 	} as unknown as HoudiniDiscoveryResponse);
 	const child = new EventEmitter();
 	childProcessMocks.spawn.mockImplementation(() => {
@@ -114,7 +125,7 @@ it('opens the selected install Documents package folder without a package target
 	expect(childProcessMocks.spawn).toHaveBeenCalledWith(
 		process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open',
 		process.platform === 'win32'
-			? ['/d', '/c', 'start', '', '/b', path.normalize(documentsRoot)]
+			? ['/d', '/c', 'start', '', '/b', 'explorer.exe', path.normalize(documentsRoot)]
 			: [path.normalize(documentsRoot)],
 		{ stdio: 'ignore', windowsHide: true }
 	);
