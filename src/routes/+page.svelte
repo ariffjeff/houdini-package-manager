@@ -32,6 +32,11 @@
 	type ScanStatus = { state: ScanState; error: string };
 	type ScanAction = ScanStage | 'all';
 	type ActionState = 'idle' | 'working' | 'success' | 'error';
+	type PluginTargetGroup = {
+		representativeInstall: HoudiniInstall;
+		target: ActivationTarget;
+		installs: HoudiniInstall[];
+	};
 
 	const scanStages: Array<{ stage: ScanStage; label: string }> = [
 		{
@@ -200,6 +205,45 @@
 
 		return [];
 	});
+	let selectedPluginTargetGroups = $derived.by(() => {
+		const plugin = selectedPlugin;
+		if (!plugin) return [];
+
+		const groups: PluginTargetGroup[] = [];
+		for (const install of activationInstalls) {
+			const target = targetFor(activationTargets, plugin.id, install.id);
+			if (!target) continue;
+
+			const existing = groups.find(
+				(group) => group.representativeInstall.version === install.version
+			);
+			if (existing) {
+				existing.installs.push(install);
+				continue;
+			}
+
+			groups.push({
+				representativeInstall: install,
+				target,
+				installs: [install]
+			});
+		}
+
+		return groups;
+	});
+
+	function installBuildLabel(installs: HoudiniInstall[]): string {
+		const platforms = [...new Set(installs.map((install) => install.platform))];
+		if (platforms.length === 1) {
+			const builds = [...new Set(installs.map((install) => install.build))];
+			return `${platforms[0]} / ${builds.join(', ')}`;
+		}
+
+		return installs
+			.map((install) => `${install.platform} / ${install.build}`)
+			.filter((label, index, labels) => labels.indexOf(label) === index)
+			.join(', ');
+	}
 	function scanStateLabel(state: ScanState) {
 		return state[0].toUpperCase() + state.slice(1);
 	}
@@ -751,88 +795,87 @@
 							</div>
 							<div class="target-heading">
 								<span>Target installs</span>
-								<span>{selectedTargets.length}</span>
+								<span>{selectedPluginTargetGroups.length}</span>
 							</div>
 							<div class="target-list">
-								{#each activationInstalls as install (install.id)}
-									{@const target = targetFor(activationTargets, selectedPlugin.id, install.id)}
-									{#if target}
-										<div class="target-item target-item-actions">
-											<div>
-												<strong>{install.label}</strong>
-												<small>{install.platform} / {install.build}</small>
-											</div>
-											<div class="target-actions">
-												<span class={['status-pill', `status-${target.status}`]}
-													>{statusLabel(target.status)}</span
+								{#each selectedPluginTargetGroups as group (group.representativeInstall.version)}
+									{@const install = group.representativeInstall}
+									{@const target = group.target}
+									<div class="target-item target-item-actions">
+										<div>
+											<strong>{install.label}</strong>
+											<small>{installBuildLabel(group.installs)}</small>
+										</div>
+										<div class="target-actions">
+											<span class={['status-pill', `status-${target.status}`]}
+												>{statusLabel(target.status)}</span
+											>
+											<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
+												<button
+													type="button"
+													class="node-action-button"
+													disabled={isScanActive || pluginActionState === 'working'}
+													onclick={(event) => {
+														stopActionPropagation(event);
+														void refreshSelectedPlugin();
+													}}
 												>
-												<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
+													{pluginActionState === 'working' ? 'Working...' : 'Rescan plugin'}
+												</button>
+												{#if target.status !== 'missing'}
 													<button
 														type="button"
 														class="node-action-button"
-														disabled={isScanActive || pluginActionState === 'working'}
-														onclick={(event) => {
-															stopActionPropagation(event);
-															void refreshSelectedPlugin();
-														}}
-													>
-														{pluginActionState === 'working' ? 'Working...' : 'Rescan plugin'}
-													</button>
-													{#if target.status !== 'missing'}
-														<button
-															type="button"
-															class="node-action-button"
-															aria-label={`Open JSON config for ${install.label}`}
-															disabled={isScanActive || pluginActionState === 'working'}
-															onclick={(event) => {
-																stopActionPropagation(event);
-																void runSelectedPluginAction({
-																	action: 'open-config',
-																	installId: install.id
-																});
-															}}
-														>
-															Open JSON config
-														</button>
-													{/if}
-													<button
-														type="button"
-														class="node-action-button"
-														aria-label={`Open packages folder for ${install.label}`}
+														aria-label={`Open JSON config for ${install.label}`}
 														disabled={isScanActive || pluginActionState === 'working'}
 														onclick={(event) => {
 															stopActionPropagation(event);
 															void runSelectedPluginAction({
-																action: 'open-package-folder',
+																action: 'open-config',
 																installId: install.id
 															});
 														}}
 													>
-														Open packages folder
+														Open JSON config
 													</button>
-													{#if target.status !== 'missing'}
-														<button
-															type="button"
-															class="node-action-button"
-															class:danger={target.status === 'enabled'}
-															aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
-															disabled={isScanActive || pluginActionState === 'working'}
-															onclick={(event) => {
-																stopActionPropagation(event);
-																void runSelectedPluginAction({
-																	action: 'set-enabled',
-																	installId: install.id,
-																	enabled: target.status !== 'enabled'
-																});
-															}}
-														>
-															{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
-														</button>
-													{/if}
-												</div>
+												{/if}
+												<button
+													type="button"
+													class="node-action-button"
+													aria-label={`Open packages folder for ${install.label}`}
+													disabled={isScanActive || pluginActionState === 'working'}
+													onclick={(event) => {
+														stopActionPropagation(event);
+														void runSelectedPluginAction({
+															action: 'open-package-folder',
+															installId: install.id
+														});
+													}}
+												>
+													Open packages folder
+												</button>
+												{#if target.status !== 'missing'}
+													<button
+														type="button"
+														class="node-action-button"
+														class:danger={target.status === 'enabled'}
+														aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'set-enabled',
+																installId: install.id,
+																enabled: target.status !== 'enabled'
+															});
+														}}
+													>
+														{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
+													</button>
+												{/if}
 											</div>
 										</div>
-									{/if}
+									</div>
 								{/each}
 							</div>
 						{:else if selectedOfficialPlugins.length}

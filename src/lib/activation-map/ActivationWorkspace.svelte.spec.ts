@@ -236,6 +236,42 @@ it('hides target-specific actions for a missing plugin target', async () => {
 		.not.toBeInTheDocument();
 });
 
+it('groups plugin targets that share a Houdini minor version', async () => {
+	const secondInstallId = 'install:houdini-21.0-456-test';
+	const groupedResponse = {
+		...discoveryResponse,
+		installs: [
+			...discoveryResponse.installs,
+			{
+				...discoveryResponse.installs[0],
+				id: secondInstallId,
+				build: '456',
+				hfs: 'C:/Program Files/Side Effects Software/Houdini 21.0.456'
+			}
+		],
+		targets: [
+			...discoveryResponse.targets,
+			{ ...discoveryResponse.targets[0], installId: secondInstallId }
+		]
+	};
+	stubDiscovery(groupedResponse);
+	render(Page);
+
+	await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
+	await expect.element(page.getByText('Windows / 455, 456', { exact: true })).toBeInTheDocument();
+
+	await page
+		.getByRole('button', { name: 'Open JSON config for Houdini 21.0', exact: true })
+		.click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toMatchObject({
+			action: 'open-config',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test'
+		});
+});
+
 describe('activation workspace', () => {
 	it('selects an install from the map and updates the detail rail', async () => {
 		stubDiscovery();
