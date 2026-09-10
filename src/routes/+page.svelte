@@ -778,21 +778,23 @@
 													>
 														{pluginActionState === 'working' ? 'Working...' : 'Rescan plugin'}
 													</button>
-													<button
-														type="button"
-														class="node-action-button"
-														aria-label={`Open JSON config for ${install.label}`}
-														disabled={isScanActive || pluginActionState === 'working'}
-														onclick={(event) => {
-															stopActionPropagation(event);
-															void runSelectedPluginAction({
-																action: 'open-config',
-																installId: install.id
-															});
-														}}
-													>
-														Open JSON config
-													</button>
+													{#if target.status !== 'missing'}
+														<button
+															type="button"
+															class="node-action-button"
+															aria-label={`Open JSON config for ${install.label}`}
+															disabled={isScanActive || pluginActionState === 'working'}
+															onclick={(event) => {
+																stopActionPropagation(event);
+																void runSelectedPluginAction({
+																	action: 'open-config',
+																	installId: install.id
+																});
+															}}
+														>
+															Open JSON config
+														</button>
+													{/if}
 													<button
 														type="button"
 														class="node-action-button"
@@ -808,23 +810,25 @@
 													>
 														Open packages folder
 													</button>
-													<button
-														type="button"
-														class="node-action-button"
-														class:danger={target.status === 'enabled'}
-														aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
-														disabled={isScanActive || pluginActionState === 'working'}
-														onclick={(event) => {
-															stopActionPropagation(event);
-															void runSelectedPluginAction({
-																action: 'set-enabled',
-																installId: install.id,
-																enabled: target.status !== 'enabled'
-															});
-														}}
-													>
-														{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
-													</button>
+													{#if target.status !== 'missing'}
+														<button
+															type="button"
+															class="node-action-button"
+															class:danger={target.status === 'enabled'}
+															aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
+															disabled={isScanActive || pluginActionState === 'working'}
+															onclick={(event) => {
+																stopActionPropagation(event);
+																void runSelectedPluginAction({
+																	action: 'set-enabled',
+																	installId: install.id,
+																	enabled: target.status !== 'enabled'
+																});
+															}}
+														>
+															{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
+														</button>
+													{/if}
 												</div>
 											</div>
 										</div>

@@ -135,7 +135,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-function stubDiscovery() {
+function stubDiscovery(response = discoveryResponse) {
 	scanRequests = [];
 	pluginActionRequests = [];
 	vi.stubGlobal(
@@ -161,8 +161,8 @@ function stubDiscovery() {
 						discovery:
 							request.action === 'set-enabled'
 								? {
-										...discoveryResponse,
-										targets: discoveryResponse.targets.map((target) =>
+										...response,
+										targets: response.targets.map((target) =>
 											target.pluginId === request.pluginId && target.installId === request.installId
 												? { ...target, status: request.enabled ? 'enabled' : 'disabled' }
 												: target
@@ -188,8 +188,8 @@ function stubDiscovery() {
 			scanRequests.push(request);
 			return new Response(
 				JSON.stringify({
-					...discoveryResponse,
-					plugins: discoveryResponse.plugins.map((plugin) => ({
+					...response,
+					plugins: response.plugins.map((plugin) => ({
 						...plugin,
 						gitSyncedAt:
 							request.stage === 'git' && (request.pluginIds ?? ['package:mops']).includes(plugin.id)
@@ -207,6 +207,34 @@ function stubDiscovery() {
 		})
 	);
 }
+
+it('hides target-specific actions for a missing plugin target', async () => {
+	const missingTargetResponse = {
+		...discoveryResponse,
+		targets: discoveryResponse.targets.map((target) =>
+			target.pluginId === 'package:mops' ? { ...target, status: 'missing' as const } : target
+		)
+	};
+	stubDiscovery(missingTargetResponse);
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Rescan plugin', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Open JSON config for Houdini 21.0' }))
+		.not.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Enable plugin for Houdini 21.0' }))
+		.not.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Disable plugin for Houdini 21.0' }))
+		.not.toBeInTheDocument();
+});
 
 describe('activation workspace', () => {
 	it('selects an install from the map and updates the detail rail', async () => {
@@ -379,7 +407,7 @@ describe('activation workspace', () => {
 				pluginIds: ['package:mops']
 			});
 
-		await page.getByRole('button', { name: 'Open package folder for Houdini 21.0' }).click();
+		await page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }).click();
 		await expect
 			.poll(() => pluginActionRequests.at(-1))
 			.toEqual({
