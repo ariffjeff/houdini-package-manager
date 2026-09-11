@@ -21,6 +21,7 @@
 	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
 	import logo from '$lib/assets/hpm.svg';
 	import {
+		fetchHoudiniDiscoverySnapshot,
 		installHoudiniPlugin,
 		runHoudiniPluginAction,
 		scanHoudiniWorkspace
@@ -29,7 +30,13 @@
 	type ViewMode = 'map' | 'table';
 	type ScanStage = 'installs' | 'plugins' | 'git';
 	type ScanState = 'pending' | 'loading' | 'ready' | 'error';
-	type ScanStatus = { state: ScanState; error: string };
+	type ScanSource = 'none' | 'saved' | 'live';
+	type ScanStatus = {
+		state: ScanState;
+		error: string;
+		source: ScanSource;
+		scannedAt: string | null;
+	};
 	type ScanAction = ScanStage | 'all';
 	type ActionState = 'idle' | 'working' | 'success' | 'error';
 	type PluginTargetGroup = {
@@ -57,20 +64,23 @@
 		plugins: 'plugin inventory',
 		git: 'remote Git metadata'
 	};
+	const selectedNodeStorageKey = 'hpm:last-selected-node';
 
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
 	let selectedNodeId = $state<string | null>(null);
-	let activeScan = $state<ScanAction | null>('all');
+	let activeScan = $state<ScanAction | null>(null);
 	let initialScanStarted = false;
-	let initialScanComplete = $state(false);
 	let hasDiscoverySnapshot = $state(false);
+	let snapshotLoadState = $state<ScanState>('pending');
 	let scanStatuses = $state<Record<ScanStage, ScanStatus>>({
-		installs: { state: 'pending', error: '' },
-		plugins: { state: 'pending', error: '' },
-		git: { state: 'pending', error: '' }
+		installs: { state: 'pending', error: '', source: 'none', scannedAt: null },
+		plugins: { state: 'pending', error: '', source: 'none', scannedAt: null },
+		git: { state: 'pending', error: '', source: 'none', scannedAt: null }
 	});
 	let scannedAt = $state<string | null>(null);
+	let persistedAt = $state<string | null>(null);
+	let discoverySource = $state<'none' | 'saved' | 'live'>('none');
 	let discoveryDiagnostics = $state<HoudiniDiscoveryDiagnostic[]>([]);
 	let activationPlugins = $state<PluginRecord[]>([]);
 	let activationInstalls = $state<HoudiniInstall[]>([]);
@@ -96,15 +106,22 @@
 		return failedStage ? scanStatuses[failedStage.stage].error : '';
 	});
 	let discoveryState = $derived<'loading' | 'ready' | 'error'>(
-		activeScan === 'all' && !initialScanComplete ? 'loading' : scanError ? 'error' : 'ready'
+		!hasDiscoverySnapshot &&
+			(snapshotLoadState === 'pending' || snapshotLoadState === 'loading' || activeScan === 'all')
+			? 'loading'
+			: scanError && !hasDiscoverySnapshot
+				? 'error'
+				: 'ready'
 	);
 	let isScanActive = $derived(activeScan !== null);
 	let activeScanLabel = $derived(
-		activeScan === 'all'
-			? 'Scanning workspace'
-			: activeScan
-				? `Scanning ${scanStageLabels[activeScan]}`
-				: ''
+		snapshotLoadState === 'loading' && !hasDiscoverySnapshot
+			? 'Loading saved snapshot'
+			: activeScan === 'all'
+				? 'Scanning workspace'
+				: activeScan
+					? `Scanning ${scanStageLabels[activeScan]}`
+					: ''
 	);
 	let enabledCount = $derived(
 		activationTargets.filter((target) => target.status === 'enabled').length
@@ -244,17 +261,61 @@
 			.filter((label, index, labels) => labels.indexOf(label) === index)
 			.join(', ');
 	}
-	function scanStateLabel(state: ScanState) {
-		return state[0].toUpperCase() + state.slice(1);
+	function scanStateLabel(stage: ScanStage) {
+		const status = scanStatuses[stage];
+		if (status.state === 'loading') return stage === 'git' ? 'Syncing' : 'Scanning';
+		if (status.state === 'error') return 'Error';
+		if (status.source === 'saved') return 'Saved';
+		if (status.state === 'ready') return 'Ready';
+		return 'Not scanned';
 	}
 
-	function applyDiscovery(response: HoudiniDiscoveryResponse) {
+	function formatScanTime(timestamp: string | null) {
+		return timestamp ? new Date(timestamp).toLocaleString() : '';
+	}
+
+	function responseStageTimestamp(response: HoudiniDiscoveryResponse, stage: ScanStage) {
+		return (
+			response.stageScannedAt?.[stage] ??
+			(stage === 'installs' ? response.scannedAt : stage === 'git' ? response.gitSyncedAt : null)
+		);
+	}
+
+	function applyDiscovery(response: HoudiniDiscoveryResponse, liveStage?: ScanAction) {
 		activationPlugins = response.plugins;
 		activationInstalls = response.installs;
 		activationTargets = response.targets;
 		discoveryDiagnostics = response.diagnostics;
 		scannedAt = response.scannedAt;
+		persistedAt = response.persistedAt ?? null;
+		discoverySource = response.source ?? 'live';
 		hasDiscoverySnapshot = true;
+
+		for (const { stage } of scanStages) {
+			const timestamp = responseStageTimestamp(response, stage);
+			if (response.source === 'saved') {
+				setScanStatus(
+					stage,
+					timestamp ? 'ready' : 'pending',
+					'',
+					timestamp ? 'saved' : 'none',
+					timestamp
+				);
+				continue;
+			}
+
+			if (liveStage === 'all' || liveStage === stage) {
+				setScanStatus(
+					stage,
+					timestamp ? 'ready' : 'pending',
+					'',
+					timestamp ? 'live' : 'none',
+					timestamp
+				);
+			} else if (!scanStatuses[stage].scannedAt && timestamp) {
+				setScanStatus(stage, 'ready', '', 'live', timestamp);
+			}
+		}
 	}
 
 	function selectDefaultNode(response: HoudiniDiscoveryResponse) {
@@ -269,10 +330,37 @@
 		const firstUserPlugin = response.plugins.find((plugin) => !isOfficialPlugin(plugin));
 		const firstPlugin = firstUserPlugin ?? response.plugins[0];
 		selectedNodeId = firstPlugin ? `plugin:${firstPlugin.id}` : (response.installs[0]?.id ?? null);
+		persistSelectedNode(selectedNodeId);
 	}
 
-	function setScanStatus(stage: ScanStage, state: ScanState, error = '') {
-		scanStatuses[stage] = { state, error };
+	function restoreSelectedNode() {
+		try {
+			selectedNodeId = localStorage.getItem(selectedNodeStorageKey);
+		} catch {
+			selectedNodeId = null;
+		}
+	}
+
+	function persistSelectedNode(id: string | null) {
+		try {
+			if (id) {
+				localStorage.setItem(selectedNodeStorageKey, id);
+			} else {
+				localStorage.removeItem(selectedNodeStorageKey);
+			}
+		} catch {
+			return;
+		}
+	}
+
+	function setScanStatus(
+		stage: ScanStage,
+		state: ScanState,
+		error = '',
+		source = scanStatuses[stage].source,
+		scannedAt = scanStatuses[stage].scannedAt
+	) {
+		scanStatuses[stage] = { state, error, source, scannedAt };
 	}
 
 	function getErrorMessage(error: unknown) {
@@ -281,6 +369,7 @@
 
 	function selectNode(id: string | null) {
 		selectedNodeId = id;
+		persistSelectedNode(id);
 		installVersion = '';
 		installState = 'idle';
 		installMessage = '';
@@ -319,7 +408,7 @@
 		pluginActionMessage = '';
 		try {
 			const result = await runHoudiniPluginAction({ pluginId: plugin.id, ...request });
-			if (result.discovery) applyDiscovery(result.discovery);
+			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
 			pluginActionState = 'success';
 			pluginActionMessage = result.message;
 		} catch (error) {
@@ -357,7 +446,7 @@
 				},
 				controller.signal
 			);
-			applyDiscovery(result.discovery);
+			applyDiscovery(result.discovery, 'all');
 			installState = 'success';
 			installMessage = result.message;
 		} catch (error) {
@@ -386,7 +475,7 @@
 			stage,
 			...(pluginIds.length ? { pluginIds: [...pluginIds] } : {})
 		});
-		applyDiscovery(response);
+		applyDiscovery(response, stage);
 		setScanStatus(stage, 'ready');
 		return response;
 	}
@@ -442,13 +531,29 @@
 			}
 			if (response) {
 				selectDefaultNode(response);
-				initialScanComplete = true;
 			}
 		} catch (error) {
 			setScanStatus(currentStage, 'error', getErrorMessage(error));
 		} finally {
 			activeScan = null;
 		}
+	}
+
+	async function loadInitialDiscovery() {
+		snapshotLoadState = 'loading';
+		try {
+			const snapshot = await fetchHoudiniDiscoverySnapshot();
+			snapshotLoadState = 'ready';
+			if (snapshot) {
+				applyDiscovery(snapshot);
+				selectDefaultNode(snapshot);
+				return;
+			}
+		} catch {
+			snapshotLoadState = 'error';
+		}
+
+		await runInitialScan();
 	}
 
 	async function runGlobalScan() {
@@ -466,7 +571,6 @@
 			}
 			if (response) {
 				selectDefaultNode(response);
-				initialScanComplete = true;
 			}
 		} catch (error) {
 			setScanStatus(currentStage, 'error', getErrorMessage(error));
@@ -476,7 +580,8 @@
 	}
 
 	onMount(() => {
-		void runInitialScan();
+		restoreSelectedNode();
+		void loadInitialDiscovery();
 	});
 </script>
 
@@ -536,18 +641,42 @@
 				</div>
 				<div class="scan-status-grid">
 					{#each scanStages as scan (scan.stage)}
-						<article class="scan-card">
+						<article
+							class="scan-card"
+							aria-labelledby={`scan-${scan.stage}-title`}
+							aria-busy={scanStatuses[scan.stage].state === 'loading'}
+						>
 							<div class="scan-card-heading">
 								<div>
 									<h3 id={`scan-${scan.stage}-title`}>{scan.label}</h3>
 								</div>
 								<span
-									class={['scan-state', `scan-state-${scanStatuses[scan.stage].state}`]}
-									aria-label={`${scan.label}: ${scanStateLabel(scanStatuses[scan.stage].state)}`}
+									class={[
+										'scan-state',
+										`scan-state-${scanStatuses[scan.stage].state}`,
+										scanStatuses[scan.stage].source === 'saved' ? 'scan-state-saved' : ''
+									]}
+									role="status"
+									aria-live="polite"
+									aria-label={`${scan.label}: ${scanStateLabel(scan.stage)}`}
 								>
-									{scanStateLabel(scanStatuses[scan.stage].state)}
+									{scanStateLabel(scan.stage)}
 								</span>
 							</div>
+							<p class="scan-card-meta">
+								{#if scanStatuses[scan.stage].scannedAt}
+									{@const stageScannedAt = scanStatuses[scan.stage].scannedAt}
+									<span>{scan.stage === 'git' ? 'Last synced' : 'Last scanned'}</span>
+									<time datetime={stageScannedAt}>
+										{formatScanTime(stageScannedAt)}
+									</time>
+								{:else}
+									<span>Not yet scanned</span>
+								{/if}
+							</p>
+							{#if scanStatuses[scan.stage].source === 'saved'}
+								<p class="scan-card-source">Saved locally; may be stale.</p>
+							{/if}
 							{#if scanStatuses[scan.stage].error}
 								<p class="scan-card-error" aria-live="polite">
 									{scanStatuses[scan.stage].error}
@@ -606,8 +735,16 @@
 			{#if discoveryState === 'loading'}
 				<div class="workspace-state" aria-live="polite">
 					<span class="state-mark">...</span>
-					<h2>Scanning Houdini installs</h2>
-					<p>Running each discovered install's hconfig and inventorying package JSON files.</p>
+					<h2>
+						{snapshotLoadState === 'loading'
+							? 'Loading saved discovery'
+							: 'Scanning Houdini installs'}
+					</h2>
+					<p>
+						{snapshotLoadState === 'loading'
+							? 'Restoring the last completed scan while keeping startup responsive.'
+							: "Running each discovered install's hconfig and inventorying package JSON files."}
+					</p>
 				</div>
 			{:else if discoveryState === 'error' && !hasDiscoverySnapshot}
 				<div class="workspace-state" aria-live="assertive">
@@ -992,9 +1129,14 @@
 						? `${discoveryDiagnostics.length} workspace diagnostics`
 						: 'hconfig scan complete'}</span
 				>
-				{#if scannedAt}<time datetime={scannedAt}
-						>Scanned {new Date(scannedAt).toLocaleString()}</time
-					>{/if}
+				<div class="scan-footer-meta">
+					{#if discoverySource === 'saved'}<span>Saved snapshot; may be stale.</span>{/if}
+					{#if persistedAt}
+						<time datetime={persistedAt}>Saved {formatScanTime(persistedAt)}</time>
+					{:else if scannedAt}
+						<time datetime={scannedAt}>Scanned {formatScanTime(scannedAt)}</time>
+					{/if}
+				</div>
 			</div>
 		{/if}
 	</main>
@@ -1114,9 +1256,37 @@
 		color: #399b82;
 	}
 
+	.scan-state-saved {
+		border-color: rgba(211, 155, 56, 0.45);
+		color: #d39b38;
+	}
+
 	.scan-state-error {
 		border-color: rgba(223, 109, 88, 0.45);
 		color: #df6d58;
+	}
+
+	.scan-card-meta,
+	.scan-card-source {
+		margin: 0;
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.4;
+	}
+
+	.scan-card-meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+	}
+
+	.scan-card-meta span:first-child {
+		color: var(--text-dim);
+	}
+
+	.scan-card-source {
+		color: #d39b38;
 	}
 
 	.scan-card-error {
@@ -1735,6 +1905,14 @@
 		font-size: 8px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
+	}
+
+	.scan-footer-meta {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 10px;
+		text-align: right;
 	}
 
 	.path-facts code {

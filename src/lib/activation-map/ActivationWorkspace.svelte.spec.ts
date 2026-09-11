@@ -127,15 +127,27 @@ const discoveryResponse = {
 		}
 	],
 	scannedAt: '2026-09-06T00:00:00.000Z',
+	stageScannedAt: {
+		installs: '2026-09-06T00:00:00.000Z',
+		plugins: '2026-09-06T00:01:00.000Z',
+		git: null
+	},
 	gitSyncedAt: null,
+	gitSyncedPluginIds: [],
+	persistedAt: '2026-09-06T00:01:00.000Z',
+	source: 'live' as const,
 	diagnostics: []
 };
 
 afterEach(() => {
+	localStorage.removeItem('hpm:last-selected-node');
 	vi.unstubAllGlobals();
 });
 
-function stubDiscovery(response = discoveryResponse) {
+function stubDiscovery(
+	response = discoveryResponse,
+	snapshotResponse: typeof discoveryResponse | null = null
+) {
 	scanRequests = [];
 	pluginActionRequests = [];
 	vi.stubGlobal(
@@ -143,6 +155,17 @@ function stubDiscovery(response = discoveryResponse) {
 		vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const requestUrl = typeof input === 'string' ? input : input.toString();
 			const requestPath = new URL(requestUrl, 'http://localhost').pathname;
+			if (requestPath === '/__hpm/houdini/snapshot') {
+				if (!snapshotResponse) return new Response(null, { status: 404 });
+				return new Response(
+					JSON.stringify({
+						...snapshotResponse,
+						source: 'saved',
+						persistedAt: snapshotResponse.persistedAt ?? '2026-09-06T00:01:00.000Z'
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			}
 			if (requestPath === '/__hpm/houdini/plugin-action') {
 				const request = JSON.parse(String(init?.body)) as {
 					action: string;
@@ -189,6 +212,10 @@ function stubDiscovery(response = discoveryResponse) {
 			return new Response(
 				JSON.stringify({
 					...response,
+					stageScannedAt: {
+						...response.stageScannedAt,
+						[request.stage]: new Date().toISOString()
+					},
 					plugins: response.plugins.map((plugin) => ({
 						...plugin,
 						gitSyncedAt:
@@ -220,7 +247,7 @@ it('hides target-specific actions for a missing plugin target', async () => {
 
 	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
 	await expect
-		.element(page.getByRole('button', { name: 'Rescan plugin', exact: true }))
+		.element(page.getByRole('button', { name: 'Rescan config', exact: true }))
 		.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }))
@@ -242,6 +269,31 @@ it('hides target-specific actions for a missing plugin target', async () => {
 	await expect
 		.element(page.getByRole('button', { name: 'Disable plugin for Houdini 21.0' }))
 		.not.toBeInTheDocument();
+});
+
+it('hydrates a saved snapshot without running automatic scans', async () => {
+	stubDiscovery(discoveryResponse, discoveryResponse);
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByText('Saved snapshot; may be stale.', { exact: true }))
+		.toBeInTheDocument();
+	await expect.poll(() => scanRequests).toEqual([]);
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini installs: Saved' }))
+		.toBeInTheDocument();
+});
+
+it('restores the last selected node from local storage', async () => {
+	localStorage.setItem('hpm:last-selected-node', 'plugin:package:qlib');
+	stubDiscovery(discoveryResponse, discoveryResponse);
+	render(Page);
+
+	await expect
+		.element(page.getByRole('heading', { name: 'qLib', exact: true }))
+		.toBeInTheDocument();
+	await expect.poll(() => scanRequests).toEqual([]);
 });
 
 it('groups plugin targets that share a Houdini minor version', async () => {
@@ -427,7 +479,7 @@ describe('activation workspace', () => {
 		render(Page);
 
 		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
-		await page.getByRole('button', { name: 'Rescan plugin' }).click();
+		await page.getByRole('button', { name: 'Rescan config' }).click();
 		await expect
 			.poll(() => scanRequests.at(-1))
 			.toEqual({

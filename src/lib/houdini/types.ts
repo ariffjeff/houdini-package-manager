@@ -8,6 +8,8 @@ export type PluginVersionSource = 'package' | 'git' | 'filename' | 'unknown';
 
 export type HoudiniScanStage = 'all' | 'installs' | 'plugins' | 'git';
 
+export type HoudiniDiscoveryStage = Exclude<HoudiniScanStage, 'all'>;
+
 export type HoudiniScanRequest = {
 	stage: HoudiniScanStage;
 	pluginIds?: string[];
@@ -87,8 +89,11 @@ export type HoudiniDiscoveryResponse = {
 		note: string;
 	}>;
 	scannedAt: string;
+	stageScannedAt: Record<HoudiniDiscoveryStage, string | null>;
 	gitSyncedAt: string | null;
 	gitSyncedPluginIds: string[];
+	persistedAt: string | null;
+	source: 'live' | 'saved';
 	diagnostics: HoudiniDiscoveryDiagnostic[];
 };
 

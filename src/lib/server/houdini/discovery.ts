@@ -1,12 +1,13 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type {
 	HoudiniDiscoveryDiagnostic,
 	HoudiniDiscoveryResponse,
+	HoudiniDiscoveryStage,
 	HoudiniInstall,
 	HoudiniPlatform,
 	HoudiniScanRequest,
@@ -55,9 +56,28 @@ type DiscoveryCache = {
 	scannedInstalls: ScannedInstall[];
 	diagnostics: HoudiniDiscoveryDiagnostic[];
 	scannedAt: string;
+	stageScannedAt: Record<HoudiniDiscoveryStage, string | null>;
 	gitSyncedAt: string | null;
 	gitSyncedPluginIds: string[];
 	gitSyncedAtByPluginId: Record<string, string>;
+	persistedAt: string | null;
+};
+
+type PersistedDiscoverySnapshot = {
+	version: 1;
+	savedAt: string;
+	cache: {
+		scannedInstalls: Array<{
+			install: HoudiniInstall;
+			packages: Array<[string, PackageConfig]>;
+		}>;
+		diagnostics: HoudiniDiscoveryDiagnostic[];
+		scannedAt: string;
+		stageScannedAt: Record<HoudiniDiscoveryStage, string | null>;
+		gitSyncedAt: string | null;
+		gitSyncedPluginIds: string[];
+		gitSyncedAtByPluginId: Record<string, string>;
+	};
 };
 
 type InstallIdentity = {
@@ -110,6 +130,16 @@ export async function discoverHoudiniWorkspace(): Promise<HoudiniDiscoveryRespon
 	return scanHoudiniWorkspace({ stage: 'all' });
 }
 
+export async function loadHoudiniDiscoverySnapshot(): Promise<HoudiniDiscoveryResponse | null> {
+	if (!discoveryCache?.persistedAt) {
+		discoveryCache = await readPersistedDiscoveryCache();
+	}
+
+	if (!discoveryCache?.persistedAt) return null;
+
+	return buildDiscoveryResponse(discoveryCache, 'saved');
+}
+
 export async function scanHoudiniWorkspace(
 	request: HoudiniScanRequest
 ): Promise<HoudiniDiscoveryResponse> {
@@ -122,6 +152,7 @@ export async function scanHoudiniWorkspace(
 			undefined,
 			false
 		);
+		const pluginsScannedAt = new Date().toISOString();
 		const withGit = await discoverPluginsForInstalls(withPlugins, undefined, true);
 		const gitSyncedAt = new Date().toISOString();
 		const gitSyncedPluginIds = collectGitPluginIds(withGit);
@@ -131,7 +162,12 @@ export async function scanHoudiniWorkspace(
 			discovered.diagnostics,
 			gitSyncedAt,
 			gitSyncedPluginIds,
-			updateGitSyncTimes({}, gitSyncedPluginIds, gitSyncedAt)
+			updateGitSyncTimes(discovered.gitSyncedAtByPluginId, gitSyncedPluginIds, gitSyncedAt),
+			{
+				installs: discovered.scannedAt,
+				plugins: pluginsScannedAt,
+				git: gitSyncedAt
+			}
 		);
 	}
 
@@ -155,7 +191,11 @@ export async function scanHoudiniWorkspace(
 			discovered.diagnostics,
 			discovered.gitSyncedAt,
 			discovered.gitSyncedPluginIds,
-			discovered.gitSyncedAtByPluginId
+			discovered.gitSyncedAtByPluginId,
+			{
+				...discovered.stageScannedAt,
+				installs: discovered.scannedAt
+			}
 		);
 	}
 
@@ -166,6 +206,7 @@ export async function scanHoudiniWorkspace(
 		pluginIds,
 		request.stage === 'git'
 	);
+	const stageScannedAt = new Date().toISOString();
 	const gitSyncedPluginIds =
 		request.stage === 'git'
 			? collectGitPluginIds(scannedInstalls, pluginIds)
@@ -186,7 +227,11 @@ export async function scanHoudiniWorkspace(
 					gitSyncedPluginIds,
 					gitSyncedAt ?? new Date().toISOString()
 				)
-			: base.gitSyncedAtByPluginId
+			: base.gitSyncedAtByPluginId,
+		{
+			...base.stageScannedAt,
+			[request.stage]: stageScannedAt
+		}
 	);
 }
 
@@ -238,14 +283,25 @@ async function discoverInstallScans(): Promise<DiscoveryCache> {
 		scannedInstalls,
 		scannedAt,
 		diagnostics,
+		stageScannedAt: {
+			...emptyStageScannedAt(),
+			...(discoveryCache?.stageScannedAt ?? {})
+		},
 		gitSyncedAt: discoveryCache?.gitSyncedAt ?? null,
 		gitSyncedPluginIds: discoveryCache?.gitSyncedPluginIds ?? [],
-		gitSyncedAtByPluginId: discoveryCache?.gitSyncedAtByPluginId ?? {}
+		gitSyncedAtByPluginId: discoveryCache?.gitSyncedAtByPluginId ?? {},
+		persistedAt: discoveryCache?.persistedAt ?? null
 	};
 }
 
 async function ensureDiscoveryCache(): Promise<DiscoveryCache> {
 	if (discoveryCache) return discoveryCache;
+
+	const persisted = await readPersistedDiscoveryCache();
+	if (persisted) {
+		discoveryCache = persisted;
+		return persisted;
+	}
 
 	const discovered = await discoverInstallScans();
 	discoveryCache = discovered;
@@ -325,30 +381,162 @@ function updateInstallPackageData(
 	};
 }
 
-function cacheAndBuild(
+async function cacheAndBuild(
 	scannedInstalls: ScannedInstall[],
 	scannedAt: string,
 	diagnostics: HoudiniDiscoveryDiagnostic[],
 	gitSyncedAt: string | null,
 	gitSyncedPluginIds: string[],
-	gitSyncedAtByPluginId: Record<string, string>
-): HoudiniDiscoveryResponse {
-	discoveryCache = {
+	gitSyncedAtByPluginId: Record<string, string>,
+	stageScannedAt: Record<HoudiniDiscoveryStage, string | null>
+): Promise<HoudiniDiscoveryResponse> {
+	const nextCache: DiscoveryCache = {
 		scannedInstalls,
 		scannedAt,
 		diagnostics,
-		gitSyncedAt,
-		gitSyncedPluginIds,
-		gitSyncedAtByPluginId
-	};
-	return buildDiscoveryResponse(
-		scannedInstalls,
-		scannedAt,
+		stageScannedAt,
 		gitSyncedAt,
 		gitSyncedPluginIds,
 		gitSyncedAtByPluginId,
-		diagnostics
-	);
+		persistedAt: null
+	};
+	discoveryCache = nextCache;
+	const persistedAt = await persistDiscoveryCache(nextCache);
+	discoveryCache = { ...nextCache, persistedAt };
+	return buildDiscoveryResponse(discoveryCache, 'live');
+}
+
+function emptyStageScannedAt(): Record<HoudiniDiscoveryStage, string | null> {
+	return { installs: null, plugins: null, git: null };
+}
+
+async function persistDiscoveryCache(cache: DiscoveryCache): Promise<string> {
+	const savedAt = new Date().toISOString();
+	const snapshot: PersistedDiscoverySnapshot = {
+		version: 1,
+		savedAt,
+		cache: {
+			scannedInstalls: cache.scannedInstalls.map(({ install, packages }) => ({
+				install,
+				packages: [...packages.entries()]
+			})),
+			diagnostics: cache.diagnostics,
+			scannedAt: cache.scannedAt,
+			stageScannedAt: cache.stageScannedAt,
+			gitSyncedAt: cache.gitSyncedAt,
+			gitSyncedPluginIds: cache.gitSyncedPluginIds,
+			gitSyncedAtByPluginId: cache.gitSyncedAtByPluginId
+		}
+	};
+	const snapshotPath = discoverySnapshotPath();
+	const temporaryPath = `${snapshotPath}.${process.pid}.${randomUUID()}.tmp`;
+
+	await mkdir(path.dirname(snapshotPath), { recursive: true });
+	try {
+		await writeFile(temporaryPath, `${JSON.stringify(snapshot)}\n`, 'utf8');
+		await rename(temporaryPath, snapshotPath);
+	} catch (error) {
+		await rm(temporaryPath, { force: true }).catch(() => undefined);
+		throw new Error(
+			`Could not persist Houdini discovery snapshot: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error }
+		);
+	}
+
+	return savedAt;
+}
+
+async function readPersistedDiscoveryCache(): Promise<DiscoveryCache | null> {
+	let value: unknown;
+	try {
+		value = JSON.parse(await readFile(discoverySnapshotPath(), 'utf8')) as unknown;
+	} catch {
+		return null;
+	}
+
+	return deserializeDiscoveryCache(value);
+}
+
+function deserializeDiscoveryCache(value: unknown): DiscoveryCache | null {
+	if (!isRecord(value) || value.version !== 1 || typeof value.savedAt !== 'string') return null;
+	if (!isRecord(value.cache) || !Array.isArray(value.cache.scannedInstalls)) return null;
+	if (
+		typeof value.cache.scannedAt !== 'string' ||
+		!Array.isArray(value.cache.diagnostics) ||
+		!Array.isArray(value.cache.gitSyncedPluginIds) ||
+		!isRecord(value.cache.gitSyncedAtByPluginId)
+	) {
+		return null;
+	}
+
+	const scannedInstalls: ScannedInstall[] = [];
+	for (const scanned of value.cache.scannedInstalls) {
+		if (!isRecord(scanned) || !isRecord(scanned.install) || !Array.isArray(scanned.packages)) {
+			return null;
+		}
+
+		const packages = new Map<string, PackageConfig>();
+		for (const entry of scanned.packages) {
+			if (
+				!Array.isArray(entry) ||
+				entry.length !== 2 ||
+				typeof entry[0] !== 'string' ||
+				!isRecord(entry[1])
+			) {
+				return null;
+			}
+			packages.set(entry[0], entry[1] as unknown as PackageConfig);
+		}
+
+		scannedInstalls.push({
+			install: scanned.install as unknown as HoudiniInstall,
+			packages
+		});
+	}
+
+	return {
+		scannedInstalls,
+		diagnostics: value.cache.diagnostics as HoudiniDiscoveryDiagnostic[],
+		scannedAt: value.cache.scannedAt,
+		stageScannedAt: readStageScannedAt(value.cache.stageScannedAt, value.cache.scannedAt),
+		gitSyncedAt: typeof value.cache.gitSyncedAt === 'string' ? value.cache.gitSyncedAt : null,
+		gitSyncedPluginIds: value.cache.gitSyncedPluginIds.filter(
+			(pluginId): pluginId is string => typeof pluginId === 'string'
+		),
+		gitSyncedAtByPluginId: Object.fromEntries(
+			Object.entries(value.cache.gitSyncedAtByPluginId).filter(
+				(entry): entry is [string, string] => typeof entry[1] === 'string'
+			)
+		),
+		persistedAt: value.savedAt
+	};
+}
+
+function readStageScannedAt(
+	value: unknown,
+	legacyScannedAt: string
+): Record<HoudiniDiscoveryStage, string | null> {
+	if (!isRecord(value)) {
+		return { installs: legacyScannedAt, plugins: null, git: null };
+	}
+
+	return {
+		installs: typeof value.installs === 'string' ? value.installs : legacyScannedAt,
+		plugins: typeof value.plugins === 'string' ? value.plugins : null,
+		git: typeof value.git === 'string' ? value.git : null
+	};
+}
+
+function discoverySnapshotPath(): string {
+	const configuredPath = process.env.HPM_DISCOVERY_SNAPSHOT_PATH?.trim();
+	if (configuredPath) return path.resolve(configuredPath);
+
+	const dataDirectory = isWindows
+		? (process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'))
+		: process.platform === 'darwin'
+			? path.join(os.homedir(), 'Library', 'Application Support')
+			: (process.env.XDG_STATE_HOME ?? path.join(os.homedir(), '.local', 'state'));
+	return path.join(dataDirectory, 'HoudiniPackageManager', 'discovery-snapshot.json');
 }
 
 function updateGitSyncTimes(
@@ -387,13 +575,17 @@ function normalizePluginIds(pluginIds: string[] | undefined): Set<string> | unde
 }
 
 function buildDiscoveryResponse(
-	scannedInstalls: ScannedInstall[],
-	scannedAt: string,
-	gitSyncedAt: string | null,
-	gitSyncedPluginIds: string[],
-	gitSyncedAtByPluginId: Record<string, string>,
-	diagnostics: HoudiniDiscoveryDiagnostic[]
+	cache: DiscoveryCache,
+	source: 'live' | 'saved'
 ): HoudiniDiscoveryResponse {
+	const {
+		scannedInstalls,
+		scannedAt,
+		gitSyncedAt,
+		gitSyncedPluginIds,
+		gitSyncedAtByPluginId,
+		diagnostics
+	} = cache;
 	const pluginsById = new Map<string, PluginRecord>();
 	for (const scanned of scannedInstalls) {
 		for (const packageConfig of scanned.packages.values()) {
@@ -453,8 +645,11 @@ function buildDiscoveryResponse(
 		plugins,
 		targets,
 		scannedAt,
+		stageScannedAt: cache.stageScannedAt,
 		gitSyncedAt,
 		gitSyncedPluginIds,
+		persistedAt: cache.persistedAt,
+		source,
 		diagnostics
 	};
 }

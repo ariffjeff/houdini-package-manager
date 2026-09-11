@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
 	normalizeRepositoryUrl,
 	packageRoots,
@@ -13,6 +14,7 @@ import {
 	resolveAvailableGitTags,
 	resolvePackageTargetStatus,
 	resolvePluginVersion,
+	loadHoudiniDiscoverySnapshot,
 	scanHoudiniWorkspace
 } from './discovery';
 import type { HoudiniScanRequest } from '../../houdini/types';
@@ -272,4 +274,82 @@ UNSET_VALUE := '<not defined>'
 
 		expect(resolveAvailableGitTags('v1.10.0\nv1.9.2e', '')).toEqual(['v1.10.0', 'v1.9.2e']);
 	});
+
+	it('hydrates a saved cache and persists refreshed package maps after a staged scan', async () => {
+		const directory = await mkdtemp(path.join(os.tmpdir(), 'hpm-discovery-'));
+		const snapshotPath = path.join(directory, 'discovery-snapshot.json');
+		const packagesDirectory = path.join(directory, 'packages');
+		const pluginDirectory = path.join(directory, 'MOPS');
+		await mkdir(pluginDirectory, { recursive: true });
+		await mkdir(packagesDirectory, { recursive: true });
+		await writeFile(
+			path.join(packagesDirectory, 'MOPS.json'),
+			JSON.stringify({ version: 'v1.10.0', path: pluginDirectory }),
+			'utf8'
+		);
+
+		const scannedAt = '2026-09-06T00:00:00.000Z';
+		const install = {
+			id: 'install:test',
+			label: 'Houdini 21.0',
+			version: '21.0',
+			build: '455',
+			platform: 'Windows',
+			architecture: 'x86_64',
+			role: 'Test install',
+			hfs: directory,
+			hconfig: path.join(directory, 'bin', 'hconfig.exe'),
+			userPreferences: directory,
+			packageDirectory: packagesDirectory,
+			packageRoots: [{ path: packagesDirectory, origin: 'user' }],
+			packageCount: 0,
+			packageFiles: [],
+			houdiniPath: [],
+			variables: {},
+			health: 'ready',
+			diagnostics: [],
+			scannedAt
+		};
+		await writeFile(
+			snapshotPath,
+			JSON.stringify({
+				version: 1,
+				savedAt: scannedAt,
+				cache: {
+					scannedInstalls: [{ install, packages: [] }],
+					diagnostics: [],
+					scannedAt,
+					stageScannedAt: { installs: scannedAt, plugins: null, git: null },
+					gitSyncedAt: null,
+					gitSyncedPluginIds: [],
+					gitSyncedAtByPluginId: {}
+				}
+			}),
+			'utf8'
+		);
+		process.env.HPM_DISCOVERY_SNAPSHOT_PATH = snapshotPath;
+
+		const saved = await loadHoudiniDiscoverySnapshot();
+		expect(saved?.source).toBe('saved');
+		expect(saved?.stageScannedAt).toEqual({ installs: scannedAt, plugins: null, git: null });
+
+		const refreshed = await scanHoudiniWorkspace({ stage: 'plugins' });
+		expect(refreshed.source).toBe('live');
+		expect(refreshed.plugins.map((plugin) => plugin.id)).toEqual(['package:mops']);
+		expect(refreshed.stageScannedAt.plugins).toBeTruthy();
+		expect(refreshed.persistedAt).toBeTruthy();
+
+		const persisted = JSON.parse(await readFile(snapshotPath, 'utf8')) as {
+			version: number;
+			cache: { scannedInstalls: Array<{ packages: unknown[] }> };
+		};
+		expect(persisted.version).toBe(1);
+		expect(persisted.cache.scannedInstalls[0].packages).toHaveLength(1);
+
+		await rm(directory, { recursive: true, force: true });
+	});
+});
+
+afterEach(() => {
+	delete process.env.HPM_DISCOVERY_SNAPSHOT_PATH;
 });

@@ -8,12 +8,30 @@ import type {
 } from './types';
 
 const discoveryEndpoint = '/__hpm/houdini/installs';
+const snapshotEndpoint = '/__hpm/houdini/snapshot';
 const scanEndpoint = '/__hpm/houdini/scan';
 
 export async function fetchHoudiniDiscovery(): Promise<HoudiniDiscoveryResponse> {
 	const response = await fetch(discoveryEndpoint, { cache: 'no-store' });
 	if (!response.ok) {
 		let message = `Houdini discovery failed with HTTP ${response.status}.`;
+		try {
+			const body = (await response.json()) as { error?: string };
+			if (body.error) message = body.error;
+		} catch {
+			// Keep the HTTP error when the bridge did not return JSON.
+		}
+		throw new Error(message);
+	}
+
+	return (await response.json()) as HoudiniDiscoveryResponse;
+}
+
+export async function fetchHoudiniDiscoverySnapshot(): Promise<HoudiniDiscoveryResponse | null> {
+	const response = await fetch(snapshotEndpoint, { cache: 'no-store' });
+	if (response.status === 404) return null;
+	if (!response.ok) {
+		let message = `Saved Houdini discovery failed with HTTP ${response.status}.`;
 		try {
 			const body = (await response.json()) as { error?: string };
 			if (body.error) message = body.error;

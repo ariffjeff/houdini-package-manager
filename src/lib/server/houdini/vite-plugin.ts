@@ -5,10 +5,15 @@ import type {
 	HoudiniScanRequest,
 	InstallPluginRequest
 } from '../../houdini/types.js';
-import { discoverHoudiniWorkspace, scanHoudiniWorkspace } from './discovery.js';
+import {
+	discoverHoudiniWorkspace,
+	loadHoudiniDiscoverySnapshot,
+	scanHoudiniWorkspace
+} from './discovery.js';
 import { installHoudiniPlugin, runHoudiniPluginAction } from './installer.js';
 
 const endpoint = '/__hpm/houdini/installs';
+const snapshotEndpoint = '/__hpm/houdini/snapshot';
 const scanEndpoint = '/__hpm/houdini/scan';
 const installEndpoint = '/__hpm/houdini/install';
 const pluginActionEndpoint = '/__hpm/houdini/plugin-action';
@@ -21,11 +26,18 @@ export function houdiniDiscoveryPlugin(): Plugin {
 	) => {
 		const url = new URL(request.url ?? '/', 'http://localhost');
 		const isDiscoveryRequest = request.method === 'GET' && url.pathname === endpoint;
+		const isSnapshotRequest = request.method === 'GET' && url.pathname === snapshotEndpoint;
 		const isScanRequest = request.method === 'POST' && url.pathname === scanEndpoint;
 		const isInstallRequest = request.method === 'POST' && url.pathname === installEndpoint;
 		const isPluginActionRequest =
 			request.method === 'POST' && url.pathname === pluginActionEndpoint;
-		if (!isDiscoveryRequest && !isScanRequest && !isInstallRequest && !isPluginActionRequest) {
+		if (
+			!isDiscoveryRequest &&
+			!isSnapshotRequest &&
+			!isScanRequest &&
+			!isInstallRequest &&
+			!isPluginActionRequest
+		) {
 			next();
 			return;
 		}
@@ -39,14 +51,22 @@ export function houdiniDiscoveryPlugin(): Plugin {
 			response.once('close', abortInstall);
 			const result = isDiscoveryRequest
 				? await discoverHoudiniWorkspace()
-				: isScanRequest
-					? await scanHoudiniWorkspace(await readJsonBody<HoudiniScanRequest>(request))
-					: isInstallRequest
-						? await installHoudiniPlugin(
-								await readJsonBody<InstallPluginRequest>(request),
-								abortController.signal
-							)
-						: await runHoudiniPluginAction(await readJsonBody<HoudiniPluginAction>(request));
+				: isSnapshotRequest
+					? await loadHoudiniDiscoverySnapshot()
+					: isScanRequest
+						? await scanHoudiniWorkspace(await readJsonBody<HoudiniScanRequest>(request))
+						: isInstallRequest
+							? await installHoudiniPlugin(
+									await readJsonBody<InstallPluginRequest>(request),
+									abortController.signal
+								)
+							: await runHoudiniPluginAction(await readJsonBody<HoudiniPluginAction>(request));
+			if (isSnapshotRequest && !result) {
+				response.statusCode = 404;
+				response.setHeader('content-type', 'application/json; charset=utf-8');
+				response.end(JSON.stringify({ error: 'No saved Houdini discovery snapshot exists.' }));
+				return;
+			}
 			response.statusCode = 200;
 			response.setHeader('content-type', 'application/json; charset=utf-8');
 			response.setHeader('cache-control', 'no-store');
