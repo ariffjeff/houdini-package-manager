@@ -91,7 +91,9 @@ const validScanStages = new Set<HoudiniScanStage>(['all', 'installs', 'plugins',
 export type GitMetadata = {
 	ref: string;
 	commit: string;
+	author: string | null;
 	repositoryUrl: string | null;
+	license: string | null;
 	availableVersions: string[];
 };
 
@@ -834,6 +836,7 @@ async function readPackageConfigs(
 				plugin: {
 					id: pluginId,
 					name: formatPackageName(entry.name),
+					author: git?.author ?? undefined,
 					description: missingPaths.length
 						? existingPaths.length
 							? `Resolved through ${existingPaths[0]}; missing ${missingPaths[0]}`
@@ -842,7 +845,10 @@ async function readPackageConfigs(
 							? `Resolved through ${existingPaths[0]}`
 							: 'No available plugin source found.',
 					version: versionInfo.version,
-					license: 'Not declared',
+					license:
+						typeof parsed?.license === 'string' && parsed.license.trim()
+							? parsed.license.trim()
+							: (git?.license ?? 'Not declared'),
 					source: existingPaths[0] ?? paths[0] ?? directory,
 					tags: ['hconfig', origin],
 					packageFile: entry.name,
@@ -928,6 +934,7 @@ export function mergePluginRecords(left: PluginRecord, right: PluginRecord): Plu
 	return {
 		...left,
 		origin: officialRecord?.origin ?? left.origin,
+		author: left.author ?? right.author,
 		valid: left.valid || right.valid,
 		tags: uniqueStrings([...left.tags, ...right.tags]),
 		source: primary?.path ?? left.source,
@@ -1222,23 +1229,36 @@ async function inspectGitPath(
 	const repositoryRoot = await runGit(['rev-parse', '--show-toplevel']);
 	if (!repositoryRoot) return null;
 
-	const [description, commit, remote, localTags] = await Promise.all([
+	const [description, commit, remote, localTags, trackedFiles] = await Promise.all([
 		runGit(['describe', '--tags', '--always', '--dirty']),
 		runGit(['rev-parse', '--short', 'HEAD']),
 		runGit(['config', '--get', 'remote.origin.url']),
-		runGit(['tag', '--sort=-version:refname'])
+		runGit(['tag', '--sort=-version:refname']),
+		runGit(['ls-tree', '-r', '--name-only', 'HEAD'])
 	]);
 	const remoteTags =
 		syncRemoteGit && remote
 			? await runGit(['ls-remote', '--tags', '--refs', '--sort=-version:refname', 'origin'])
 			: '';
 
+	const repositoryUrl = normalizeRepositoryUrl(remote);
+
 	return {
 		ref: description || commit || 'git',
 		commit,
-		repositoryUrl: normalizeRepositoryUrl(remote),
+		author: githubAccountFromRepositoryUrl(repositoryUrl),
+		repositoryUrl,
+		license: detectLicenseFile(trackedFiles),
 		availableVersions: resolveAvailableGitTags(localTags, remoteTags)
 	};
+}
+
+function detectLicenseFile(trackedFiles: string): string | null {
+	const licenseFile = trackedFiles.split(/\r?\n/).find((file) => {
+		const name = path.basename(file).toLowerCase();
+		return /^licen[cs]e(?:[._-]|$)/.test(name) || /^copying(?:[._-]|$)/.test(name);
+	});
+	return licenseFile ? 'License file present' : null;
 }
 
 export function resolveAvailableGitTags(localOutput: string, remoteOutput: string): string[] {
@@ -1288,6 +1308,20 @@ export function normalizeRepositoryUrl(remote: string): string | null {
 	}
 
 	return value.replace(/\.git$/, '');
+}
+
+export function githubAccountFromRepositoryUrl(repositoryUrl: string | null): string | null {
+	if (!repositoryUrl) return null;
+
+	try {
+		const url = new URL(repositoryUrl);
+		if (url.hostname.toLowerCase() !== 'github.com') return null;
+
+		const account = url.pathname.split('/').filter(Boolean)[0];
+		return account ? decodeURIComponent(account) : null;
+	} catch {
+		return null;
+	}
 }
 
 function packageId(fileName: string): string {

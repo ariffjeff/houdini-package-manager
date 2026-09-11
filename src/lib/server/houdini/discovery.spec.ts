@@ -8,6 +8,7 @@ import {
 	parseHconfigOutput,
 	parseInstallIdentity,
 	findMissingPackagePaths,
+	githubAccountFromRepositoryUrl,
 	mergePluginRecords,
 	mergePluginSources,
 	resolvePackagePaths,
@@ -117,6 +118,8 @@ UNSET_VALUE := '<not defined>'
 		expect(normalizeRepositoryUrl('https://github.com/Aeoll/Aelib.git')).toBe(
 			'https://github.com/Aeoll/Aelib'
 		);
+		expect(githubAccountFromRepositoryUrl('https://github.com/Aeoll/Aelib')).toBe('Aeoll');
+		expect(githubAccountFromRepositoryUrl('https://gitlab.com/example/Aelib')).toBeNull();
 	});
 
 	it('resolves package paths from variables and array-valued package environments', () => {
@@ -246,7 +249,9 @@ UNSET_VALUE := '<not defined>'
 		const git = {
 			ref: 'v1.10.0',
 			commit: 'abc1234',
+			author: 'toadstorm',
 			repositoryUrl: 'https://github.com/toadstorm/MOPS',
+			license: null,
 			availableVersions: ['v1.10.0']
 		};
 

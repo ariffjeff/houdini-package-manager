@@ -28,6 +28,7 @@ function plugin(id: string, name: string, origin: PluginRecord['origin']): Plugi
 	return {
 		id,
 		name,
+		author: id === 'package:custom' ? 'AJ' : undefined,
 		description: `${name} package`,
 		version: 'Unversioned',
 		license: 'Not declared',

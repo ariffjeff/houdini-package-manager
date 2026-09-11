@@ -28,6 +28,7 @@ export type PluginSource = {
 export type PluginRecord = {
 	id: string;
 	name: string;
+	author?: string;
 	description: string;
 	version: string;
 	license: string;

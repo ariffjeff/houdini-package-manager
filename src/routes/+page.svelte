@@ -1,6 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import {
+		Check,
+		FileCog,
+		GitBranch,
+		Globe,
+		GlobeOff,
+		FolderCode,
+		RefreshCw,
+		Square,
+		TriangleAlert,
+		CloudSync
+	} from '@lucide/svelte';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
 	import {
@@ -43,6 +55,12 @@
 		representativeInstall: HoudiniInstall;
 		target: ActivationTarget;
 		installs: HoudiniInstall[];
+	};
+	type TooltipState = {
+		text: string;
+		left: number;
+		top: number;
+		placement: 'above' | 'below';
 	};
 
 	const scanStages: Array<{ stage: ScanStage; label: string }> = [
@@ -93,8 +111,9 @@
 	let installController: AbortController | null = null;
 	let gitSyncState = $state<ActionState>('idle');
 	let gitSyncMessage = $state('');
+	let pluginScanState = $state<ActionState>('idle');
 	let pluginActionState = $state<ActionState>('idle');
-	let pluginActionMessage = $state('');
+	let tooltip = $state<TooltipState | null>(null);
 
 	let activationGraph = $derived(
 		createActivationGraph(activationPlugins, activationInstalls, activationTargets)
@@ -153,6 +172,9 @@
 		selectedNode?.data.kind === 'plugin'
 			? activationPlugins.find((plugin) => `plugin:${plugin.id}` === selectedNode.id)
 			: undefined
+	);
+	let selectedPluginGitSource = $derived(
+		selectedPlugin?.sources?.find((source) => source.exists && source.versionSource === 'git')
 	);
 	let selectedInstall = $derived(
 		selectedNode?.data.kind === 'install'
@@ -229,7 +251,7 @@
 		const groups: PluginTargetGroup[] = [];
 		for (const install of activationInstalls) {
 			const target = targetFor(activationTargets, plugin.id, install.id);
-			if (!target) continue;
+			if (!target?.packagePath) continue;
 
 			const existing = groups.find(
 				(group) => group.representativeInstall.version === install.version
@@ -249,18 +271,17 @@
 		return groups;
 	});
 
-	function installBuildLabel(installs: HoudiniInstall[]): string {
-		const platforms = [...new Set(installs.map((install) => install.platform))];
-		if (platforms.length === 1) {
-			const builds = [...new Set(installs.map((install) => install.build))];
-			return `${platforms[0]} / ${builds.join(', ')}`;
-		}
-
-		return installs
-			.map((install) => `${install.platform} / ${install.build}`)
-			.filter((label, index, labels) => labels.indexOf(label) === index)
-			.join(', ');
+	function installBuildLabels(installs: HoudiniInstall[]): string[] {
+		return [...new Set(installs.map((install) => install.build))];
 	}
+
+	function installedVersionLabel(plugin: PluginRecord): string {
+		const installedVersions = plugin.installedVersions ?? [];
+		if (installedVersions.length > 1) return `${installedVersions.length} versions installed`;
+		if (installedVersions.length === 1) return installedVersions[0];
+		return 'No version';
+	}
+
 	function scanStateLabel(stage: ScanStage) {
 		const status = scanStatuses[stage];
 		if (status.state === 'loading') return stage === 'git' ? 'Syncing' : 'Scanning';
@@ -375,23 +396,20 @@
 		installMessage = '';
 		gitSyncState = 'idle';
 		gitSyncMessage = '';
+		pluginScanState = 'idle';
 		pluginActionState = 'idle';
-		pluginActionMessage = '';
 	}
 
-	async function refreshSelectedPlugin() {
+	async function rescanSelectedPluginConfigs() {
 		const plugin = selectedPlugin;
 		if (!plugin || isScanActive) return;
-		pluginActionState = 'working';
-		pluginActionMessage = '';
+		pluginScanState = 'working';
 		const refreshed = await runStage('plugins', [plugin.id]);
 		if (selectedPlugin?.id !== plugin.id) return;
 		if (refreshed) {
-			pluginActionState = 'success';
-			pluginActionMessage = 'Plugin refreshed';
+			pluginScanState = 'success';
 		} else {
-			pluginActionState = 'error';
-			pluginActionMessage = scanStatuses.plugins.error || 'Plugin refresh failed';
+			pluginScanState = 'error';
 		}
 	}
 
@@ -405,20 +423,43 @@
 		if (!plugin || isScanActive || pluginActionState === 'working') return;
 
 		pluginActionState = 'working';
-		pluginActionMessage = '';
 		try {
 			const result = await runHoudiniPluginAction({ pluginId: plugin.id, ...request });
 			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
 			pluginActionState = 'success';
-			pluginActionMessage = result.message;
-		} catch (error) {
+		} catch {
 			pluginActionState = 'error';
-			pluginActionMessage = getErrorMessage(error);
 		}
 	}
 
 	function stopActionPropagation(event: MouseEvent) {
 		event.stopPropagation();
+	}
+
+	function tooltipTarget(target: EventTarget | null) {
+		return target instanceof Element ? target.closest<HTMLElement>('[data-tooltip]') : null;
+	}
+
+	function showTooltip(target: EventTarget | null) {
+		const element = tooltipTarget(target);
+		if (!element) return;
+
+		const text = element.dataset.tooltip;
+		if (!text) return;
+
+		const rect = element.getBoundingClientRect();
+		const placement = rect.bottom + 44 <= window.innerHeight ? 'below' : 'above';
+		tooltip = {
+			text,
+			left: rect.left + rect.width / 2,
+			top: placement === 'below' ? rect.bottom + 8 : rect.top - 8,
+			placement
+		};
+	}
+
+	function hideTooltip(event: MouseEvent | FocusEvent) {
+		if (tooltipTarget(event.relatedTarget)) return;
+		tooltip = null;
 	}
 
 	async function installSelectedPlugin() {
@@ -593,6 +634,13 @@
 	/>
 </svelte:head>
 
+<svelte:document
+	onmouseover={(event) => showTooltip(event.target)}
+	onmouseout={hideTooltip}
+	onfocusin={(event) => showTooltip(event.target)}
+	onfocusout={hideTooltip}
+/>
+
 <div class="min-h-screen px-3.5 pb-7 sm:px-6 lg:px-10 lg:pb-13.5">
 	<header
 		class="mx-auto flex flex-wrap items-center gap-4.5 border-white/10 py-4.5 lg:flex-nowrap lg:gap-10 lg:py-5.5"
@@ -629,7 +677,6 @@
 			<div class="scan-status-panel" aria-labelledby="scan-status-title">
 				<div class="scan-status-header">
 					<div>
-						<p class="section-kicker">Workspace scan</p>
 						<h2 id="scan-status-title">Discovery stages</h2>
 					</div>
 					<button
@@ -780,78 +827,437 @@
 					</div>
 					<aside class="detail-panel" aria-live="polite">
 						{#if selectedPlugin}
-							<p class="section-kicker">Plugin detail</p>
-							<h3>{selectedPlugin.name}</h3>
-							<p class="detail-description">{selectedPlugin.description}</p>
-							<div class="detail-meta">
-								<span>{selectedPlugin.version}</span>
-								{#if selectedPlugin.installedVersions && selectedPlugin.installedVersions.length > 1}
-									<span>{selectedPlugin.installedVersions.length} installed versions</span>
+							<p class="section-kicker">Plugin metadata</p>
+							<div class="plugin-header">
+								<h3>{selectedPlugin.name}</h3>
+								{#if selectedPlugin.author}
+									<span class="node-author">{selectedPlugin.author}</span>
 								{/if}
-								{#if selectedPlugin.versionSource === 'git'}<span>Git tag / ref</span>{/if}
-								<span>{selectedPlugin.license}</span>
-								<span>{selectedPlugin.source}</span>
 							</div>
-							{#if selectedPlugin.sources?.length}
-								<div class="source-list">
-									<div class="target-heading">
-										<span>Discovered sources</span>
-										<span>{selectedPlugin.sources.length}</span>
+							<div class="detail-meta">
+								{#if selectedPluginGitSource}
+									<button
+										type="button"
+										class="detail-meta-item git-meta-button"
+										aria-label="Version controlled. Open Git plugin folder"
+										data-tooltip="Version controlled. Open Git plugin folder"
+										disabled={isScanActive || pluginActionState === 'working'}
+										onclick={(event) => {
+											stopActionPropagation(event);
+											void runSelectedPluginAction({
+												action: 'open-source',
+												sourcePath: selectedPluginGitSource.path
+											});
+										}}
+									>
+										<GitBranch
+											class="detail-meta-icon"
+											size={22}
+											strokeWidth={1.8}
+											aria-hidden="true"
+										/>
+									</button>
+								{:else}
+									<span
+										class="detail-meta-item"
+										class:is-negative={selectedPlugin.versionSource !== 'git'}
+										role="img"
+										aria-label="No version control"
+										data-tooltip="No version control"
+									>
+										<GitBranch
+											class="detail-meta-icon"
+											size={22}
+											strokeWidth={1.8}
+											aria-hidden="true"
+										/>
+									</span>
+								{/if}
+								{#if selectedPlugin.repositoryUrl}
+									<a
+										class="detail-meta-item detail-meta-link"
+										href={selectedPlugin.repositoryUrl}
+										target="_blank"
+										rel="external noopener noreferrer"
+										aria-label="Open remote repository"
+										data-tooltip="Open remote repository"
+									>
+										<Globe
+											class="detail-meta-icon"
+											size={22}
+											strokeWidth={1.8}
+											aria-hidden="true"
+										/>
+									</a>
+								{:else}
+									<span
+										class="detail-meta-item"
+										class:is-negative={true}
+										role="img"
+										aria-label="No remote repository"
+										data-tooltip="No remote repository"
+									>
+										<GlobeOff
+											class="detail-meta-icon"
+											size={22}
+											strokeWidth={1.8}
+											aria-hidden="true"
+										/>
+									</span>
+								{/if}
+								{#if selectedPlugin.installedVersions?.length}
+									<span
+										class="detail-meta-item version-meta"
+										class:is-negative={!selectedPlugin.installedVersions?.length}
+										role="img"
+										aria-label="{installedVersionLabel(selectedPlugin)} installed"
+										data-tooltip="{installedVersionLabel(selectedPlugin)} installed"
+									>
+										<strong class="detail-meta-version"
+											>{installedVersionLabel(selectedPlugin)}</strong
+										>
+									</span>
+								{/if}
+							</div>
+							<div class="plugin-actions plugin-actions-top">
+								<button
+									type="button"
+									class="node-action-button icon-action-button plugin-rescan-button"
+									aria-label={pluginScanState === 'working'
+										? 'Rescanning plugin configs'
+										: 'Rescan plugin configs'}
+									data-tooltip={pluginScanState === 'working'
+										? 'Rescanning plugin configs'
+										: 'Rescan plugin configs'}
+									disabled={isScanActive || pluginScanState === 'working'}
+									onclick={(event) => {
+										stopActionPropagation(event);
+										void rescanSelectedPluginConfigs();
+									}}
+								>
+									<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
+								</button>
+							</div>
+							{#if selectedPlugin.sources?.some((source) => source.exists)}
+								<section class="panel-section source-list" aria-labelledby="local-sources-title">
+									<div class="panel-section-heading">
+										<div>
+											<h4 id="local-sources-title">Local Sources</h4>
+											<p>Valid sources derived from package configs</p>
+										</div>
+										<strong class="panel-section-count"
+											>{selectedPlugin.sources.filter((source) => source.exists).length}</strong
+										>
 									</div>
 									<div class="target-list">
 										{#each selectedPlugin.sources as source (source.path)}
-											<div class="target-item target-item-actions">
-												<div>
-													<strong>{source.version ?? 'Unversioned source'}</strong>
-													<small>{source.path}</small>
-												</div>
-												<div class="target-actions">
-													<span
-														class={[
-															'status-pill',
-															source.exists ? 'status-enabled' : 'status-missing'
-														]}
-													>
-														{source.exists ? 'Available' : 'Missing'}
-													</span>
-													<div
-														class="node-action-row"
-														aria-label={`${source.version ?? 'Source'} plugin actions`}
-													>
-														<button
-															type="button"
-															class="node-action-button"
-															aria-label={`Open plugin folder for ${selectedPlugin.name} at ${source.path}`}
-															disabled={!source.exists ||
-																isScanActive ||
-																pluginActionState === 'working'}
-															onclick={(event) => {
-																stopActionPropagation(event);
-																void runSelectedPluginAction({
-																	action: 'open-source',
-																	sourcePath: source.path
-																});
-															}}
+											{#if source.exists}
+												<div class="target-item target-item-actions source-item">
+													<div class="target-actions">
+														<div
+															class="node-action-row"
+															aria-label={`${source.version ?? 'Source'} plugin actions`}
 														>
-															Open plugin folder
-														</button>
+															<button
+																type="button"
+																class="node-action-button icon-action-button"
+																aria-label={`Open plugin folder for ${selectedPlugin.name} at ${source.path}`}
+																data-tooltip="Open plugin folder"
+																disabled={isScanActive || pluginActionState === 'working'}
+																onclick={(event) => {
+																	stopActionPropagation(event);
+																	void runSelectedPluginAction({
+																		action: 'open-source',
+																		sourcePath: source.path
+																	});
+																}}
+															>
+																<FolderCode
+																	class="detail-meta-icon"
+																	size={22}
+																	strokeWidth={1.8}
+																	aria-hidden="true"
+																/>
+															</button>
+														</div>
+													</div>
+													<div>
+														<strong>{source.version ?? 'Unversioned source'}</strong>
+														<small>{source.path}</small>
 													</div>
 												</div>
-											</div>
+											{/if}
 										{/each}
 									</div>
+								</section>
+							{/if}
+							{#if selectedPlugin.repositoryUrl || selectedPluginVersions.length || installMessage}
+								<div class="panel-section plugin-actions">
+									{#if selectedPlugin.repositoryUrl}
+										<div class="remote-source-block">
+											<div class="panel-section-heading">
+												<div>
+													<h4 id="remote-sources-title">Remote Source</h4>
+													<p>Derived from /.git</p>
+												</div>
+											</div>
+											<div class="remote-source-actions">
+												<button
+													type="button"
+													class="sync-button"
+													disabled={isScanActive || gitSyncState === 'working'}
+													data-tooltip="Sync git metadata"
+													onclick={(event) => {
+														stopActionPropagation(event);
+														void syncSelectedPluginGit();
+													}}
+												>
+													<CloudSync
+														class="detail-meta-icon"
+														size={22}
+														strokeWidth={1.8}
+														aria-hidden="true"
+													/>
+												</button>
+												<a
+													class="source-button"
+													href={selectedPlugin.repositoryUrl}
+													target="_blank"
+													rel="external noopener noreferrer"
+													data-tooltip="Open remote repository"
+												>
+													<Globe
+														class="detail-meta-icon"
+														size={22}
+														strokeWidth={1.8}
+														aria-hidden="true"
+													/>
+												</a>
+											</div>
+											{#if gitSyncMessage}
+												<p class={['git-sync-message', `is-${gitSyncState}`]} aria-live="polite">
+													{gitSyncMessage}
+												</p>
+											{/if}
+										</div>
+									{/if}
+									{#if selectedPluginVersions.length}
+										<div class="install-controls">
+											<label>
+												<span>Version</span>
+												<select
+													value={requestedInstallVersion}
+													onchange={(event) =>
+														(installVersion = (event.currentTarget as HTMLSelectElement).value)}
+												>
+													{#each selectedPluginVersions as version (version)}
+														<option value={version}>{version}</option>
+													{/each}
+												</select>
+											</label>
+											<label>
+												<span>Install scope</span>
+												<select bind:value={installScope}>
+													<option value="global">All Houdini installs</option>
+													<option value="install">One Houdini install</option>
+												</select>
+											</label>
+											{#if installScope === 'install'}
+												<label>
+													<span>Target install</span>
+													<select bind:value={installTargetId}>
+														<option value="" hidden>Select an install</option>
+														{#each activationInstalls as install (install.id)}
+															<option value={install.id}>{install.label} / {install.build}</option>
+														{/each}
+													</select>
+												</label>
+											{/if}
+											<button
+												type="button"
+												class="install-button"
+												disabled={installState === 'working' ||
+													!requestedInstallVersion ||
+													(installScope === 'install' && !requestedInstallId)}
+												onclick={() => void installSelectedPlugin()}
+											>
+												{installState === 'working' ? 'Installing...' : 'Install version'}
+											</button>
+											{#if installState === 'working'}
+												<button type="button" class="cancel-button" onclick={cancelInstall}>
+													Cancel installation
+												</button>
+											{/if}
+										</div>
+									{/if}
+									{#if installMessage}
+										<p class={['install-message', `is-${installState}`]} aria-live="polite">
+											{installMessage}
+										</p>
+									{/if}
 								</div>
 							{/if}
-							<div class="plugin-actions">
-								{#if pluginActionMessage}
-									<p
-										class={['plugin-action-message', `is-${pluginActionState}`]}
-										aria-live="polite"
-									>
-										{pluginActionMessage}
-									</p>
-								{/if}
-								{#if selectedPlugin.repositoryUrl}
+							<section class="panel-section target-section" aria-labelledby="target-installs-title">
+								<div class="panel-section-heading">
+									<div>
+										<h4 id="target-installs-title">Target installs</h4>
+										<p>Package status by Houdini version</p>
+									</div>
+									<strong class="panel-section-count">{selectedPluginTargetGroups.length}</strong>
+								</div>
+								<div class="target-list">
+									{#each selectedPluginTargetGroups as group (group.representativeInstall.version)}
+										{@const install = group.representativeInstall}
+										{@const target = group.target}
+										<div
+											class={['target-item', 'target-item-actions', `target-item-${target.status}`]}
+										>
+											<div class="target-actions target-primary-actions">
+												<div
+													class="node-action-row"
+													aria-label={`${install.label} primary actions`}
+												>
+													<button
+														type="button"
+														class={[
+															'node-action-button',
+															'toggle-action',
+															target.status === 'enabled' ? 'is-enabled' : 'is-disabled',
+															['warning', 'incompatible', 'missing'].includes(target.status)
+																? 'is-config-error'
+																: ''
+														]}
+														aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
+														data-tooltip={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin`}
+														disabled={isScanActive ||
+															pluginActionState === 'working' ||
+															['warning', 'incompatible', 'missing'].includes(target.status)}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'set-enabled',
+																installId: install.id,
+																enabled: target.status !== 'enabled'
+															});
+														}}
+													>
+														{#if target.status === 'enabled'}
+															<Check
+																class="action-icon"
+																size={18}
+																strokeWidth={2.2}
+																aria-hidden="true"
+															/>
+														{:else}
+															<Square
+																class="action-icon"
+																size={18}
+																strokeWidth={2.2}
+																aria-hidden="true"
+															/>
+														{/if}
+													</button>
+													<button
+														type="button"
+														class={[
+															'node-action-button',
+															'icon-action-button',
+															['warning', 'incompatible', 'missing'].includes(target.status)
+																? 'issue-config-button'
+																: ''
+														]}
+														aria-label={`Open JSON config for ${install.label}`}
+														data-tooltip="Open JSON config"
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'open-config',
+																installId: install.id
+															});
+														}}
+													>
+														<FileCog size={22} strokeWidth={1.8} aria-hidden="true" />
+													</button>
+													<button
+														type="button"
+														class="node-action-button icon-action-button"
+														aria-label={`Open packages folder for ${install.label}`}
+														data-tooltip="Open packages folder"
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'open-package-folder',
+																installId: install.id
+															});
+														}}
+													>
+														<FolderCode
+															class="detail-meta-icon"
+															size={22}
+															strokeWidth={1.8}
+															aria-hidden="true"
+														/>
+													</button>
+												</div>
+											</div>
+											<div class="target-install-label">
+												<strong>{install.label}</strong>
+												<div class="target-builds" aria-label="Install builds">
+													{#each installBuildLabels(group.installs) as build (build)}
+														<span data-tooltip={`Build ${build}`}>{build}</span>
+													{/each}
+												</div>
+											</div>
+											<div class="target-actions target-status-actions">
+												{#if target.status === 'missing'}
+													<button
+														type="button"
+														class="missing-source-warning target-missing-source-warning"
+														aria-label={`Open config with missing source for ${install.label}`}
+														data-tooltip="Open package config"
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void runSelectedPluginAction({
+																action: 'open-config',
+																installId: install.id
+															});
+														}}
+													>
+														<TriangleAlert size={18} strokeWidth={1.9} aria-hidden="true" />
+														<div>
+															<strong>Plugin source not found</strong>
+															<small>Update the config to point to a plugin folder.</small>
+														</div>
+													</button>
+												{/if}
+												<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
+													{#if ['warning', 'incompatible', 'missing'].includes(target.status)}
+														<button
+															type="button"
+															class="node-action-button icon-action-button issue-refresh-button"
+															aria-label={`Rescan config for ${install.label}`}
+															data-tooltip="Rescan config"
+															disabled={isScanActive || pluginScanState === 'working'}
+															onclick={(event) => {
+																stopActionPropagation(event);
+																void rescanSelectedPluginConfigs();
+															}}
+														>
+															<RefreshCw size={18} strokeWidth={1.9} aria-hidden="true" />
+														</button>
+													{/if}
+												</div>
+											</div>
+										</div>
+									{/each}
+								</div>
+							</section>
+							<!--
+										</div>
+									</div>
 									<button
 										type="button"
 										class="sync-button"
@@ -930,91 +1336,86 @@
 									</p>
 								{/if}
 							</div>
-							<div class="target-heading">
-								<span>Target installs</span>
-								<span>{selectedPluginTargetGroups.length}</span>
-							</div>
-							<div class="target-list">
-								{#each selectedPluginTargetGroups as group (group.representativeInstall.version)}
-									{@const install = group.representativeInstall}
-									{@const target = group.target}
-									<div class="target-item target-item-actions">
-										<div>
-											<strong>{install.label}</strong>
-											<small>{installBuildLabel(group.installs)}</small>
-										</div>
-										<div class="target-actions">
-											<span class={['status-pill', `status-${target.status}`]}
-												>{statusLabel(target.status)}</span
-											>
-											<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
-												<button
-													type="button"
-													class="node-action-button"
-													disabled={isScanActive || pluginActionState === 'working'}
-													onclick={(event) => {
-														stopActionPropagation(event);
-														void refreshSelectedPlugin();
-													}}
+							<section class="panel-section target-section" aria-labelledby="target-installs-title">
+								<div class="panel-section-heading">
+									<div>
+										<h4 id="target-installs-title">Target installs</h4>
+										<p>Package configuration status by Houdini version</p>
+									</div>
+									<strong class="panel-section-count">{selectedPluginTargetGroups.length}</strong>
+								</div>
+								<div class="target-list">
+									{#each selectedPluginTargetGroups as group (group.representativeInstall.version)}
+										{@const install = group.representativeInstall}
+										{@const target = group.target}
+										<div class="target-item target-item-actions">
+											<div>
+												<strong>{install.label}</strong>
+												<small>{installBuildLabel(group.installs)}</small>
+											</div>
+											<div class="target-actions">
+												<span class={['status-pill', `status-${target.status}`]}
+													>{statusLabel(target.status)}</span
 												>
-													{pluginActionState === 'working' ? 'Working...' : 'Rescan config'}
-												</button>
-												{#if target.status !== 'missing'}
+												<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
+													{#if target.status !== 'missing'}
+														<button
+															type="button"
+															class="node-action-button"
+															aria-label={`Open JSON config for ${install.label}`}
+															disabled={isScanActive || pluginActionState === 'working'}
+															onclick={(event) => {
+																stopActionPropagation(event);
+																void runSelectedPluginAction({
+																	action: 'open-config',
+																	installId: install.id
+																});
+															}}
+														>
+															Open config
+														</button>
+													{/if}
 													<button
 														type="button"
 														class="node-action-button"
-														aria-label={`Open JSON config for ${install.label}`}
+														aria-label={`Open packages folder for ${install.label}`}
 														disabled={isScanActive || pluginActionState === 'working'}
 														onclick={(event) => {
 															stopActionPropagation(event);
 															void runSelectedPluginAction({
-																action: 'open-config',
+																action: 'open-package-folder',
 																installId: install.id
 															});
 														}}
 													>
-														Open config
+														Open /packages
 													</button>
-												{/if}
-												<button
-													type="button"
-													class="node-action-button"
-													aria-label={`Open packages folder for ${install.label}`}
-													disabled={isScanActive || pluginActionState === 'working'}
-													onclick={(event) => {
-														stopActionPropagation(event);
-														void runSelectedPluginAction({
-															action: 'open-package-folder',
-															installId: install.id
-														});
-													}}
-												>
-													Open /packages
-												</button>
-												{#if target.status !== 'missing'}
-													<button
-														type="button"
-														class="node-action-button"
-														class:danger={target.status === 'enabled'}
-														aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
-														disabled={isScanActive || pluginActionState === 'working'}
-														onclick={(event) => {
-															stopActionPropagation(event);
-															void runSelectedPluginAction({
-																action: 'set-enabled',
-																installId: install.id,
-																enabled: target.status !== 'enabled'
-															});
-														}}
-													>
-														{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
-													</button>
-												{/if}
+													{#if target.status !== 'missing'}
+														<button
+															type="button"
+															class="node-action-button"
+															class:danger={target.status === 'enabled'}
+															aria-label={`${target.status === 'enabled' ? 'Disable' : 'Enable'} plugin for ${install.label}`}
+															disabled={isScanActive || pluginActionState === 'working'}
+															onclick={(event) => {
+																stopActionPropagation(event);
+																void runSelectedPluginAction({
+																	action: 'set-enabled',
+																	installId: install.id,
+																	enabled: target.status !== 'enabled'
+																});
+															}}
+														>
+															{target.status === 'enabled' ? 'Disable plugin' : 'Enable plugin'}
+														</button>
+													{/if}
+												</div>
 											</div>
 										</div>
-									</div>
-								{/each}
-							</div>
+									{/each}
+								</div>
+							</section>
+						-->
 						{:else if selectedOfficialPlugins.length}
 							<p class="section-kicker">Official package group</p>
 							<h3>Official Houdini packages</h3>
@@ -1140,6 +1541,16 @@
 			</div>
 		{/if}
 	</main>
+	{#if tooltip}
+		<div
+			class={['global-tooltip', `global-tooltip-${tooltip.placement}`]}
+			style:left={`${tooltip.left}px`}
+			style:top={`${tooltip.top}px`}
+			role="tooltip"
+		>
+			{tooltip.text}
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -1329,7 +1740,6 @@
 	}
 
 	.section-kicker {
-		margin: 0 0 12px;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
@@ -1503,8 +1913,7 @@
 		display: grid;
 		height: calc(100dvh - 320px);
 		min-height: 0;
-		grid-template-columns: minmax(0, 1fr) 550px;
-		gap: 18px;
+		grid-template-columns: minmax(0, 1fr) 700px;
 	}
 
 	.map-column {
@@ -1565,16 +1974,51 @@
 	}
 
 	.detail-panel {
+		position: relative;
+		z-index: 2;
 		min-height: 0;
 		overflow-y: auto;
-		padding: 24px;
+		padding: 0 24px;
+	}
+
+	.global-tooltip {
+		position: fixed;
+		z-index: 10000;
+		max-width: min(320px, calc(100vw - 24px));
+		padding: 6px 8px;
+		border: 1px solid rgba(211, 232, 225, 0.18);
+		border-radius: 4px;
+		background: #17221f;
+		box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.35;
+		pointer-events: none;
+		white-space: nowrap;
+		transform: translateX(-50%);
+	}
+
+	.global-tooltip-above {
+		transform: translate(-50%, -100%);
+	}
+
+	.detail-meta-item::after,
+	.icon-action-button::after,
+	.toggle-action::after,
+	.target-builds span::after {
+		display: none;
 	}
 
 	.detail-panel h3 {
-		margin-bottom: 12px;
 		font-size: 27px;
 		font-weight: 600;
 		letter-spacing: -0.02em;
+		line-height: normal;
+	}
+
+	.plugin-header {
+		margin-bottom: 12px;
 	}
 
 	.detail-description {
@@ -1591,29 +2035,197 @@
 		margin-bottom: 36px;
 	}
 
-	.detail-meta span {
+	.detail-meta span,
+	.detail-meta a,
+	.detail-meta button {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 		padding: 5px 7px;
 		border: 1px solid var(--line);
 		border-radius: 4px;
+		background: transparent;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
+		font: inherit;
+	}
+
+	.detail-meta-link {
+		transition:
+			border-color 120ms ease,
+			background-color 120ms ease,
+			color 120ms ease;
+		text-decoration: none;
+	}
+
+	.detail-meta-link:hover,
+	.detail-meta-link:focus-visible {
+		border-color: rgba(57, 155, 130, 0.7);
+		background: rgba(57, 155, 130, 0.08);
+		color: #55c4a5;
+		outline: none;
+	}
+
+	.detail-meta .detail-meta-item {
+		position: relative;
+		width: 36px;
+		height: 36px;
+		justify-content: center;
+		padding: 6px;
+		color: #399b82;
+		line-height: 1;
+	}
+
+	.git-meta-button {
+		cursor: pointer;
+		transition:
+			border-color 120ms ease,
+			background-color 120ms ease,
+			color 120ms ease;
+	}
+
+	.git-meta-button:hover:not(:disabled),
+	.git-meta-button:focus-visible {
+		border-color: rgba(57, 155, 130, 0.7);
+		background: rgba(57, 155, 130, 0.08);
+		color: #55c4a5;
+		outline: none;
+	}
+
+	.git-meta-button:focus-visible {
+		outline: 2px solid #9be6cc;
+		outline-offset: 3px;
+	}
+
+	.git-meta-button:disabled {
+		cursor: wait;
+		opacity: 0.55;
+	}
+
+	.detail-meta .version-meta {
+		width: auto;
+		min-width: 36px;
+	}
+
+	.detail-meta-item::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		top: calc(100% + 7px);
+		left: 0;
+		z-index: 10;
+		padding: 7px 9px;
+		border: 1px solid rgba(211, 232, 225, 0.18);
+		border-radius: 4px;
+		background: #17221f;
+		box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		font-weight: 400;
+		line-height: 1.35;
+		pointer-events: none;
+		white-space: nowrap;
+		opacity: 0;
+		transform: translateY(-3px);
+		transition:
+			opacity 120ms ease,
+			transform 120ms ease;
+	}
+
+	.detail-meta-item:hover::after {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.detail-meta-item.is-negative {
+		border-color: rgba(223, 109, 88, 0.4);
+		color: #df6d58;
+	}
+
+	.detail-meta-icon {
+		flex: 0 0 auto;
+	}
+
+	.detail-meta-version {
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 14px;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.panel-section {
+		margin-bottom: 18px;
+		padding: 14px;
+		border: 1px solid rgba(211, 232, 225, 0.1);
+		border-radius: 7px;
+		background: rgba(255, 255, 255, 0.025);
+	}
+
+	.panel-section-heading {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+		margin-bottom: 10px;
+	}
+
+	.panel-section-heading h4,
+	.panel-section-heading p {
+		margin: 0;
+	}
+
+	.panel-section-heading h4 {
+		color: var(--text);
+		font-size: 14px;
+		font-weight: 600;
+		letter-spacing: 0;
+		text-transform: none;
+	}
+
+	.panel-section-heading p {
+		margin-top: 3px;
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.4;
+	}
+
+	.panel-section-count {
+		min-width: 28px;
+		color: #399b82;
+		font-size: 20px;
+		font-weight: 600;
+		line-height: 1;
+		text-align: left;
+	}
+
+	.source-list .target-list,
+	.target-section .target-list {
+		margin: 0 -14px -14px;
+		padding: 0 14px;
+	}
+
+	.source-list .target-item:first-child,
+	.target-section .target-item:first-child {
+		border-top-color: rgba(211, 232, 225, 0.18);
 	}
 
 	.plugin-actions {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		margin-bottom: 30px;
-		padding: 12px;
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: var(--surface-muted);
+		margin-bottom: 18px;
+	}
+
+	.plugin-actions-top {
+		margin-top: -18px;
 	}
 
 	.node-action-row {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
 		gap: 6px;
 	}
 
@@ -1637,6 +2249,106 @@
 		outline: none;
 	}
 
+	.icon-action-button {
+		position: relative;
+	}
+
+	.icon-action-button::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		top: calc(100% + 6px);
+		left: 50%;
+		z-index: 5;
+		padding: 6px 8px;
+		border: 1px solid rgba(211, 232, 225, 0.18);
+		border-radius: 4px;
+		background: #17221f;
+		box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		font-weight: 400;
+		line-height: 1.35;
+		pointer-events: none;
+		white-space: nowrap;
+		opacity: 0;
+		transform: translate(-50%, -3px);
+		transition:
+			opacity 120ms ease,
+			transform 120ms ease;
+	}
+
+	.icon-action-button:hover::after,
+	.icon-action-button:focus-visible::after {
+		opacity: 1;
+		transform: translate(-50%, 0);
+	}
+
+	.toggle-action {
+		position: relative;
+		display: inline-flex;
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+	}
+
+	.toggle-action::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		top: calc(100% + 6px);
+		right: 0;
+		z-index: 5;
+		padding: 6px 8px;
+		border: 1px solid rgba(211, 232, 225, 0.18);
+		border-radius: 4px;
+		background: #17221f;
+		box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		font-weight: 400;
+		line-height: 1.35;
+		pointer-events: none;
+		white-space: nowrap;
+		opacity: 0;
+		transform: translateY(-3px);
+		transition:
+			opacity 120ms ease,
+			transform 120ms ease;
+	}
+
+	.toggle-action:hover::after,
+	.toggle-action:focus-visible::after {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.toggle-action.is-enabled {
+		border-color: rgba(57, 155, 130, 0.5);
+		background: rgba(57, 155, 130, 0.12);
+		color: #55c4a5;
+	}
+
+	.toggle-action.is-disabled {
+		border-color: rgba(173, 119, 105, 0.5);
+		background: rgba(173, 119, 105, 0.12);
+		color: #d49b8b;
+	}
+
+	.toggle-action.is-enabled:hover,
+	.toggle-action.is-enabled:focus-visible {
+		border-color: #55c4a5;
+		background: rgba(57, 155, 130, 0.22);
+	}
+
+	.toggle-action.is-disabled:hover,
+	.toggle-action.is-disabled:focus-visible {
+		border-color: #d49b8b;
+		background: rgba(173, 119, 105, 0.22);
+	}
+
 	.node-action-button.danger {
 		border-color: rgba(223, 109, 88, 0.42);
 		color: #df6d58;
@@ -1647,20 +2359,97 @@
 		opacity: 0.55;
 	}
 
-	.plugin-action-message {
-		margin: 0;
+	.issue-refresh-button {
+		border-color: rgba(211, 155, 56, 0.55);
+		background: rgba(211, 155, 56, 0.1);
+		color: #d39b38;
+	}
+
+	.issue-refresh-button:hover:not(:disabled),
+	.issue-refresh-button:focus-visible:not(:disabled) {
+		border-color: #d39b38;
+		background: rgba(211, 155, 56, 0.2);
+		color: #f0bd55;
+	}
+
+	.missing-source-warning {
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 10px;
+		padding: 8px 10px;
+		border: 1px solid rgba(211, 155, 56, 0.38);
+		border-radius: 5px;
+		background: rgba(211, 155, 56, 0.08);
+		color: #d39b38;
+	}
+
+	.missing-source-warning > div {
+		text-align: left;
+	}
+
+	.missing-source-warning:hover:not(:disabled),
+	.missing-source-warning:focus-visible:not(:disabled) {
+		border-color: #d39b38;
+		background: rgba(211, 155, 56, 0.16);
+		color: #f0bd55;
+		cursor: pointer;
+	}
+
+	.missing-source-warning strong,
+	.missing-source-warning small {
+		display: block;
+	}
+
+	.missing-source-warning strong {
+		font-size: 10px;
+	}
+
+	.missing-source-warning small {
+		margin-top: 3px;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
-		line-height: 1.45;
+		font-size: 9px;
+		line-height: 1.35;
 	}
 
-	.plugin-action-message.is-success {
-		color: #399b82;
+	.icon-action-button {
+		display: inline-flex;
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		flex: 0 0 34px;
 	}
 
-	.plugin-action-message.is-error {
-		color: #df6d58;
+	.remote-source-block {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 8px 16px;
+		padding-top: 2px;
+	}
+
+	.remote-source-block .panel-section-heading {
+		margin: 0;
+	}
+
+	.remote-source-actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 6px;
+	}
+
+	.remote-source-actions .source-button,
+	.remote-source-actions .sync-button {
+		white-space: nowrap;
+	}
+
+	.remote-source-block .git-sync-message {
+		grid-column: 1 / -1;
+		margin: 0;
 	}
 
 	.source-button,
@@ -1802,21 +2591,90 @@
 		border-top: 1px solid var(--line);
 	}
 
+	.target-section .target-item {
+		padding-inline: 10px;
+		border-radius: 4px;
+	}
+
+	.target-section .target-item-enabled {
+		background: rgba(57, 155, 130, 0.07);
+	}
+
+	.target-section .target-item-disabled {
+		background: rgba(173, 119, 105, 0.07);
+	}
+
+	.target-section .target-item-warning {
+		background: rgba(211, 155, 56, 0.07);
+	}
+
+	.target-section .target-item-incompatible,
+	.target-section .target-item-missing {
+		background: rgba(223, 109, 88, 0.07);
+	}
+
 	.target-item-actions {
 		align-items: flex-start;
 		flex-direction: column;
 	}
 
+	.source-item {
+		align-items: center;
+		flex-direction: row;
+		justify-content: flex-start;
+		gap: 10px;
+	}
+
+	.target-section .target-item-actions {
+		align-items: center;
+		flex-direction: row;
+		justify-content: flex-start;
+		gap: 25px;
+	}
+
+	.target-primary-actions {
+		order: -1;
+	}
+
+	.target-status-actions {
+		margin-left: auto;
+	}
+
+	.target-install-label {
+		min-width: 0;
+		flex: 0 1 auto;
+	}
+
 	.target-actions {
 		display: flex;
-		width: 100%;
+		flex: 0 0 auto;
+		width: auto;
 		align-items: flex-start;
-		justify-content: space-between;
+		margin-left: 0;
 		gap: 10px;
 	}
 
 	.target-actions .node-action-row {
 		flex: 1;
+	}
+
+	.toggle-action.is-config-error {
+		border-color: var(--line);
+		background: rgba(135, 148, 143, 0.1);
+		color: var(--text-dim);
+	}
+
+	.issue-config-button {
+		border-color: rgba(211, 155, 56, 0.55);
+		background: rgba(211, 155, 56, 0.1);
+		color: #d39b38;
+	}
+
+	.issue-config-button:hover:not(:disabled),
+	.issue-config-button:focus-visible:not(:disabled) {
+		border-color: #d39b38;
+		background: rgba(211, 155, 56, 0.2);
+		color: #f0bd55;
 	}
 
 	.target-item strong,
@@ -1834,6 +2692,57 @@
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
+	}
+
+	.target-builds {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+		margin-top: 5px;
+	}
+
+	.target-builds span {
+		position: relative;
+		padding: 4px 7px;
+		border: 1px solid rgba(211, 232, 225, 0.18);
+		border-radius: 999px;
+		background: rgba(211, 232, 225, 0.08);
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 11px;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.target-builds span::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		top: calc(100% + 6px);
+		left: 50%;
+		z-index: 5;
+		padding: 6px 8px;
+		border: 1px solid rgba(211, 232, 225, 0.18);
+		border-radius: 4px;
+		background: #17221f;
+		box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		font-weight: 400;
+		line-height: 1.35;
+		pointer-events: none;
+		white-space: nowrap;
+		opacity: 0;
+		transform: translate(-50%, -3px);
+		transition:
+			opacity 120ms ease,
+			transform 120ms ease;
+	}
+
+	.target-builds span:hover::after,
+	.target-builds span:focus-visible::after {
+		opacity: 1;
+		transform: translate(-50%, 0);
 	}
 
 	.status-pill {
@@ -2028,6 +2937,15 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	.node-author {
+		display: block;
+		width: 100%;
+		margin: 0;
+		color: #c4d2cd;
+		font-size: 11px;
+		line-height: 1.2;
 	}
 
 	@media (max-width: 1100px) {

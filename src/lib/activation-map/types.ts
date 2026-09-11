@@ -30,6 +30,7 @@ export type ActivationNodeData = {
 	kind: ActivationNodeKind;
 	eyebrow: string;
 	label: string;
+	author?: string;
 	meta: string;
 	status: ActivationStatus;
 	statusLabel: string;
