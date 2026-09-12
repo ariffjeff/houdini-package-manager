@@ -314,6 +314,65 @@ it('hides target-specific actions for a missing plugin target', async () => {
 		.not.toBeInTheDocument();
 });
 
+it('groups repeated config issues and selects the matching plugin node', async () => {
+	const secondInstallId = 'install:houdini-22.0-100-test';
+	const issueResponse = {
+		...discoveryResponse,
+		installs: [
+			...discoveryResponse.installs,
+			{
+				...discoveryResponse.installs[0],
+				id: secondInstallId,
+				label: 'Houdini 22.0',
+				version: '22.0',
+				build: '100'
+			}
+		],
+		targets: [
+			{
+				...discoveryResponse.targets[0],
+				status: 'warning' as const,
+				note: 'Package config has a compatibility issue.'
+			},
+			{
+				...discoveryResponse.targets[0],
+				installId: secondInstallId,
+				status: 'warning' as const,
+				note: 'Package config has a compatibility issue.'
+			},
+			...discoveryResponse.targets.slice(1)
+		]
+	} as typeof discoveryResponse;
+	stubDiscovery(issueResponse);
+	render(Page);
+
+	await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
+	const issueTrigger = page.getByRole('button', { name: /1 Issues/ });
+	await expect.element(issueTrigger).toBeInTheDocument();
+	await page.getByRole('button', { name: 'Table', exact: true }).click();
+	await issueTrigger.click();
+
+	await expect
+		.element(page.getByRole('heading', { name: 'Issues', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByText('1 config issues across the workspace', { exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Open MOPS issue details', exact: true }))
+		.toBeInTheDocument();
+
+	await page.getByRole('button', { name: 'Open MOPS issue details', exact: true }).click();
+
+	await expect.element(page.getByRole('table')).not.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('heading', { name: 'MOPS', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('heading', { name: 'Issues', exact: true }))
+		.not.toBeInTheDocument();
+});
+
 it('hydrates a saved snapshot without running automatic scans', async () => {
 	stubDiscovery(discoveryResponse, discoveryResponse);
 	render(Page);

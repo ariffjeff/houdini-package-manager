@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import {
 		Check,
+		ChevronRight,
 		FileCog,
 		GitBranch,
 		Globe,
@@ -12,7 +13,8 @@
 		Square,
 		TriangleAlert,
 		CloudSync,
-		HardDriveDownload
+		HardDriveDownload,
+		X
 	} from '@lucide/svelte';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
@@ -58,6 +60,15 @@
 		target: ActivationTarget;
 		installs: HoudiniInstall[];
 	};
+	type IssueItem = {
+		pluginId: string;
+		nodeId: string;
+		label: string;
+		packageFile: string;
+		statuses: ActivationTarget['status'][];
+		installs: string[];
+		notes: string[];
+	};
 	type TooltipState = {
 		text: string;
 		left: number;
@@ -89,6 +100,7 @@
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
 	let selectedNodeId = $state<string | null>(null);
+	let focusNodeId = $state<string | null>(null);
 	let activeScan = $state<ScanAction | null>(null);
 	let initialScanStarted = false;
 	let hasDiscoverySnapshot = $state(false);
@@ -115,6 +127,7 @@
 	let gitSyncMessage = $state('');
 	let pluginScanState = $state<ActionState>('idle');
 	let pluginActionState = $state<ActionState>('idle');
+	let issuesDialogOpen = $state(false);
 	let tooltip = $state<TooltipState | null>(null);
 
 	let activationGraph = $derived(
@@ -152,9 +165,46 @@
 			activationPlugins.filter((plugin) => !isOfficialPlugin(plugin)).map((plugin) => plugin.id)
 		).size
 	);
-	let attentionCount = $derived(
-		new Set(activationTargets.filter(isTargetIssue).map((target) => target.pluginId)).size
-	);
+	let issueItems = $derived.by<IssueItem[]>(() => {
+		const issueGroups: Array<{ pluginId: string; targets: ActivationTarget[] }> = [];
+		for (const target of activationTargets) {
+			if (!isTargetIssue(target)) continue;
+			const group = issueGroups.find((item) => item.pluginId === target.pluginId);
+			if (group) {
+				group.targets.push(target);
+				continue;
+			}
+			issueGroups.push({ pluginId: target.pluginId, targets: [target] });
+		}
+
+		return issueGroups
+			.map(({ pluginId, targets }) => {
+				const plugin = activationPlugins.find((item) => item.id === pluginId);
+				const statuses = [...new Set(targets.map((target) => target.status))];
+				const installs = [
+					...new Set(
+						targets.map(
+							(target) =>
+								activationInstalls.find((install) => install.id === target.installId)?.label ??
+								target.installId
+						)
+					)
+				];
+				const notes = [...new Set(targets.map((target) => target.note).filter(Boolean))];
+
+				return {
+					pluginId,
+					nodeId: plugin && isOfficialPlugin(plugin) ? OFFICIAL_NODE_ID : `plugin:${pluginId}`,
+					label: plugin?.name ?? pluginId,
+					packageFile: plugin?.packageFile ?? targets[0].packageFile,
+					statuses,
+					installs,
+					notes
+				};
+			})
+			.sort((left, right) => left.label.localeCompare(right.label));
+	});
+	let attentionCount = $derived(issueItems.length);
 	let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
 	let selectedGraphNodeId = $derived.by(() => {
 		if (!selectedNodeId) return null;
@@ -404,6 +454,26 @@
 		pluginActionState = 'idle';
 	}
 
+	function openIssuesDialog() {
+		if (issueItems.length) issuesDialogOpen = true;
+	}
+
+	function closeIssuesDialog() {
+		issuesDialogOpen = false;
+	}
+
+	function selectIssue(issue: IssueItem) {
+		view = 'map';
+		searchQuery = '';
+		closeIssuesDialog();
+		focusNodeId = issue.nodeId;
+		selectNode(issue.nodeId);
+	}
+
+	function handleWindowKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && issuesDialogOpen) closeIssuesDialog();
+	}
+
 	async function rescanSelectedPluginConfigs() {
 		const plugin = selectedPlugin;
 		if (!plugin || isScanActive) return;
@@ -644,6 +714,7 @@
 	onfocusin={(event) => showTooltip(event.target)}
 	onfocusout={hideTooltip}
 />
+<svelte:window onkeydown={handleWindowKeydown} />
 
 <div class="min-h-screen px-3.5 pb-7 sm:px-6 lg:px-10 lg:pb-13.5">
 	<header
@@ -752,9 +823,16 @@
 				<div class="intro-stats" aria-label="Activation summary">
 					<div><strong>{pluginCount}</strong><span>user plugins</span></div>
 					<div><strong>{activationInstalls.length}</strong><span>Houdinis</span></div>
-					<div class="attention-stat">
+					<button
+						type="button"
+						class="attention-stat issue-stat"
+						aria-haspopup="dialog"
+						aria-expanded={issuesDialogOpen}
+						disabled={!issueItems.length}
+						onclick={openIssuesDialog}
+					>
 						<strong>{attentionCount}</strong><span>Issues</span>
-					</div>
+					</button>
 				</div>
 				<div class="workspace-actions flex w-full flex-wrap items-center gap-3 lg:w-auto">
 					<div class="view-switch" role="group" aria-label="Library view">
@@ -818,7 +896,13 @@
 			{:else if view === 'map'}
 				<div class="map-layout">
 					<div class="map-column">
-						<ActivationMap nodes={visibleMapNodes} edges={visibleMapEdges} onselect={selectNode} />
+						<ActivationMap
+							nodes={visibleMapNodes}
+							edges={visibleMapEdges}
+							onselect={selectNode}
+							{focusNodeId}
+							onfocuscomplete={() => (focusNodeId = null)}
+						/>
 						<div class="surface-footer">
 							<div class="status-legend" aria-label="Activation status legend">
 								<span><i class="enabled"></i>Enabled</span>
@@ -1360,6 +1444,56 @@
 			</div>
 		{/if}
 	</main>
+	{#if issuesDialogOpen}
+		<div class="issues-dialog-backdrop">
+			<button
+				type="button"
+				class="issues-dialog-dismiss"
+				aria-label="Close issues dialog"
+				onclick={closeIssuesDialog}
+			></button>
+			<dialog open class="issues-dialog" aria-labelledby="issues-dialog-title">
+				<div class="issues-dialog-header">
+					<div>
+						<h2 id="issues-dialog-title">Issues</h2>
+						<p>{issueItems.length} config issues across the workspace</p>
+					</div>
+					<button
+						type="button"
+						class="dialog-close-button"
+						aria-label="Close issues dialog"
+						onclick={closeIssuesDialog}
+					>
+						<X size={18} strokeWidth={1.8} aria-hidden="true" />
+					</button>
+				</div>
+				<div class="issue-list">
+					{#each issueItems as issue (issue.pluginId)}
+						<button
+							type="button"
+							class="issue-list-item"
+							aria-label={`Open ${issue.label} issue details`}
+							onclick={() => selectIssue(issue)}
+						>
+							<span
+								class={['issue-status-marker', `status-${issue.statuses[0]}`]}
+								aria-hidden="true"
+							></span>
+							<span class="issue-list-copy">
+								<strong>{issue.label}</strong>
+								<small>{issue.packageFile} / {issue.statuses.map(statusLabel).join(' / ')}</small>
+								<small>Affects: {issue.installs.join(', ')}</small>
+								{#if issue.notes.length}
+									<small class="issue-list-note">{issue.notes.join(' / ')}</small>
+								{/if}
+							</span>
+							<ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" />
+						</button>
+					{/each}
+				</div>
+			</dialog>
+		</div>
+	{/if}
 	{#if tooltip}
 		<div
 			class={['global-tooltip', `global-tooltip-${tooltip.placement}`]}
@@ -1578,10 +1712,21 @@
 		padding-bottom: 3px;
 	}
 
-	.intro-stats div {
+	.intro-stats div,
+	.intro-stats button {
 		min-width: 82px;
 		padding-left: 14px;
 		border-left: 1px solid var(--line-strong);
+	}
+
+	.intro-stats button {
+		margin: 0;
+		border-top: 0;
+		border-right: 0;
+		border-bottom: 0;
+		background: transparent;
+		font: inherit;
+		text-align: left;
 	}
 
 	.intro-stats strong,
@@ -1605,6 +1750,37 @@
 
 	.intro-stats .attention-stat strong {
 		color: #f07b67;
+	}
+
+	.issue-stat {
+		color: inherit;
+		cursor: pointer;
+		transition: color 120ms ease;
+	}
+
+	.issue-stat:hover:not(:disabled),
+	.issue-stat:focus-visible:not(:disabled) {
+		border-left-color: rgba(223, 109, 88, 0.7);
+		background: rgba(223, 109, 88, 0.08);
+		color: #ffb09f;
+		outline: none;
+	}
+
+	.issue-stat:hover:not(:disabled) strong,
+	.issue-stat:focus-visible:not(:disabled) strong,
+	.issue-stat:hover:not(:disabled) span,
+	.issue-stat:focus-visible:not(:disabled) span {
+		color: #ffb09f;
+	}
+
+	.issue-stat:focus-visible:not(:disabled) {
+		outline: 2px solid #f07b67;
+		outline-offset: 4px;
+	}
+
+	.issue-stat:disabled {
+		cursor: default;
+		opacity: 0.72;
 	}
 
 	.view-switch {
@@ -1820,6 +1996,156 @@
 
 	.global-tooltip-above {
 		transform: translate(-50%, -100%);
+	}
+
+	.issues-dialog-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 9000;
+		display: grid;
+		place-items: center;
+		padding: 24px;
+		background: rgba(9, 14, 15, 0.72);
+	}
+
+	.issues-dialog-dismiss {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border: 0;
+		background: transparent;
+		cursor: default;
+	}
+
+	.issues-dialog {
+		position: relative;
+		z-index: 1;
+		display: flex;
+		width: min(640px, 100%);
+		max-height: min(720px, calc(100dvh - 48px));
+		flex-direction: column;
+		overflow: hidden;
+		padding: 22px;
+		border: 1px solid var(--line-strong);
+		border-radius: 8px;
+		background: #182224;
+		box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+	}
+
+	.issues-dialog-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 20px;
+	}
+
+	.issues-dialog-header h2 {
+		margin: 0;
+		font-size: 22px;
+		font-weight: 600;
+	}
+
+	.issues-dialog-header p:last-child {
+		margin: 7px 0 0;
+		color: var(--text-muted);
+		font-size: 12px;
+	}
+
+	.dialog-close-button {
+		display: inline-flex;
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		padding: 0;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.dialog-close-button:hover,
+	.dialog-close-button:focus-visible {
+		border-color: #df6d58;
+		color: #ffb09f;
+		outline: none;
+	}
+
+	.issue-list {
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+		gap: 8px;
+		overflow-y: auto;
+		padding-top: 16px;
+	}
+
+	.issue-list-item {
+		display: grid;
+		grid-template-columns: 9px minmax(0, 1fr) auto;
+		align-items: start;
+		gap: 12px;
+		width: 100%;
+		padding: 12px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: rgba(255, 255, 255, 0.025);
+		color: var(--text);
+		cursor: pointer;
+		font: inherit;
+		text-align: left;
+	}
+
+	.issue-list-item:hover,
+	.issue-list-item:focus-visible {
+		border-color: rgba(223, 109, 88, 0.7);
+		background: rgba(223, 109, 88, 0.09);
+		outline: none;
+	}
+
+	.issue-status-marker {
+		width: 9px;
+		height: 9px;
+		margin-top: 4px;
+		border-radius: 50%;
+		background: #d39b38;
+	}
+
+	.issue-status-marker.status-incompatible,
+	.issue-status-marker.status-missing {
+		background: #df6d58;
+	}
+
+	.issue-list-copy {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.issue-list-copy strong {
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.issue-list-copy small {
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+	}
+
+	.issue-list-copy .issue-list-note {
+		color: #d39b38;
+	}
+
+	.issue-list-item > :last-child {
+		margin-top: 2px;
+		color: var(--text-dim);
 	}
 
 	.detail-meta-item::after,

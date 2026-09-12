@@ -7,15 +7,18 @@
 		type NodeTypes
 	} from '@xyflow/svelte';
 	import ActivationNode from './ActivationNode.svelte';
+	import ActivationMapViewport from './ActivationMapViewport.svelte';
 	import type { ActivationEdge, ActivationNode as ActivationNodeRecord } from './types';
 
 	type Props = {
 		nodes: ActivationNodeRecord[];
 		edges: ActivationEdge[];
 		onselect: (id: string | null) => void;
+		focusNodeId?: string | null;
+		onfocuscomplete?: () => void;
 	};
 
-	let { nodes, edges, onselect }: Props = $props();
+	let { nodes, edges, onselect, focusNodeId = null, onfocuscomplete = () => {} }: Props = $props();
 
 	const nodeTypes = {
 		plugin: ActivationNode,
@@ -54,6 +57,7 @@
 		style="color: white;"
 	>
 		<Controls showZoom={false} />
+		<ActivationMapViewport nodeId={focusNodeId} {nodes} {onfocuscomplete} />
 		<!-- <MiniMap /> -->
 	</SvelteFlow>
 </div>
