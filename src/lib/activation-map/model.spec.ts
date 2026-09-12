@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createActivationGraph, OFFICIAL_NODE_ID } from './model';
+import { createActivationGraph, isTargetIssue, OFFICIAL_NODE_ID } from './model';
 import type { ActivationTarget, HoudiniInstall, PluginRecord } from './types';
 
 const install: HoudiniInstall = {
@@ -58,6 +58,16 @@ function target(
 }
 
 describe('activation graph model', () => {
+	it('does not treat an untargeted install as a plugin issue', () => {
+		expect(
+			isTargetIssue({
+				...target('package:custom', 'missing'),
+				packagePath: null
+			})
+		).toBe(false);
+		expect(isTargetIssue(target('package:custom', 'missing'))).toBe(true);
+	});
+
 	it('keeps user packages individual and groups official packages', () => {
 		const graph = createActivationGraph(
 			[

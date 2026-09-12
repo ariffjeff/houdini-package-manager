@@ -18,6 +18,7 @@
 	import {
 		createActivationGraph,
 		isOfficialPlugin,
+		isTargetIssue,
 		OFFICIAL_NODE_ID,
 		statusLabel,
 		targetFor
@@ -145,11 +146,7 @@
 	let enabledCount = $derived(
 		activationTargets.filter((target) => target.status === 'enabled').length
 	);
-	let attentionCount = $derived(
-		activationTargets.filter((target) =>
-			['warning', 'incompatible', 'missing'].includes(target.status)
-		).length
-	);
+	let attentionCount = $derived(activationTargets.filter(isTargetIssue).length);
 	let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
 	let selectedGraphNodeId = $derived.by(() => {
 		if (!selectedNodeId) return null;

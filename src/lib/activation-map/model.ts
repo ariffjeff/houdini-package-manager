@@ -24,6 +24,14 @@ export function isOfficialPlugin(plugin: PluginRecord): boolean {
 	return plugin.origin === 'install' || plugin.origin === 'site';
 }
 
+export function isTargetIssue(target: ActivationTarget): boolean {
+	return (
+		target.status === 'warning' ||
+		target.status === 'incompatible' ||
+		(target.status === 'missing' && Boolean(target.packagePath))
+	);
+}
+
 export function createActivationGraph(
 	plugins: PluginRecord[],
 	installs: HoudiniInstall[],
@@ -43,9 +51,7 @@ export function createActivationGraph(
 					: plugin.version;
 			const sourceLabel =
 				plugin.sources && plugin.sources.length > 1 ? ` / ${plugin.sources.length} sources` : '';
-			const attention = pluginTargets.some((target) =>
-				['warning', 'incompatible', 'missing'].includes(target.status)
-			);
+			const attention = pluginTargets.some(isTargetIssue);
 
 			return {
 				id: `plugin:${plugin.id}`,
