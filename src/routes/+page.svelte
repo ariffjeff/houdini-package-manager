@@ -831,44 +831,6 @@
 								{/if}
 							</div>
 							<div class="detail-meta">
-								{#if selectedPluginGitSource}
-									<button
-										type="button"
-										class="detail-meta-item git-meta-button"
-										aria-label="Version controlled. Open Git plugin folder"
-										data-tooltip="Version controlled. Open Git plugin folder"
-										disabled={isScanActive || pluginActionState === 'working'}
-										onclick={(event) => {
-											stopActionPropagation(event);
-											void runSelectedPluginAction({
-												action: 'open-source',
-												sourcePath: selectedPluginGitSource.path
-											});
-										}}
-									>
-										<GitBranch
-											class="detail-meta-icon"
-											size={22}
-											strokeWidth={1.8}
-											aria-hidden="true"
-										/>
-									</button>
-								{:else}
-									<span
-										class="detail-meta-item"
-										class:is-negative={selectedPlugin.versionSource !== 'git'}
-										role="img"
-										aria-label="No version control"
-										data-tooltip="No version control"
-									>
-										<GitBranch
-											class="detail-meta-icon"
-											size={22}
-											strokeWidth={1.8}
-											aria-hidden="true"
-										/>
-									</span>
-								{/if}
 								{#if selectedPlugin.repositoryUrl}
 									<a
 										class="detail-meta-item detail-meta-link"
@@ -901,19 +863,29 @@
 										/>
 									</span>
 								{/if}
-								{#if selectedPlugin.installedVersions?.length}
-									<span
-										class="detail-meta-item version-meta"
-										class:is-negative={!selectedPlugin.installedVersions?.length}
-										role="img"
-										aria-label="{installedVersionLabel(selectedPlugin)} installed"
-										data-tooltip="{installedVersionLabel(selectedPlugin)} installed"
-									>
+								<span
+									class="detail-meta-item version-control-meta"
+									class:is-negative={!selectedPluginGitSource}
+									role="img"
+									aria-label={selectedPluginGitSource
+										? `Version controlled: ${installedVersionLabel(selectedPlugin)}`
+										: 'No version control'}
+									data-tooltip={selectedPluginGitSource
+										? 'Version controlled'
+										: 'No version control'}
+								>
+									<GitBranch
+										class="detail-meta-icon"
+										size={22}
+										strokeWidth={1.8}
+										aria-hidden="true"
+									/>
+									{#if selectedPluginGitSource && selectedPlugin.installedVersions?.length}
 										<strong class="detail-meta-version"
 											>{installedVersionLabel(selectedPlugin)}</strong
 										>
-									</span>
-								{/if}
+									{/if}
+								</span>
 							</div>
 							<div class="plugin-actions plugin-actions-top">
 								<button
@@ -1912,33 +1884,7 @@
 		line-height: 1;
 	}
 
-	.git-meta-button {
-		cursor: pointer;
-		transition:
-			border-color 120ms ease,
-			background-color 120ms ease,
-			color 120ms ease;
-	}
-
-	.git-meta-button:hover:not(:disabled),
-	.git-meta-button:focus-visible {
-		border-color: rgba(57, 155, 130, 0.7);
-		background: rgba(57, 155, 130, 0.08);
-		color: #55c4a5;
-		outline: none;
-	}
-
-	.git-meta-button:focus-visible {
-		outline: 2px solid #9be6cc;
-		outline-offset: 3px;
-	}
-
-	.git-meta-button:disabled {
-		cursor: wait;
-		opacity: 0.55;
-	}
-
-	.detail-meta .version-meta {
+	.detail-meta .version-control-meta {
 		width: auto;
 		min-width: 36px;
 	}
