@@ -205,18 +205,17 @@
 	let visibleMapNodes = $derived.by(() => {
 		if (!normalizedQuery) return mapNodes;
 
+		const matchingPluginIds = filteredPlugins.map((plugin) => `plugin:${plugin.id}`);
 		const matchingIds = activationNodes
-			.filter((node) =>
-				(node.data.searchText ?? `${node.data.label} ${node.data.meta}`)
-					.toLowerCase()
-					.includes(normalizedQuery)
-			)
+			.filter((node) => matchingPluginIds.includes(node.id))
 			.map((node) => node.id);
+		if (filteredPlugins.some(isOfficialPlugin) && !matchingIds.includes(OFFICIAL_NODE_ID)) {
+			matchingIds.push(OFFICIAL_NODE_ID);
+		}
 
 		for (const edge of activationEdges) {
-			if (matchingIds.includes(edge.source) || matchingIds.includes(edge.target)) {
-				if (!matchingIds.includes(edge.source)) matchingIds.push(edge.source);
-				if (!matchingIds.includes(edge.target)) matchingIds.push(edge.target);
+			if (matchingIds.includes(edge.source) && !matchingIds.includes(edge.target)) {
+				matchingIds.push(edge.target);
 			}
 		}
 
