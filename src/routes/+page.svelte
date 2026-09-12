@@ -1054,7 +1054,7 @@
 												onclick={() => void installSelectedPlugin()}
 												data-tooltip="Install plugin from remote"
 											>
-		<HardDriveDownload class="install-icon" />
+												<HardDriveDownload class="install-icon" />
 											</button>
 											{#if installState === 'working'}
 												<button type="button" class="cancel-button" onclick={cancelInstall}>
