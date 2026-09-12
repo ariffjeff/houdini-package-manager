@@ -831,6 +831,23 @@
 								{/if}
 							</div>
 							<div class="detail-meta">
+								<button
+									type="button"
+									class="detail-meta-item node-action-button icon-action-button plugin-rescan-button"
+									aria-label={pluginScanState === 'working'
+										? 'Rescanning plugin configs'
+										: 'Rescan plugin configs'}
+									data-tooltip={pluginScanState === 'working'
+										? 'Rescanning plugin configs'
+										: 'Rescan plugin configs'}
+									disabled={isScanActive || pluginScanState === 'working'}
+									onclick={(event) => {
+										stopActionPropagation(event);
+										void rescanSelectedPluginConfigs();
+									}}
+								>
+									<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
+								</button>
 								{#if selectedPlugin.repositoryUrl}
 									<a
 										class="detail-meta-item detail-meta-link"
@@ -886,25 +903,6 @@
 										>
 									{/if}
 								</span>
-							</div>
-							<div class="plugin-actions plugin-actions-top">
-								<button
-									type="button"
-									class="node-action-button icon-action-button plugin-rescan-button"
-									aria-label={pluginScanState === 'working'
-										? 'Rescanning plugin configs'
-										: 'Rescan plugin configs'}
-									data-tooltip={pluginScanState === 'working'
-										? 'Rescanning plugin configs'
-										: 'Rescan plugin configs'}
-									disabled={isScanActive || pluginScanState === 'working'}
-									onclick={(event) => {
-										stopActionPropagation(event);
-										void rescanSelectedPluginConfigs();
-									}}
-								>
-									<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
-								</button>
 							</div>
 							{#if selectedPlugin.sources?.some((source) => source.exists)}
 								<section class="panel-section source-list" aria-labelledby="local-sources-title">
@@ -1997,10 +1995,6 @@
 		flex-direction: column;
 		gap: 12px;
 		margin-bottom: 18px;
-	}
-
-	.plugin-actions-top {
-		margin-top: -18px;
 	}
 
 	.node-action-row {
