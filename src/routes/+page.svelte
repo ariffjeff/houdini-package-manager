@@ -11,7 +11,8 @@
 		RefreshCw,
 		Square,
 		TriangleAlert,
-		CloudSync
+		CloudSync,
+		HardDriveDownload
 	} from '@lucide/svelte';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
@@ -1046,8 +1047,9 @@
 													!requestedInstallVersion ||
 													(installScope === 'install' && !requestedInstallId)}
 												onclick={() => void installSelectedPlugin()}
+												data-tooltip="Install plugin from remote"
 											>
-												{installState === 'working' ? 'Installing...' : 'Install version'}
+		<HardDriveDownload class="install-icon" />
 											</button>
 											{#if installState === 'working'}
 												<button type="button" class="cancel-button" onclick={cancelInstall}>
