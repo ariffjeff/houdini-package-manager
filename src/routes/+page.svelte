@@ -147,6 +147,11 @@
 	let enabledCount = $derived(
 		activationTargets.filter((target) => target.status === 'enabled').length
 	);
+	let pluginCount = $derived(
+		new Set(
+			activationPlugins.filter((plugin) => !isOfficialPlugin(plugin)).map((plugin) => plugin.id)
+		).size
+	);
 	let attentionCount = $derived(activationTargets.filter(isTargetIssue).length);
 	let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
 	let selectedGraphNodeId = $derived.by(() => {
@@ -743,10 +748,10 @@
 				class="workspace-header flex flex-col gap-5 border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between"
 			>
 				<div class="intro-stats" aria-label="Activation summary">
-					<div><strong>{activationPlugins.length}</strong><span>plugins</span></div>
-					<div><strong>{activationInstalls.length}</strong><span>installs</span></div>
+					<div><strong>{pluginCount}</strong><span>user plugins</span></div>
+					<div><strong>{activationInstalls.length}</strong><span>Houdinis</span></div>
 					<div class="attention-stat">
-						<strong>{attentionCount}</strong><span>review states</span>
+						<strong>{attentionCount}</strong><span>Issues</span>
 					</div>
 				</div>
 				<div class="workspace-actions flex w-full flex-wrap items-center gap-3 lg:w-auto">
