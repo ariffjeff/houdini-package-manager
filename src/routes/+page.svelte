@@ -886,10 +886,12 @@
 									class:is-negative={!selectedPluginGitSource}
 									role="img"
 									aria-label={selectedPluginGitSource
-										? `Version controlled: ${installedVersionLabel(selectedPlugin)}`
+										? `Version controlled${selectedPluginGitSource.gitBranch ? `, ${selectedPluginGitSource.gitBranch}` : ''}: ${installedVersionLabel(selectedPlugin)} branch`
 										: 'No version control'}
 									data-tooltip={selectedPluginGitSource
-										? 'Version controlled'
+										? selectedPluginGitSource.gitBranch
+											? `Version controlled, ${selectedPluginGitSource.gitBranch} branch`
+											: 'Version controlled'
 										: 'No version control'}
 								>
 									<GitBranch
@@ -902,6 +904,9 @@
 										<strong class="detail-meta-version"
 											>{installedVersionLabel(selectedPlugin)}</strong
 										>
+									{/if}
+									{#if selectedPluginGitSource?.gitBranch}
+										<span class="detail-meta-branch">{selectedPluginGitSource.gitBranch}</span>
 									{/if}
 								</span>
 							</div>
@@ -1932,6 +1937,13 @@
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 14px;
 		font-weight: 600;
+		line-height: 1;
+	}
+
+	.detail-meta-branch {
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
 		line-height: 1;
 	}
 

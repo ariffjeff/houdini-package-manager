@@ -90,6 +90,7 @@ const validScanStages = new Set<HoudiniScanStage>(['all', 'installs', 'plugins',
 
 export type GitMetadata = {
 	ref: string;
+	branch: string | null;
 	commit: string;
 	author: string | null;
 	repositoryUrl: string | null;
@@ -941,6 +942,7 @@ export function mergePluginRecords(left: PluginRecord, right: PluginRecord): Plu
 		version: primary?.version ?? knownVersion?.version ?? left.version,
 		versionSource: primary?.versionSource ?? knownVersion?.versionSource ?? left.versionSource,
 		gitRef: primary?.gitRef ?? left.gitRef ?? right.gitRef,
+		gitBranch: primary?.gitBranch ?? left.gitBranch ?? right.gitBranch,
 		repositoryUrl: primary?.repositoryUrl ?? left.repositoryUrl ?? right.repositoryUrl,
 		availableVersions: uniqueStrings([
 			...(left.availableVersions ?? []),
@@ -970,6 +972,7 @@ export function mergePluginSources(sources: PluginSource[]): PluginSource[] {
 			...preferred,
 			exists: existing.exists || source.exists,
 			gitRef: existing.gitRef ?? source.gitRef,
+			gitBranch: existing.gitBranch ?? source.gitBranch,
 			repositoryUrl: existing.repositoryUrl ?? source.repositoryUrl,
 			availableVersions: uniqueStrings([
 				...(existing.availableVersions ?? []),
@@ -1199,6 +1202,7 @@ async function inspectGitSources(
 					version: metadata?.ref ?? null,
 					versionSource: metadata ? 'git' : 'unknown',
 					gitRef: metadata?.ref ?? null,
+					gitBranch: metadata?.branch ?? null,
 					repositoryUrl: metadata?.repositoryUrl ?? null,
 					availableVersions: metadata?.availableVersions ?? []
 				}
@@ -1229,8 +1233,9 @@ async function inspectGitPath(
 	const repositoryRoot = await runGit(['rev-parse', '--show-toplevel']);
 	if (!repositoryRoot) return null;
 
-	const [description, commit, remote, localTags, trackedFiles] = await Promise.all([
+	const [description, branch, commit, remote, localTags, trackedFiles] = await Promise.all([
 		runGit(['describe', '--tags', '--always', '--dirty']),
+		runGit(['symbolic-ref', '--short', '-q', 'HEAD']),
 		runGit(['rev-parse', '--short', 'HEAD']),
 		runGit(['config', '--get', 'remote.origin.url']),
 		runGit(['tag', '--sort=-version:refname']),
@@ -1245,6 +1250,7 @@ async function inspectGitPath(
 
 	return {
 		ref: description || commit || 'git',
+		branch: branch || null,
 		commit,
 		author: githubAccountFromRepositoryUrl(repositoryUrl),
 		repositoryUrl,

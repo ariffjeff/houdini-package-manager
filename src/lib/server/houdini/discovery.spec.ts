@@ -248,6 +248,7 @@ UNSET_VALUE := '<not defined>'
 	it('prefers explicit package versions over Git metadata', () => {
 		const git = {
 			ref: 'v1.10.0',
+			branch: 'main',
 			commit: 'abc1234',
 			author: 'toadstorm',
 			repositoryUrl: 'https://github.com/toadstorm/MOPS',
