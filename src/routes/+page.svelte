@@ -152,7 +152,9 @@
 			activationPlugins.filter((plugin) => !isOfficialPlugin(plugin)).map((plugin) => plugin.id)
 		).size
 	);
-	let attentionCount = $derived(activationTargets.filter(isTargetIssue).length);
+	let attentionCount = $derived(
+		new Set(activationTargets.filter(isTargetIssue).map((target) => target.pluginId)).size
+	);
 	let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
 	let selectedGraphNodeId = $derived.by(() => {
 		if (!selectedNodeId) return null;
