@@ -522,6 +522,7 @@
 			editor.hpath = editor.hpath.trim();
 			editor.state = 'saved';
 			editor.message = result.message;
+			closeTargetConfigDialog();
 		} catch (error) {
 			editor.state = 'error';
 			editor.message = getErrorMessage(error);
@@ -2054,7 +2055,7 @@
 							!targetConfigEditor.hpath.trim()}
 						onclick={() => void saveTargetConfig()}
 					>
-						{targetConfigEditor.state === 'saving' ? 'Saving...' : 'Save config'}
+						{targetConfigEditor.state === 'saving' ? 'Saving...' : 'Save and close'}
 					</button>
 				</div>
 			</dialog>

@@ -797,7 +797,7 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
 			.toBeInTheDocument();
-		await page.getByRole('button', { name: 'Save config', exact: true }).click();
+		await page.getByRole('button', { name: 'Save and close', exact: true }).click();
 		await expect
 			.poll(() => pluginActionRequests.at(-1))
 			.toEqual({
@@ -807,8 +807,9 @@ describe('activation workspace', () => {
 				hpath: 'C:/Users/test/Plugins/MOPS',
 				migrateLegacyPath: true
 			});
-		await expect.element(page.getByText('Updated MOPS.json.', { exact: true })).toBeInTheDocument();
-		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+			.not.toBeInTheDocument();
 
 		await page.getByRole('button', { name: 'Open JSON config for Houdini 21.0' }).click();
 		await expect
