@@ -11,6 +11,7 @@
 		FolderCode,
 		RefreshCw,
 		Square,
+		Tag,
 		TriangleAlert,
 		CloudSync,
 		HardDriveDownload,
@@ -1108,9 +1109,14 @@
 										aria-hidden="true"
 									/>
 									{#if selectedPluginGitSource && selectedPlugin.installedVersions?.length}
-										<strong class="detail-meta-version"
-											>{installedVersionLabel(selectedPlugin)}</strong
-										>
+										<span class="detail-meta-version-box">
+											{#if selectedPluginGitSource.gitTag}
+												<Tag size={13} strokeWidth={2} aria-hidden="true" />
+											{/if}
+											<strong class="detail-meta-version"
+												>{installedVersionLabel(selectedPlugin)}</strong
+											>
+										</span>
 									{/if}
 									{#if selectedPluginGitSource?.gitBranch}
 										<span class="detail-meta-branch">{selectedPluginGitSource.gitBranch}</span>
@@ -1218,7 +1224,11 @@
 											{#if selectedPluginVersions.length}
 												{#if !selectedPlugin.installedVersions?.includes(selectedPluginVersions[0])}
 													<span class="new-version-note">
-														<span>New: {selectedPluginVersions[0]}</span>
+														New:
+														{#if selectedPluginGitSource?.availableVersions?.includes(selectedPluginVersions[0])}
+															<Tag size={13} strokeWidth={2} aria-hidden="true" />
+														{/if}
+														<span>{selectedPluginVersions[0]}</span>
 													</span>
 												{/if}
 												<button
@@ -2625,6 +2635,16 @@
 		line-height: 1;
 	}
 
+	.detail-meta-version-box {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 6px;
+		border: 1px solid rgba(57, 155, 130, 0.3);
+		border-radius: 4px;
+		background: rgba(57, 155, 130, 0.08);
+	}
+
 	.detail-meta-branch {
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
@@ -2962,7 +2982,7 @@
 		border-radius: 4px;
 		background: rgba(211, 155, 56, 0.09);
 		color: #d39b38;
-		font-size: 11px;
+		font-size: 14px;
 		line-height: 1;
 	}
 
