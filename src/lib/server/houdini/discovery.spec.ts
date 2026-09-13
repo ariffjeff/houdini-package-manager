@@ -167,6 +167,15 @@ UNSET_VALUE := '<not defined>'
 			resolvePackageTargetStatus({
 				valid: true,
 				enabled: true,
+				existingPaths: [process.cwd()],
+				missingPaths: [],
+				usesLegacyPath: true
+			})
+		).toBe('warning');
+		expect(
+			resolvePackageTargetStatus({
+				valid: true,
+				enabled: true,
 				existingPaths: [],
 				missingPaths: [],
 				stalePaths: [missingPath]

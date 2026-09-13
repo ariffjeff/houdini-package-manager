@@ -17,6 +17,7 @@ let pluginActionRequests: Array<{
 	sourcePath?: string;
 	enabled?: boolean;
 	hpath?: string;
+	migrateLegacyPath?: boolean;
 }> = [];
 let holdPluginAction = false;
 let releasePluginAction: (() => void) | null = null;
@@ -113,6 +114,7 @@ const discoveryResponse = {
 			packageFile: 'MOPS.json',
 			packagePath: 'C:/Users/test/Documents/houdini21.0/packages/MOPS.json',
 			sourcePaths: ['C:/Users/test/Desktop/DCC/MOPS'],
+			usesLegacyPath: true,
 			origin: 'user',
 			note: 'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops; available source: C:/Users/test/Desktop/DCC/MOPS'
 		},
@@ -189,6 +191,7 @@ function stubDiscovery(
 					sourcePath?: string;
 					enabled?: boolean;
 					hpath?: string;
+					migrateLegacyPath?: boolean;
 				};
 				pluginActionRequests.push(request);
 				if (holdPluginAction) {
@@ -765,10 +768,15 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByRole('heading', { name: 'Config options', exact: true }))
 			.toBeInTheDocument();
+		await expect.element(page.getByRole('alert')).toHaveTextContent('deprecated path key');
+		await expect
+			.element(page.getByRole('checkbox', { name: /Auto-remove path/ }))
+			.not.toBeChecked();
 		await expect
 			.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
 			.toBeInTheDocument();
 		const sourceInput = page.getByRole('textbox', { name: 'Local plugin source' });
+		await page.getByRole('checkbox', { name: /Auto-remove path/ }).click();
 		await sourceInput.fill('C:/Users/test/Plugins/MOPS');
 		await expect
 			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
@@ -780,7 +788,8 @@ describe('activation workspace', () => {
 				action: 'update-config',
 				pluginId: 'package:mops',
 				installId: 'install:houdini-21.0-455-test',
-				hpath: 'C:/Users/test/Plugins/MOPS'
+				hpath: 'C:/Users/test/Plugins/MOPS',
+				migrateLegacyPath: true
 			});
 		await expect.element(page.getByText('Updated MOPS.json.', { exact: true })).toBeInTheDocument();
 		await page.getByRole('button', { name: 'Close', exact: true }).click();

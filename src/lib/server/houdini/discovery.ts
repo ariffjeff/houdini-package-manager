@@ -34,6 +34,7 @@ type PackageConfig = {
 	existingPaths: string[];
 	missingPaths: string[];
 	stalePaths: string[];
+	usesLegacyPath: boolean;
 	sources: PluginSource[];
 	error?: string;
 };
@@ -630,6 +631,7 @@ function buildDiscoveryResponse(
 				packageFile: packageConfig?.plugin.packageFile ?? plugin.packageFile,
 				packagePath: packageConfig?.packagePath ?? null,
 				sourcePaths: packageConfig?.paths ?? [],
+				usesLegacyPath: packageConfig?.usesLegacyPath ?? false,
 				origin: packageConfig?.origin ?? null,
 				note: packageConfig
 					? (packageConfig.error ??
@@ -637,9 +639,11 @@ function buildDiscoveryResponse(
 							? `Package config has missing path${packageConfig.missingPaths.length === 1 ? '' : 's'}: ${packageConfig.missingPaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
 							: packageConfig.stalePaths.length
 								? `Package config references removed HPM source${packageConfig.stalePaths.length === 1 ? '' : 's'}: ${packageConfig.stalePaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
-								: packageConfig.enabled
-									? 'Package config was discovered and is enabled by default.'
-									: 'Package config was discovered with enable=false.'))
+								: packageConfig.usesLegacyPath
+									? 'Package config uses deprecated path; replace it with hpath.'
+									: packageConfig.enabled
+										? 'Package config was discovered and is enabled by default.'
+										: 'Package config was discovered with enable=false.'))
 					: 'No package config with this name was found for this Houdini install.'
 			};
 		})
@@ -874,6 +878,7 @@ async function readPackageConfigs(
 				existingPaths,
 				missingPaths,
 				stalePaths,
+				usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
 				sources: visibleSources,
 				error
 			};
@@ -911,6 +916,7 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		existingPaths,
 		missingPaths,
 		stalePaths,
+		usesLegacyPath: left.usesLegacyPath || right.usesLegacyPath,
 		sources,
 		error: [left.error, right.error].filter(Boolean).join('; ') || undefined
 	};
@@ -1083,6 +1089,7 @@ export function resolvePackageTargetStatus(
 				existingPaths: string[];
 				missingPaths: string[];
 				stalePaths?: string[];
+				usesLegacyPath?: boolean;
 		  }
 		| undefined
 ): HoudiniDiscoveryResponse['targets'][number]['status'] {
@@ -1091,6 +1098,7 @@ export function resolvePackageTargetStatus(
 	if (packageConfig.missingPaths.length && !packageConfig.existingPaths.length) return 'missing';
 	if (packageConfig.stalePaths?.length && !packageConfig.existingPaths.length) return 'missing';
 	if (packageConfig.missingPaths.length) return 'warning';
+	if (packageConfig.usesLegacyPath) return 'warning';
 	return packageConfig.enabled ? 'enabled' : 'disabled';
 }
 

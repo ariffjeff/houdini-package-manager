@@ -90,6 +90,7 @@
 		packagePath: string;
 		config: Record<string, unknown>;
 		hpath: string;
+		migrateLegacyPath: boolean;
 		state: 'loading' | 'ready' | 'saving' | 'saved' | 'error';
 		message: string;
 	};
@@ -386,6 +387,7 @@
 		if (!editor) return '{}';
 
 		const preview = { ...editor.config };
+		if (editor.migrateLegacyPath) delete preview.path;
 		preview.hpath = editor.hpath.trim();
 		return JSON.stringify(preview, null, 2);
 	});
@@ -409,6 +411,10 @@
 		if (Array.isArray(config.hpath)) {
 			return config.hpath.filter((value): value is string => typeof value === 'string').join('; ');
 		}
+		if (typeof config.path === 'string') return config.path;
+		if (Array.isArray(config.path)) {
+			return config.path.filter((value): value is string => typeof value === 'string').join('; ');
+		}
 		return fallback;
 	}
 
@@ -417,6 +423,9 @@
 	}
 
 	function targetIssueSummary(target: ActivationTarget): string {
+		if (target.usesLegacyPath && ['enabled', 'disabled'].includes(target.status)) {
+			return 'Deprecated path key';
+		}
 		if (target.status === 'missing') return 'Plugin source not found';
 		if (isInvalidPackageJson(target)) return 'Invalid package JSON';
 		if (target.status === 'incompatible') return 'Plugin is incompatible';
@@ -451,6 +460,7 @@
 			packagePath: target.packagePath,
 			config: {},
 			hpath: target.sourcePaths?.[0] ?? '',
+			migrateLegacyPath: target.usesLegacyPath ?? false,
 			state: 'loading',
 			message: ''
 		};
@@ -465,6 +475,7 @@
 			const config = result.config ?? {};
 			targetConfigEditor.config = config;
 			targetConfigEditor.hpath = configHpath(config, target.sourcePaths?.[0] ?? '');
+			targetConfigEditor.migrateLegacyPath = false;
 			targetConfigEditor.state = 'ready';
 		} catch (error) {
 			if (!targetConfigEditor || targetConfigEditor.installId !== install.id) return;
@@ -490,11 +501,12 @@
 				pluginId: plugin.id,
 				action: 'update-config',
 				installId: editor.installId,
-				hpath: editor.hpath
+				hpath: editor.hpath,
+				migrateLegacyPath: editor.migrateLegacyPath
 			});
 			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
 			const config = { ...editor.config };
-			delete config.path;
+			if (editor.migrateLegacyPath) delete config.path;
 			config.hpath = editor.hpath.trim();
 			editor.config = config;
 			editor.hpath = editor.hpath.trim();
@@ -1454,6 +1466,7 @@
 														class={[
 															'node-action-button',
 															'icon-action-button',
+															target.usesLegacyPath ||
 															['warning', 'incompatible', 'missing'].includes(target.status)
 																? 'issue-config-button'
 																: ''
@@ -1474,8 +1487,11 @@
 													<button
 														type="button"
 														class="node-action-button icon-action-button"
+														class:issue-config-button={target.usesLegacyPath}
 														aria-label={`Edit config options for ${install.label}`}
-														data-tooltip="Edit config options"
+														data-tooltip={target.usesLegacyPath
+															? 'Migrate deprecated path key'
+															: 'Edit config options'}
 														disabled={isScanActive || pluginActionState === 'working'}
 														onclick={(event) => {
 															stopActionPropagation(event);
@@ -1963,6 +1979,21 @@
 							placeholder="C:\\Plugins\\{selectedPlugin.name}"
 						/>
 					</label>
+					{#if targetConfigEditor.config.path !== undefined}
+						<p class="config-legacy-warning" role="alert">
+							This config uses the deprecated <code>path</code> key. Use <code>hpath</code> instead.
+						</p>
+						<label class="config-migration-toggle">
+							<input
+								type="checkbox"
+								bind:checked={targetConfigEditor.migrateLegacyPath}
+								disabled={targetConfigEditor.state === 'saving'}
+							/>
+							<span
+								>Auto-remove <code>path</code> and replace it with <code>hpath</code> on save</span
+							>
+						</label>
+					{/if}
 					<div class="config-preview-panel">
 						<div class="config-preview-heading">
 							<span>Live JSON preview</span>

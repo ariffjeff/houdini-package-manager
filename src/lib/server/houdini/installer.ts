@@ -146,7 +146,7 @@ export async function runHoudiniPluginAction(
 			throw new Error('A valid local plugin source path is required.');
 		}
 		const packageValue = await readPackageValue(target.packagePath);
-		delete packageValue.path;
+		if (request.migrateLegacyPath !== false) delete packageValue.path;
 		packageValue.hpath = request.hpath.trim();
 		await writePackageValue(target.packagePath, packageValue);
 		const discovery = await scanHoudiniWorkspace({

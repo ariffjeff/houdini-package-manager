@@ -23,6 +23,7 @@ export type ActivationTarget = {
 	packageFile: string;
 	packagePath: string | null;
 	sourcePaths?: string[];
+	usesLegacyPath?: boolean;
 	origin: PackageOrigin | null;
 	note: string;
 };
