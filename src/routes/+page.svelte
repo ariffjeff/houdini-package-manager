@@ -84,6 +84,15 @@
 		top: number;
 		placement: 'above' | 'below';
 	};
+	type TargetConfigEditor = {
+		installId: string;
+		installLabel: string;
+		packagePath: string;
+		config: Record<string, unknown>;
+		hpath: string;
+		state: 'loading' | 'ready' | 'saving' | 'saved' | 'error';
+		message: string;
+	};
 
 	const scanStages: Array<{ stage: ScanStage; label: string }> = [
 		{
@@ -142,6 +151,7 @@
 	let pluginActionState = $state<ActionState>('idle');
 	let issuesDialogOpen = $state(false);
 	let targetIssueDetails = $state<TargetIssueDetails | null>(null);
+	let targetConfigEditor = $state<TargetConfigEditor | null>(null);
 	let tooltip = $state<TooltipState | null>(null);
 
 	let activationGraph = $derived(
@@ -371,9 +381,35 @@
 
 		return groups;
 	});
+	let targetConfigPreview = $derived.by(() => {
+		const editor = targetConfigEditor;
+		if (!editor) return '{}';
+
+		const preview = { ...editor.config };
+		preview.hpath = editor.hpath.trim();
+		return JSON.stringify(preview, null, 2);
+	});
 
 	function installBuildLabels(installs: HoudiniInstall[]): string[] {
 		return [...new Set(installs.map((install) => install.build))];
+	}
+
+	function compactPath(value: string): string {
+		const segments = value.split(/[\\/]+/).filter(Boolean);
+		if (segments.length <= 3) return value;
+
+		const separator = value.includes('\\') ? '\\' : '/';
+		const prefix = /^[A-Za-z]:[\\/]/.test(value) ? `${segments[0]}${separator}` : '';
+		const tail = segments.slice(-2).join(separator);
+		return `${prefix}...${separator}${tail}`;
+	}
+
+	function configHpath(config: Record<string, unknown>, fallback = ''): string {
+		if (typeof config.hpath === 'string') return config.hpath;
+		if (Array.isArray(config.hpath)) {
+			return config.hpath.filter((value): value is string => typeof value === 'string').join('; ');
+		}
+		return fallback;
 	}
 
 	function isInvalidPackageJson(target: ActivationTarget): boolean {
@@ -403,6 +439,71 @@
 
 	function closeTargetIssueDetails() {
 		targetIssueDetails = null;
+	}
+
+	async function openTargetConfigDialog(install: HoudiniInstall, target: ActivationTarget) {
+		const plugin = selectedPlugin;
+		if (!plugin || !target.packagePath || isScanActive || pluginActionState === 'working') return;
+
+		targetConfigEditor = {
+			installId: install.id,
+			installLabel: install.label,
+			packagePath: target.packagePath,
+			config: {},
+			hpath: target.sourcePaths?.[0] ?? '',
+			state: 'loading',
+			message: ''
+		};
+
+		try {
+			const result = await runHoudiniPluginAction({
+				pluginId: plugin.id,
+				action: 'get-config',
+				installId: install.id
+			});
+			if (!targetConfigEditor || targetConfigEditor.installId !== install.id) return;
+			const config = result.config ?? {};
+			targetConfigEditor.config = config;
+			targetConfigEditor.hpath = configHpath(config, target.sourcePaths?.[0] ?? '');
+			targetConfigEditor.state = 'ready';
+		} catch (error) {
+			if (!targetConfigEditor || targetConfigEditor.installId !== install.id) return;
+			targetConfigEditor.state = 'error';
+			targetConfigEditor.message = getErrorMessage(error);
+		}
+	}
+
+	function closeTargetConfigDialog() {
+		if (targetConfigEditor?.state === 'saving') return;
+		targetConfigEditor = null;
+	}
+
+	async function saveTargetConfig() {
+		const plugin = selectedPlugin;
+		const editor = targetConfigEditor;
+		if (!plugin || !editor || !editor.hpath.trim() || editor.state === 'saving') return;
+
+		editor.state = 'saving';
+		editor.message = '';
+		try {
+			const result = await runHoudiniPluginAction({
+				pluginId: plugin.id,
+				action: 'update-config',
+				installId: editor.installId,
+				hpath: editor.hpath
+			});
+			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
+			const config = { ...editor.config };
+			delete config.path;
+			config.hpath = editor.hpath.trim();
+			editor.config = config;
+			editor.hpath = editor.hpath.trim();
+			editor.state = 'saved';
+			editor.message = result.message;
+		} catch (error) {
+			editor.state = 'error';
+			editor.message = getErrorMessage(error);
+		}
 	}
 
 	function installedVersionLabel(plugin: PluginRecord): string {
@@ -591,6 +692,7 @@
 		if (event.key !== 'Escape') return;
 		if (issuesDialogOpen) closeIssuesDialog();
 		if (targetIssueDetails) closeTargetIssueDetails();
+		if (targetConfigEditor && targetConfigEditor.state !== 'saving') closeTargetConfigDialog();
 		if (installDialogOpen && installState !== 'working') closeInstallDialog();
 	}
 
@@ -1298,6 +1400,7 @@
 									{#each selectedPluginTargetGroups as group (group.representativeInstall.version)}
 										{@const install = group.representativeInstall}
 										{@const target = group.target}
+										{@const sourcePaths = target.sourcePaths ?? []}
 										<div
 											class={['target-item', 'target-item-actions', `target-item-${target.status}`]}
 										>
@@ -1371,6 +1474,19 @@
 													<button
 														type="button"
 														class="node-action-button icon-action-button"
+														aria-label={`Edit config options for ${install.label}`}
+														data-tooltip="Edit config options"
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void openTargetConfigDialog(install, target);
+														}}
+													>
+														<Cog size={22} strokeWidth={1.8} aria-hidden="true" />
+													</button>
+													<button
+														type="button"
+														class="node-action-button icon-action-button"
 														aria-label={`Open packages folder for ${install.label}`}
 														data-tooltip="Open packages folder"
 														disabled={isScanActive || pluginActionState === 'working'}
@@ -1393,6 +1509,14 @@
 											</div>
 											<div class="target-install-label">
 												<strong>{install.label}</strong>
+												<small
+													class="target-plugin-location"
+													title={sourcePaths.join('\n') || 'No plugin source configured'}
+												>
+													{sourcePaths.length
+														? `${compactPath(sourcePaths[0])}${sourcePaths.length > 1 ? ` + ${sourcePaths.length - 1} more` : ''}`
+														: 'No plugin source configured'}
+												</small>
 												<div class="target-builds" aria-label="Install builds">
 													{#each installBuildLabels(group.installs) as build (build)}
 														<span data-tooltip={`Build ${build}`}>{build}</span>
@@ -1798,6 +1922,87 @@
 							<ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" />
 						</button>
 					{/each}
+				</div>
+			</dialog>
+		</div>
+	{/if}
+	{#if targetConfigEditor && selectedPlugin}
+		<div class="issues-dialog-backdrop">
+			<button
+				type="button"
+				class="issues-dialog-dismiss"
+				aria-label="Close config options dialog"
+				disabled={targetConfigEditor.state === 'saving'}
+				onclick={closeTargetConfigDialog}
+			></button>
+			<dialog open class="issues-dialog target-config-dialog" aria-labelledby="target-config-title">
+				<div class="issues-dialog-header">
+					<div>
+						<h2 id="target-config-title">Config options</h2>
+						<p>{selectedPlugin.name} / {targetConfigEditor.installLabel}</p>
+					</div>
+					<button
+						type="button"
+						class="dialog-close-button"
+						aria-label="Close config options dialog"
+						disabled={targetConfigEditor.state === 'saving'}
+						onclick={closeTargetConfigDialog}
+					>
+						<X size={18} strokeWidth={1.8} aria-hidden="true" />
+					</button>
+				</div>
+				<div class="target-config-content">
+					<label class="install-dialog-field">
+						<span>Local plugin source</span>
+						<input
+							class="config-source-input"
+							type="text"
+							bind:value={targetConfigEditor.hpath}
+							disabled={targetConfigEditor.state === 'loading' ||
+								targetConfigEditor.state === 'saving'}
+							placeholder="C:\\Plugins\\{selectedPlugin.name}"
+						/>
+					</label>
+					<div class="config-preview-panel">
+						<div class="config-preview-heading">
+							<span>Live JSON preview</span>
+							<code>{targetConfigEditor.packagePath}</code>
+						</div>
+						<pre>{targetConfigEditor.state === 'loading'
+								? 'Loading config...'
+								: targetConfigPreview}</pre>
+					</div>
+					{#if targetConfigEditor.message}
+						<p
+							class={[
+								'install-message',
+								`is-${targetConfigEditor.state === 'error' ? 'error' : 'success'}`
+							]}
+							aria-live="polite"
+						>
+							{targetConfigEditor.message}
+						</p>
+					{/if}
+				</div>
+				<div class="target-issue-actions">
+					<button
+						type="button"
+						class="dialog-secondary-button"
+						disabled={targetConfigEditor.state === 'saving'}
+						onclick={closeTargetConfigDialog}
+					>
+						Close
+					</button>
+					<button
+						type="button"
+						class="dialog-primary-button"
+						disabled={targetConfigEditor.state === 'loading' ||
+							targetConfigEditor.state === 'saving' ||
+							!targetConfigEditor.hpath.trim()}
+						onclick={() => void saveTargetConfig()}
+					>
+						{targetConfigEditor.state === 'saving' ? 'Saving...' : 'Save config'}
+					</button>
 				</div>
 			</dialog>
 		</div>
@@ -2515,6 +2720,75 @@
 		line-height: 1.5;
 		overflow-wrap: anywhere;
 		white-space: pre-wrap;
+	}
+
+	.target-config-dialog {
+		width: min(760px, 100%);
+	}
+
+	.target-config-content {
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+		gap: 16px;
+		margin: 20px 0;
+	}
+
+	.config-source-input {
+		width: 100%;
+		min-width: 0;
+		padding: 9px 10px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 11px;
+	}
+
+	.config-source-input:focus-visible {
+		border-color: #399b82;
+		outline: none;
+	}
+
+	.config-preview-panel {
+		min-width: 0;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.14);
+		overflow: hidden;
+	}
+
+	.config-preview-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 9px 11px;
+		border-bottom: 1px solid var(--line);
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+	}
+
+	.config-preview-heading code {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.config-preview-panel pre {
+		max-height: min(360px, 42dvh);
+		margin: 0;
+		overflow: auto;
+		padding: 12px;
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		word-break: break-word;
 	}
 
 	.target-issue-actions {
@@ -3391,7 +3665,8 @@
 
 	.target-install-label {
 		min-width: 0;
-		flex: 0 1 auto;
+		flex: 1 1 auto;
+		overflow: hidden;
 	}
 
 	.target-actions {
@@ -3441,6 +3716,13 @@
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
+	}
+
+	.target-plugin-location {
+		max-width: min(42vw, 420px);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.target-builds {

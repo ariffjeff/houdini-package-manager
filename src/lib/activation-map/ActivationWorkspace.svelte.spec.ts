@@ -16,6 +16,7 @@ let pluginActionRequests: Array<{
 	installId?: string;
 	sourcePath?: string;
 	enabled?: boolean;
+	hpath?: string;
 }> = [];
 let holdPluginAction = false;
 let releasePluginAction: (() => void) | null = null;
@@ -111,6 +112,7 @@ const discoveryResponse = {
 			artifactVersion: null,
 			packageFile: 'MOPS.json',
 			packagePath: 'C:/Users/test/Documents/houdini21.0/packages/MOPS.json',
+			sourcePaths: ['C:/Users/test/Desktop/DCC/MOPS'],
 			origin: 'user',
 			note: 'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops; available source: C:/Users/test/Desktop/DCC/MOPS'
 		},
@@ -186,6 +188,7 @@ function stubDiscovery(
 					installId?: string;
 					sourcePath?: string;
 					enabled?: boolean;
+					hpath?: string;
 				};
 				pluginActionRequests.push(request);
 				if (holdPluginAction) {
@@ -198,14 +201,31 @@ function stubDiscovery(
 						message:
 							request.action === 'set-enabled'
 								? `MOPS ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`
-								: 'Plugin refreshed',
+								: request.action === 'get-config'
+									? 'Loaded MOPS.json.'
+									: request.action === 'update-config'
+										? 'Updated MOPS.json.'
+										: 'Plugin refreshed',
+						config:
+							request.action === 'get-config'
+								? {
+										path: 'C:/Users/test/Documents/HPM/plugins/mops',
+										hpath: 'C:/Users/test/Desktop/DCC/MOPS',
+										enable: false
+									}
+								: undefined,
 						discovery:
-							request.action === 'set-enabled'
+							request.action === 'set-enabled' || request.action === 'update-config'
 								? {
 										...response,
 										targets: response.targets.map((target) =>
 											target.pluginId === request.pluginId && target.installId === request.installId
-												? { ...target, status: request.enabled ? 'enabled' : 'disabled' }
+												? {
+														...target,
+														...(request.action === 'set-enabled'
+															? { status: request.enabled ? 'enabled' : 'disabled' }
+															: { sourcePaths: [request.hpath] })
+													}
 												: target
 										)
 									}
@@ -740,6 +760,30 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText('Plugin configs rescanned', { exact: true }))
 			.not.toBeInTheDocument();
+
+		await page.getByRole('button', { name: 'Edit config options for Houdini 21.0' }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
+			.toBeInTheDocument();
+		const sourceInput = page.getByRole('textbox', { name: 'Local plugin source' });
+		await sourceInput.fill('C:/Users/test/Plugins/MOPS');
+		await expect
+			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
+			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'Save config', exact: true }).click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toEqual({
+				action: 'update-config',
+				pluginId: 'package:mops',
+				installId: 'install:houdini-21.0-455-test',
+				hpath: 'C:/Users/test/Plugins/MOPS'
+			});
+		await expect.element(page.getByText('Updated MOPS.json.', { exact: true })).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
 
 		await page.getByRole('button', { name: 'Open JSON config for Houdini 21.0' }).click();
 		await expect

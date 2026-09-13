@@ -90,6 +90,7 @@ export type HoudiniDiscoveryResponse = {
 		artifactVersion: string | null;
 		packageFile: string;
 		packagePath: string | null;
+		sourcePaths?: string[];
 		origin: PackageOrigin | null;
 		note: string;
 	}>;
@@ -116,6 +117,8 @@ export type InstallPluginResponse = {
 
 export type HoudiniPluginAction =
 	| { action: 'open-config'; pluginId: string; installId: string }
+	| { action: 'get-config'; pluginId: string; installId: string }
+	| { action: 'update-config'; pluginId: string; installId: string; hpath: string }
 	| { action: 'open-package-folder'; pluginId: string; installId: string }
 	| { action: 'open-source'; pluginId: string; sourcePath: string }
 	| { action: 'set-enabled'; pluginId: string; installId: string; enabled: boolean };
@@ -123,4 +126,6 @@ export type HoudiniPluginAction =
 export type HoudiniPluginActionResponse = {
 	message: string;
 	discovery?: HoudiniDiscoveryResponse;
+	config?: Record<string, unknown>;
+	packagePath?: string;
 };

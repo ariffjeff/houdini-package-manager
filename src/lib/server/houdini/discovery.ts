@@ -629,6 +629,7 @@ function buildDiscoveryResponse(
 						: packageConfig.plugin.version,
 				packageFile: packageConfig?.plugin.packageFile ?? plugin.packageFile,
 				packagePath: packageConfig?.packagePath ?? null,
+				sourcePaths: packageConfig?.paths ?? [],
 				origin: packageConfig?.origin ?? null,
 				note: packageConfig
 					? (packageConfig.error ??

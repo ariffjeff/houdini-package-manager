@@ -112,7 +112,12 @@ export async function runHoudiniPluginAction(
 		return { message: `Opened ${install.label} package folder.` };
 	}
 
-	if (request.action !== 'open-config' && request.action !== 'set-enabled') {
+	if (
+		request.action !== 'open-config' &&
+		request.action !== 'get-config' &&
+		request.action !== 'update-config' &&
+		request.action !== 'set-enabled'
+	) {
 		throw new Error('Unknown plugin action.');
 	}
 
@@ -122,6 +127,36 @@ export async function runHoudiniPluginAction(
 	);
 	if (!target?.packagePath) {
 		throw new Error(`${plugin.name} has no discovered package config for this Houdini install.`);
+	}
+
+	if (request.action === 'get-config') {
+		return {
+			message: `Loaded ${target.packageFile}.`,
+			config: await readPackageValue(target.packagePath),
+			packagePath: target.packagePath
+		};
+	}
+
+	if (request.action === 'update-config') {
+		if (
+			typeof request.hpath !== 'string' ||
+			!request.hpath.trim() ||
+			/[\0\r\n]/.test(request.hpath)
+		) {
+			throw new Error('A valid local plugin source path is required.');
+		}
+		const packageValue = await readPackageValue(target.packagePath);
+		delete packageValue.path;
+		packageValue.hpath = request.hpath.trim();
+		await writePackageValue(target.packagePath, packageValue);
+		const discovery = await scanHoudiniWorkspace({
+			stage: 'plugins',
+			pluginIds: [request.pluginId]
+		});
+		return {
+			message: `Updated ${target.packageFile}.`,
+			discovery
+		};
 	}
 
 	if (request.action === 'open-config') {
@@ -306,19 +341,29 @@ async function writeManagedPackage(
 }
 
 async function setPackageEnabled(packagePath: string, enabled: boolean): Promise<void> {
-	let packageValue: Record<string, unknown>;
+	const packageValue = await readPackageValue(packagePath);
+
+	packageValue.enable = enabled;
+	await writePackageValue(packagePath, packageValue);
+}
+
+async function readPackageValue(packagePath: string): Promise<Record<string, unknown>> {
 	try {
 		const parsed = JSON.parse(await readFile(packagePath, 'utf8')) as unknown;
 		if (!isRecord(parsed)) throw new Error('Package JSON root must be an object.');
-		packageValue = parsed;
+		return parsed;
 	} catch (error) {
 		throw new Error(
-			`Cannot update ${path.basename(packagePath)}: ${error instanceof Error ? error.message : String(error)}`,
+			`Cannot read ${path.basename(packagePath)}: ${error instanceof Error ? error.message : String(error)}`,
 			{ cause: error }
 		);
 	}
+}
 
-	packageValue.enable = enabled;
+async function writePackageValue(
+	packagePath: string,
+	packageValue: Record<string, unknown>
+): Promise<void> {
 	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
 }
 

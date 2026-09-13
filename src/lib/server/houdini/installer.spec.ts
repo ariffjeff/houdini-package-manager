@@ -197,6 +197,46 @@ it('opens a package config through the Windows shell association', async () => {
 	);
 });
 
+it('loads and updates a package config source without replacing other keys', async () => {
+	const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-config-edit-'));
+	temporaryDirectories.push(root);
+	const packagePath = path.join(root, 'AJTools.json');
+	await writeFile(
+		packagePath,
+		'{"path":"C:/legacy/AJTools","hpath":"C:/old/AJTools","enable":false,"custom":true}\n',
+		'utf8'
+	);
+
+	const pluginId = 'package:ajtools';
+	const installId = 'install:19.5';
+	const discovery = {
+		installs: [{ id: installId, label: 'Houdini 19.5' }],
+		plugins: [{ id: pluginId, name: 'AJTools' }],
+		targets: [{ pluginId, installId, packagePath, packageFile: 'AJTools.json' }]
+	} as unknown as HoudiniDiscoveryResponse;
+	discoveryMocks.scanHoudiniWorkspace.mockResolvedValue(discovery);
+
+	const loaded = await runHoudiniPluginAction({
+		action: 'get-config',
+		pluginId,
+		installId
+	});
+	expect(loaded.config).toMatchObject({ hpath: 'C:/old/AJTools', enable: false, custom: true });
+
+	const updated = await runHoudiniPluginAction({
+		action: 'update-config',
+		pluginId,
+		installId,
+		hpath: 'C:/new/AJTools'
+	});
+	expect(updated.message).toBe('Updated AJTools.json.');
+	expect(JSON.parse(await readFile(packagePath, 'utf8'))).toEqual({
+		hpath: 'C:/new/AJTools',
+		enable: false,
+		custom: true
+	});
+});
+
 describe('Houdini plugin actions', () => {
 	it('installs selected Houdini targets at an explicit destination', async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-plugin-install-'));

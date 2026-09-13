@@ -22,6 +22,7 @@ export type ActivationTarget = {
 	artifactVersion: string | null;
 	packageFile: string;
 	packagePath: string | null;
+	sourcePaths?: string[];
 	origin: PackageOrigin | null;
 	note: string;
 };
