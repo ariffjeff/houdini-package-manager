@@ -2190,6 +2190,19 @@
 						disabled={isScanActive || pluginActionState === 'working'}
 						onclick={() => {
 							const issue = targetIssueDetails;
+							if (!issue) return;
+							closeTargetIssueDetails();
+							void runSelectedPluginAction({ action: 'open-config', installId: issue.installId });
+						}}
+					>
+						Open config
+					</button>
+					<button
+						type="button"
+						class="dialog-primary-button"
+						disabled={isScanActive || pluginActionState === 'working'}
+						onclick={() => {
+							const issue = targetIssueDetails;
 							const install = issue
 								? activationInstalls.find((candidate) => candidate.id === issue.installId)
 								: undefined;
@@ -2198,20 +2211,7 @@
 							void openTargetConfigDialog(install, issue.target);
 						}}
 					>
-						Edit config options
-					</button>
-					<button
-						type="button"
-						class="dialog-primary-button"
-						disabled={isScanActive || pluginActionState === 'working'}
-						onclick={() => {
-							const issue = targetIssueDetails;
-							if (!issue) return;
-							closeTargetIssueDetails();
-							void runSelectedPluginAction({ action: 'open-config', installId: issue.installId });
-						}}
-					>
-						Open config
+						Config Editor
 					</button>
 				</div>
 			</dialog>
@@ -3128,22 +3128,22 @@
 	}
 
 	.dialog-primary-button {
-		border-color: rgba(223, 109, 88, 0.58);
-		background: rgba(223, 109, 88, 0.14);
-		color: #ffb09f;
+		border-color: rgba(211, 155, 56, 0.18);
+		background: rgba(211, 155, 56, 0.1);
+		color: rgba(211, 155, 56, 1);
 	}
 
 	.dialog-secondary-button:hover,
 	.dialog-secondary-button:focus-visible,
 	.dialog-primary-button:hover:not(:disabled),
 	.dialog-primary-button:focus-visible:not(:disabled) {
-		border-color: #df6d58;
+		border-color: #e7d6ae;
 		outline: none;
 	}
 
 	.dialog-primary-button:hover:not(:disabled),
 	.dialog-primary-button:focus-visible:not(:disabled) {
-		background: rgba(223, 109, 88, 0.24);
+		background: rgba(211, 155, 56, 0.18);
 	}
 
 	.dialog-primary-button:disabled {
