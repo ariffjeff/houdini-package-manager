@@ -478,6 +478,14 @@
 		return ['The package config could not be activated for this Houdini install.'];
 	}
 
+	function hasTargetIssues(target: ActivationTarget): boolean {
+		return Boolean(
+			target.issues?.length ||
+			target.usesLegacyPath ||
+			['warning', 'incompatible', 'missing'].includes(target.status)
+		);
+	}
+
 	function targetIssueSummary(target: ActivationTarget): string {
 		if (targetIssueMessages(target).length > 1) return 'Multiple issues';
 		if (target.status === 'missing') return 'Plugin source not found';
@@ -1575,10 +1583,10 @@
 													<button
 														type="button"
 														class="node-action-button icon-action-button"
-														class:issue-config-button={target.usesLegacyPath}
+														class:issue-config-button={hasTargetIssues(target)}
 														aria-label={`Edit config options for ${install.label}`}
-														data-tooltip={target.usesLegacyPath
-															? 'Migrate deprecated path key'
+														data-tooltip={hasTargetIssues(target)
+															? 'Review config issues'
 															: 'Edit config options'}
 														disabled={isScanActive || pluginActionState === 'working'}
 														onclick={(event) => {

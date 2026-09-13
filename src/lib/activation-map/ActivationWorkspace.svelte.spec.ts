@@ -323,6 +323,9 @@ it('hides target-specific actions for a missing plugin target', async () => {
 		.element(page.getByRole('button', { name: 'View Plugin source not found for Houdini 21.0' }))
 		.toBeInTheDocument();
 	await expect
+		.element(page.getByRole('button', { name: 'Edit config options for Houdini 21.0' }))
+		.toHaveClass(/issue-config-button/);
+	await expect
 		.element(page.getByRole('button', { name: 'Rescan config for Houdini 21.0' }))
 		.toBeInTheDocument();
 	await page.getByRole('button', { name: 'Rescan config for Houdini 21.0' }).click();
@@ -393,7 +396,10 @@ it('shows invalid package JSON details for a plugin target', async () => {
 		.element(page.getByRole('heading', { name: 'Invalid package JSON', exact: true }))
 		.toBeInTheDocument();
 	await expect.element(page.getByText(invalidJsonNote, { exact: true })).toBeInTheDocument();
-	await page.getByRole('button', { name: 'Edit config options', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Invalid package JSON' })
+		.getByRole('button', { name: 'Config Editor', exact: true })
+		.click();
 	await expect
 		.element(page.getByRole('heading', { name: 'Config options', exact: true }))
 		.toBeInTheDocument();
