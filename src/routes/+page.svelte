@@ -131,6 +131,7 @@
 	let selectedInstallIds = $state<string[]>([]);
 	let installDestinationChoice = $state('custom');
 	let installCustomDestination = $state('');
+	let openInstalledFolder = $state(false);
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
 	let installController: AbortController | null = null;
@@ -563,6 +564,7 @@
 		const existingSource = remoteSourceOptions[0];
 		installDestinationChoice = existingSource ?? 'custom';
 		installCustomDestination = existingSource ?? '';
+		openInstalledFolder = false;
 		installState = 'idle';
 		installMessage = '';
 		installDialogOpen = true;
@@ -654,12 +656,13 @@
 
 	async function installSelectedPlugin() {
 		const plugin = selectedPlugin;
+		const destinationPath = requestedInstallDestination;
 		if (
 			!plugin ||
 			!requestedInstallVersion ||
 			!selectedPluginVersions.includes(requestedInstallVersion) ||
 			!selectedInstallIds.length ||
-			!requestedInstallDestination
+			!destinationPath
 		) {
 			return;
 		}
@@ -674,7 +677,7 @@
 					pluginId: plugin.id,
 					version: requestedInstallVersion,
 					installIds: [...selectedInstallIds],
-					destinationPath: requestedInstallDestination
+					destinationPath
 				},
 				controller.signal
 			);
@@ -682,6 +685,17 @@
 			installState = 'success';
 			installMessage = result.message;
 			installDialogOpen = false;
+			if (openInstalledFolder) {
+				try {
+					await runHoudiniPluginAction({
+						pluginId: plugin.id,
+						action: 'open-source',
+						sourcePath: destinationPath
+					});
+				} catch (error) {
+					installMessage = `${result.message} ${getErrorMessage(error)}`;
+				}
+			}
 		} catch (error) {
 			if (
 				controller.signal.aborted ||
@@ -1659,6 +1673,16 @@
 							oninput={(event) =>
 								(installCustomDestination = (event.currentTarget as HTMLInputElement).value)}
 						/>
+						<label class="install-open-folder-option">
+							<input
+								type="checkbox"
+								bind:checked={openInstalledFolder}
+								disabled={installState === 'working'}
+							/>
+							<span>
+								<strong>Open plugin folder after installation</strong>
+							</span>
+						</label>
 					</fieldset>
 
 					<div class="install-review">
@@ -3100,10 +3124,6 @@
 		padding: 0;
 	}
 
-	.install-fieldset-heading p {
-		margin-bottom: 0;
-	}
-
 	.install-selection-actions {
 		display: flex;
 		flex: 0 0 auto;
@@ -3140,7 +3160,8 @@
 	}
 
 	.install-target-option,
-	.install-destination-option {
+	.install-destination-option,
+	.install-open-folder-option {
 		display: flex;
 		min-width: 0;
 		align-items: flex-start;
@@ -3153,20 +3174,23 @@
 	}
 
 	.install-target-option:hover,
-	.install-destination-option:hover {
+	.install-destination-option:hover,
+	.install-open-folder-option:hover {
 		border-color: var(--line-strong);
 		background: rgba(255, 255, 255, 0.04);
 	}
 
 	.install-target-option input,
-	.install-destination-option input {
+	.install-destination-option input,
+	.install-open-folder-option input {
 		accent-color: #399b82;
 		flex: 0 0 auto;
 		margin: 2px 0 0;
 	}
 
 	.install-target-option span,
-	.install-destination-option span {
+	.install-destination-option span,
+	.install-open-folder-option span {
 		display: flex;
 		min-width: 0;
 		flex-direction: column;
@@ -3174,13 +3198,15 @@
 	}
 
 	.install-target-option strong,
-	.install-destination-option strong {
+	.install-destination-option strong,
+	.install-open-folder-option strong {
 		font-size: 11px;
 		font-weight: 600;
 	}
 
 	.install-target-option small,
-	.install-destination-option small {
+	.install-destination-option small,
+	.install-open-folder-option small {
 		overflow-wrap: anywhere;
 	}
 
@@ -3192,6 +3218,10 @@
 		margin-top: 8px;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 10px;
+	}
+
+	.install-open-folder-option {
+		margin-top: 8px;
 	}
 
 	.install-destination-input:disabled {
