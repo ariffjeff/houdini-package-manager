@@ -1341,7 +1341,12 @@
 														</div>
 													</div>
 													<div>
-														<strong>{source.version ?? 'Unversioned source'}</strong>
+														<div class="source-version-label">
+															{#if selectedPluginGitSource?.gitTag}
+																<Tag size={13} strokeWidth={2} aria-hidden="true" />
+															{/if}
+															<strong>{source.version ?? 'Unversioned source'}</strong>
+														</div>
 														<small>{source.path}</small>
 														{#if sourceTargets(source.path).length}
 															<div
@@ -3883,6 +3888,16 @@
 
 	.source-item > div:last-child {
 		min-width: 0;
+	}
+
+	.source-version-label {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.source-version-label :global(svg) {
+		flex: 0 0 auto;
 	}
 
 	.source-target-versions {
