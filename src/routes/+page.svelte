@@ -15,7 +15,8 @@
 		TriangleAlert,
 		CloudSync,
 		HardDriveDownload,
-		X
+		X,
+		Cog
 	} from '@lucide/svelte';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
@@ -1240,7 +1241,7 @@
 													data-tooltip="Choose install options"
 												>
 													<HardDriveDownload class="install-icon" />
-													<span>Configure install</span>
+													<Cog class="install-icon" />
 												</button>
 											{/if}
 										</div>
