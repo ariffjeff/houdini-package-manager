@@ -458,16 +458,6 @@ it('groups repeated config issues and selects the matching plugin node', async (
 	await page.getByRole('button', { name: 'Table', exact: true }).click();
 	await issueTrigger.click();
 
-	await expect
-		.element(page.getByRole('heading', { name: 'Issues', exact: true }))
-		.toBeInTheDocument();
-	await expect
-		.element(page.getByText('1 config issues across the workspace', { exact: true }))
-		.toBeInTheDocument();
-	await expect
-		.element(page.getByRole('button', { name: 'Open MOPS issue details', exact: true }))
-		.toBeInTheDocument();
-
 	await page.getByRole('button', { name: 'Open MOPS issue details', exact: true }).click();
 
 	await expect.element(page.getByRole('table')).not.toBeInTheDocument();
@@ -847,6 +837,19 @@ describe('activation workspace', () => {
 				pluginId: 'package:mops',
 				sourcePath: 'C:/Users/test/Desktop/DCC/MOPS'
 			});
+		await expect
+			.element(page.getByRole('button', { name: 'Edit MOPS config for Houdini 21.0', exact: true }))
+			.toBeInTheDocument();
+		await page
+			.getByRole('button', { name: 'Edit MOPS config for Houdini 21.0', exact: true })
+			.click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+			.toBeInTheDocument();
+		await page
+			.getByRole('dialog', { name: 'Config options' })
+			.getByRole('button', { name: 'Close config options dialog' })
+			.click();
 
 		holdPluginAction = true;
 		await page

@@ -407,6 +407,19 @@
 		return `${prefix}...${separator}${tail}`;
 	}
 
+	function sourcePathKey(value: string): string {
+		return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+	}
+
+	function sourceTargets(sourcePath: string) {
+		const sourceKey = sourcePathKey(sourcePath);
+		const matches = selectedPluginTargetGroups.filter(({ target }) =>
+			target.sourcePaths?.some((candidate) => sourcePathKey(candidate) === sourceKey)
+		);
+		const localSources = selectedPlugin?.sources?.filter((source) => source.exists) ?? [];
+		return matches.length || localSources.length !== 1 ? matches : selectedPluginTargetGroups;
+	}
+
 	function configHpath(config: Record<string, unknown>, fallback = ''): string {
 		if (typeof config.hpath === 'string') return config.hpath;
 		if (Array.isArray(config.hpath)) {
@@ -1323,6 +1336,29 @@
 													<div>
 														<strong>{source.version ?? 'Unversioned source'}</strong>
 														<small>{source.path}</small>
+														{#if sourceTargets(source.path).length}
+															<div
+																class="source-target-versions"
+																aria-label={`Houdini configs pointing to ${source.path}`}
+															>
+																<span>Configs:</span>
+																{#each sourceTargets(source.path) as sourceTarget (sourceTarget.representativeInstall.version)}
+																	<button
+																		type="button"
+																		class="source-version-button"
+																		aria-label={`Edit ${selectedPlugin.name} config for Houdini ${sourceTarget.representativeInstall.version}`}
+																		disabled={isScanActive || pluginActionState === 'working'}
+																		onclick={() =>
+																			void openTargetConfigDialog(
+																				sourceTarget.representativeInstall,
+																				sourceTarget.target
+																			)}
+																	>
+																		Houdini {sourceTarget.representativeInstall.version}
+																	</button>
+																{/each}
+															</div>
+														{/if}
 													</div>
 												</div>
 											{/if}
@@ -3826,6 +3862,50 @@
 		flex-direction: row;
 		justify-content: flex-start;
 		gap: 10px;
+	}
+
+	.source-item > div:last-child {
+		min-width: 0;
+	}
+
+	.source-target-versions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 5px;
+		margin-top: 7px;
+	}
+
+	.source-target-versions > span {
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		text-transform: uppercase;
+	}
+
+	.source-version-button {
+		padding: 3px 7px;
+		border: 1px solid rgba(57, 155, 130, 0.45);
+		border-radius: 3px;
+		background: rgba(57, 155, 130, 0.09);
+		color: #9ed7c7;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.2;
+		cursor: pointer;
+	}
+
+	.source-version-button:hover:not(:disabled),
+	.source-version-button:focus-visible:not(:disabled) {
+		border-color: #55b79d;
+		background: rgba(57, 155, 130, 0.18);
+		color: var(--text);
+		outline: none;
+	}
+
+	.source-version-button:disabled {
+		cursor: wait;
+		opacity: 0.5;
 	}
 
 	.target-section .target-item-actions {
