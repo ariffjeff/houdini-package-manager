@@ -8,6 +8,7 @@ import {
 	parseHconfigOutput,
 	parseInstallIdentity,
 	findMissingPackagePaths,
+	findPathAliasConflict,
 	githubAccountFromRepositoryUrl,
 	isManagedHpmPath,
 	mergePluginRecords,
@@ -141,6 +142,32 @@ UNSET_VALUE := '<not defined>'
 		expect(
 			resolvePackagePaths({ path: [pluginDirectory, `${pluginDirectory};`] }, {}, packageDirectory)
 		).toEqual([pluginDirectory]);
+	});
+
+	it('detects hpath and HOUDINI_PATH alias dependencies in package JSON', () => {
+		expect(
+			findPathAliasConflict({
+				hpath: '$PLUGIN_ROOT',
+				env: [{ HOUDINI_PATH: 'C:/houdini', PLUGIN_ROOT: 'C:/plugins', OTHER: '$hpath' }]
+			})
+		).toEqual({ hpathUsedAsVariable: true, houdiniPathUsedAsVariable: false });
+
+		expect(
+			findPathAliasConflict({
+				hpath: '$HOUDINI_PATH',
+				env: [{ HOUDINI_PATH: 'C:/houdini', OTHER: '$hpath' }]
+			})
+		).toEqual({ hpathUsedAsVariable: true, houdiniPathUsedAsVariable: true });
+
+		expect(
+			findPathAliasConflict({
+				hpath: 'C:/plugins',
+				HOUDINI_PATH: 'C:/houdini',
+				config: '${hpath} %HOUDINI_PATH%'
+			})
+		).toEqual({ hpathUsedAsVariable: false, houdiniPathUsedAsVariable: false });
+
+		expect(findPathAliasConflict({ hpath: 'C:/plugins' })).toBeNull();
 	});
 
 	it('reports deleted plugin paths without treating the package config as active', async () => {

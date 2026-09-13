@@ -1,5 +1,5 @@
 import type { Edge, Node } from '@xyflow/svelte';
-import type { PackageOrigin } from '../houdini/types';
+import type { KnownIssueKind, PackageOrigin, PackagePathAliasConflict } from '../houdini/types';
 
 export type {
 	HoudiniDiscoveryDiagnostic,
@@ -8,6 +8,7 @@ export type {
 	HoudiniPlatform,
 	InstallHealth,
 	PackageOrigin,
+	PackagePathAliasConflict,
 	PluginRecord
 } from '../houdini/types';
 
@@ -24,6 +25,8 @@ export type ActivationTarget = {
 	packagePath: string | null;
 	sourcePaths?: string[];
 	usesLegacyPath?: boolean;
+	pathAliasConflict?: PackagePathAliasConflict;
+	issueKinds?: KnownIssueKind[];
 	origin: PackageOrigin | null;
 	note: string;
 	issues?: string[];

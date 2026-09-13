@@ -139,15 +139,32 @@ export async function runHoudiniPluginAction(
 
 	if (request.action === 'update-config') {
 		if (
-			typeof request.hpath !== 'string' ||
-			!request.hpath.trim() ||
-			/[\0\r\n]/.test(request.hpath)
+			request.keepPathAlias !== 'HOUDINI_PATH' &&
+			request.replacePathAlias !== 'HOUDINI_PATH' &&
+			!validHpath(request.hpath)
 		) {
 			throw new Error('A valid local plugin source path is required.');
 		}
 		const packageValue = await readPackageValue(target.packagePath);
 		if (request.migrateLegacyPath !== false) delete packageValue.path;
-		packageValue.hpath = request.hpath.trim();
+		if (request.replacePathAlias) {
+			const replacedAlias = request.replacePathAlias === 'hpath' ? 'HOUDINI_PATH' : 'hpath';
+			replacePackageVariableReferences(packageValue, replacedAlias, request.replacePathAlias);
+			removePackageVariable(packageValue, replacedAlias);
+		} else if (request.preservePathAliases) {
+			packageValue.hpath = request.hpath?.trim();
+		} else if (request.keepPathAlias === 'HOUDINI_PATH') {
+			if (target.pathAliasConflict?.hpathUsedAsVariable) {
+				throw new Error('Replace $hpath references before removing hpath.');
+			}
+			removePackageVariable(packageValue, 'hpath');
+		} else {
+			if (target.pathAliasConflict?.houdiniPathUsedAsVariable) {
+				throw new Error('Replace $HOUDINI_PATH references before removing HOUDINI_PATH.');
+			}
+			removePackageVariable(packageValue, 'HOUDINI_PATH');
+			packageValue.hpath = request.hpath?.trim();
+		}
 		await writePackageValue(target.packagePath, packageValue);
 		const discovery = await scanHoudiniWorkspace({
 			stage: 'plugins',
@@ -177,6 +194,55 @@ export async function runHoudiniPluginAction(
 	}
 
 	throw new Error('Unknown plugin action.');
+}
+
+function validHpath(value: string | undefined): value is string {
+	return typeof value === 'string' && Boolean(value.trim()) && !/[\0\r\n]/.test(value);
+}
+
+function removePackageVariable(packageValue: Record<string, unknown>, key: string): void {
+	removeJsonKey(packageValue, key);
+	if (Array.isArray(packageValue.env)) {
+		packageValue.env = packageValue.env.filter(
+			(entry) => !isRecord(entry) || Object.keys(entry).length > 0
+		);
+	}
+}
+
+function replacePackageVariableReferences(
+	packageValue: Record<string, unknown>,
+	from: 'hpath' | 'HOUDINI_PATH',
+	to: 'hpath' | 'HOUDINI_PATH'
+): void {
+	const reference = new RegExp(`\\$${from}(?![A-Za-z0-9_])`, 'g');
+	rewriteJsonStrings(packageValue, reference, `$${to}`);
+}
+
+function rewriteJsonStrings(value: unknown, pattern: RegExp, replacement: string): void {
+	if (Array.isArray(value)) {
+		for (let index = 0; index < value.length; index += 1) {
+			if (typeof value[index] === 'string')
+				value[index] = value[index].replace(pattern, replacement);
+			else rewriteJsonStrings(value[index], pattern, replacement);
+		}
+		return;
+	}
+	if (!isRecord(value)) return;
+	for (const [key, entry] of Object.entries(value)) {
+		if (typeof entry === 'string') value[key] = entry.replace(pattern, replacement);
+		else rewriteJsonStrings(entry, pattern, replacement);
+	}
+}
+
+function removeJsonKey(value: unknown, key: string): void {
+	if (Array.isArray(value)) {
+		for (const entry of value) removeJsonKey(entry, key);
+		return;
+	}
+	if (!isRecord(value)) return;
+
+	delete value[key];
+	for (const entry of Object.values(value)) removeJsonKey(entry, key);
 }
 
 function samePath(left: string, right: string): boolean {

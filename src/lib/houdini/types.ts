@@ -10,6 +10,15 @@ export type HoudiniScanStage = 'all' | 'installs' | 'plugins' | 'git';
 
 export type HoudiniDiscoveryStage = Exclude<HoudiniScanStage, 'all'>;
 
+export type KnownIssueKind =
+	| 'removed-hpm-source'
+	| 'missing-source'
+	| 'deprecated-path'
+	| 'duplicate-path-aliases'
+	| 'invalid-package-json'
+	| 'warning'
+	| 'incompatible';
+
 export type HoudiniScanRequest = {
 	stage: HoudiniScanStage;
 	pluginIds?: string[];
@@ -80,6 +89,11 @@ export type HoudiniDiscoveryDiagnostic = {
 	installId?: string;
 };
 
+export type PackagePathAliasConflict = {
+	hpathUsedAsVariable: boolean;
+	houdiniPathUsedAsVariable: boolean;
+};
+
 export type HoudiniDiscoveryResponse = {
 	installs: HoudiniInstall[];
 	plugins: PluginRecord[];
@@ -92,6 +106,8 @@ export type HoudiniDiscoveryResponse = {
 		packagePath: string | null;
 		sourcePaths?: string[];
 		usesLegacyPath?: boolean;
+		pathAliasConflict?: PackagePathAliasConflict;
+		issueKinds?: KnownIssueKind[];
 		origin: PackageOrigin | null;
 		note: string;
 		issues?: string[];
@@ -124,8 +140,11 @@ export type HoudiniPluginAction =
 			action: 'update-config';
 			pluginId: string;
 			installId: string;
-			hpath: string;
+			hpath?: string;
 			migrateLegacyPath?: boolean;
+			preservePathAliases?: boolean;
+			keepPathAlias?: 'hpath' | 'HOUDINI_PATH';
+			replacePathAlias?: 'hpath' | 'HOUDINI_PATH';
 	  }
 	| { action: 'open-package-folder'; pluginId: string; installId: string }
 	| { action: 'open-source'; pluginId: string; sourcePath: string }

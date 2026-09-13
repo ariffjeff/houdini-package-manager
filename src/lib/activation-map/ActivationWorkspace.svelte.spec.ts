@@ -18,6 +18,7 @@ let pluginActionRequests: Array<{
 	enabled?: boolean;
 	hpath?: string;
 	migrateLegacyPath?: boolean;
+	keepPathAlias?: 'hpath' | 'HOUDINI_PATH';
 }> = [];
 let holdPluginAction = false;
 let releasePluginAction: (() => void) | null = null;
@@ -320,10 +321,10 @@ it('hides target-specific actions for a missing plugin target', async () => {
 		.element(page.getByText('C:/Users/test/Desktop/DCC/MOPS', { exact: true }))
 		.not.toBeInTheDocument();
 	await expect
-		.element(page.getByRole('button', { name: 'View Plugin source not found for Houdini 21.0' }))
+		.element(page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }))
 		.toBeInTheDocument();
 	await expect
-		.element(page.getByRole('button', { name: 'Edit config options for Houdini 21.0' }))
+		.element(page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }))
 		.toHaveClass(/issue-config-button/);
 	await expect
 		.element(page.getByRole('button', { name: 'Rescan config for Houdini 21.0' }))
@@ -335,7 +336,7 @@ it('hides target-specific actions for a missing plugin target', async () => {
 			stage: 'plugins',
 			pluginIds: ['package:mops']
 		});
-	await page.getByRole('button', { name: 'View Plugin source not found for Houdini 21.0' }).click();
+	await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 	await expect
 		.element(page.getByRole('heading', { name: 'Plugin source not found', exact: true }))
 		.toBeInTheDocument();
@@ -389,19 +390,21 @@ it('shows invalid package JSON details for a plugin target', async () => {
 	render(Page);
 
 	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
-	await expect.element(page.getByText('Invalid package JSON', { exact: true })).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }))
+		.toBeInTheDocument();
 	await expect.element(page.getByText(invalidJsonNote, { exact: true })).not.toBeInTheDocument();
-	await page.getByRole('button', { name: 'View Invalid package JSON for Houdini 21.0' }).click();
+	await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 	await expect
 		.element(page.getByRole('heading', { name: 'Invalid package JSON', exact: true }))
 		.toBeInTheDocument();
 	await expect.element(page.getByText(invalidJsonNote, { exact: true })).toBeInTheDocument();
 	await page
 		.getByRole('dialog', { name: 'Invalid package JSON' })
-		.getByRole('button', { name: 'Config Editor', exact: true })
+		.getByRole('button', { name: 'Live JSON Editor', exact: true })
 		.click();
 	await expect
-		.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+		.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
 		.toBeInTheDocument();
 	await expect
 		.poll(() => pluginActionRequests.at(-1))
@@ -411,10 +414,10 @@ it('shows invalid package JSON details for a plugin target', async () => {
 			installId: 'install:houdini-21.0-455-test'
 		});
 	await page
-		.getByRole('dialog', { name: 'Config options' })
-		.getByRole('button', { name: 'Close config options dialog' })
+		.getByRole('dialog', { name: 'Live JSON Editor' })
+		.getByRole('button', { name: 'Close Live JSON Editor dialog' })
 		.click();
-	await page.getByRole('button', { name: 'View Invalid package JSON for Houdini 21.0' }).click();
+	await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 	await page.getByRole('button', { name: 'Open config', exact: true }).click();
 	await expect
 		.poll(() => pluginActionRequests.at(-1))
@@ -459,18 +462,52 @@ it('groups repeated config issues and selects the matching plugin node', async (
 
 	await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
 	const issueTrigger = page.getByRole('button', { name: /1 Issues/ });
+	await issueTrigger.click();
+	await page
+		.getByRole('combobox', { name: 'Filter issues by config' })
+		.selectOptions(
+			JSON.stringify([
+				'install:houdini-22.0-100-test',
+				'MOPS.json',
+				'C:/Users/test/Documents/houdini21.0/packages/MOPS.json'
+			])
+		);
+	await expect
+		.element(
+			page.getByRole('button', { name: 'Open MOPS issue details for Houdini 22.0 / build 100' })
+		)
+		.toBeInTheDocument();
+	await expect
+		.element(
+			page.getByRole('button', { name: 'Open MOPS issue details for Houdini 21.0 / build 455' })
+		)
+		.not.toBeInTheDocument();
+	await page.getByRole('combobox', { name: 'Filter issues by config' }).selectOptions('all');
+	await page.getByRole('checkbox', { name: 'Group builds' }).click();
+	await expect
+		.element(
+			page.getByRole('button', {
+				name: 'Open MOPS issue details for Houdini 21.0 / build 455, Houdini 22.0 / build 100'
+			})
+		)
+		.toBeInTheDocument();
+	await page.getByRole('button', { name: 'Close issue checker' }).click();
 	await expect.element(issueTrigger).toBeInTheDocument();
 	await page.getByRole('button', { name: 'Table', exact: true }).click();
 	await issueTrigger.click();
 
-	await page.getByRole('button', { name: 'Open MOPS issue details', exact: true }).click();
+	await page
+		.getByRole('button', {
+			name: 'Open MOPS issue details for Houdini 21.0 / build 455, Houdini 22.0 / build 100'
+		})
+		.click();
 
 	await expect.element(page.getByRole('table')).not.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('heading', { name: 'MOPS', exact: true }))
 		.toBeInTheDocument();
 	await expect
-		.element(page.getByRole('heading', { name: 'Issues', exact: true }))
+		.element(page.getByRole('heading', { name: 'Issue checker', exact: true }))
 		.not.toBeInTheDocument();
 });
 
@@ -592,9 +629,9 @@ describe('activation workspace', () => {
 			.element(page.getByText('C:/Users/test/Documents/HPM/plugins/mops', { exact: true }))
 			.not.toBeInTheDocument();
 		await expect
-			.element(page.getByRole('button', { name: 'View Deprecated path key for Houdini 21.0' }))
+			.element(page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }))
 			.toBeInTheDocument();
-		await page.getByRole('button', { name: 'View Deprecated path key for Houdini 21.0' }).click();
+		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Deprecated path key' }))
 			.toBeInTheDocument();
@@ -794,13 +831,15 @@ describe('activation workspace', () => {
 			.element(page.getByText('Plugin configs rescanned', { exact: true }))
 			.not.toBeInTheDocument();
 
-		await page.getByRole('button', { name: 'Edit config options for Houdini 21.0' }).click();
+		await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
 		await expect
-			.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+			.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
 			.toBeInTheDocument();
-		await expect.element(page.getByRole('alert')).toHaveTextContent('deprecated path key');
 		await expect
-			.element(page.getByRole('checkbox', { name: /Auto-remove path/ }))
+			.element(page.getByText(/The deprecated path key will be removed/))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('checkbox', { name: /Remove deprecated path key/ }))
 			.not.toBeChecked();
 		await expect
 			.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
@@ -815,7 +854,7 @@ describe('activation workspace', () => {
 				installId: 'install:houdini-21.0-455-test'
 			});
 		const sourceInput = page.getByRole('textbox', { name: 'Local plugin source' });
-		await page.getByRole('checkbox', { name: /Auto-remove path/ }).click();
+		await page.getByRole('checkbox', { name: /Remove deprecated path key/ }).click();
 		await sourceInput.fill('C:/Users/test/Plugins/MOPS');
 		await expect
 			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
@@ -834,7 +873,7 @@ describe('activation workspace', () => {
 				migrateLegacyPath: true
 			});
 		await expect
-			.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+			.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
 			.not.toBeInTheDocument();
 
 		await page.getByRole('button', { name: 'Open JSON config for Houdini 21.0' }).click();
@@ -880,11 +919,11 @@ describe('activation workspace', () => {
 			.getByRole('button', { name: 'Edit MOPS config for Houdini 21.0', exact: true })
 			.click();
 		await expect
-			.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+			.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
 			.toBeInTheDocument();
 		await page
-			.getByRole('dialog', { name: 'Config options' })
-			.getByRole('button', { name: 'Close config options dialog' })
+			.getByRole('dialog', { name: 'Live JSON Editor' })
+			.getByRole('button', { name: 'Close Live JSON Editor dialog' })
 			.click();
 
 		holdPluginAction = true;
@@ -925,24 +964,42 @@ describe('activation workspace', () => {
 	it('lists multiple target issues in the issue dialog', async () => {
 		const multipleIssueResponse = {
 			...discoveryResponse,
-			targets: discoveryResponse.targets.map((target) =>
-				target.pluginId === 'package:mops'
-					? {
-							...target,
-							status: 'warning' as const,
-							issues: [
-								'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops',
-								'Package config uses deprecated path; replace it with hpath.'
-							]
-						}
-					: target
-			)
+			targets: [
+				...discoveryResponse.targets.map((target) =>
+					target.pluginId === 'package:mops'
+						? {
+								...target,
+								status: 'warning' as const,
+								issues: [
+									'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops',
+									'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops'
+								],
+								pathAliasConflict: {
+									hpathUsedAsVariable: true,
+									houdiniPathUsedAsVariable: false
+								}
+							}
+						: target
+				),
+				{
+					...discoveryResponse.targets[0],
+					status: 'warning' as const,
+					issues: [
+						'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops',
+						'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops'
+					],
+					pathAliasConflict: {
+						hpathUsedAsVariable: true,
+						houdiniPathUsedAsVariable: false
+					}
+				}
+			]
 		} as typeof discoveryResponse;
 		stubDiscovery(multipleIssueResponse);
 		render(Page);
 
 		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
-		await page.getByRole('button', { name: 'Multiple issues for Houdini 21.0' }).click();
+		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Multiple issues' }))
 			.toBeInTheDocument();
@@ -961,5 +1018,155 @@ describe('activation workspace', () => {
 				})
 			)
 			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText(
+					'Package config defines both hpath and HOUDINI_PATH; HOUDINI_PATH is not used as a variable dependency, so remove HOUDINI_PATH and keep hpath.',
+					{ exact: true }
+				)
+			)
+			.toBeInTheDocument();
+	});
+
+	it('requires a choice when both path aliases are variable dependencies', async () => {
+		const aliasConflictResponse = {
+			...discoveryResponse,
+			targets: discoveryResponse.targets.map((target) =>
+				target.pluginId === 'package:mops'
+					? {
+							...target,
+							status: 'warning' as const,
+							usesLegacyPath: false,
+							pathAliasConflict: {
+								hpathUsedAsVariable: true,
+								houdiniPathUsedAsVariable: true
+							},
+							issues: [
+								'Package config defines both hpath and HOUDINI_PATH, and both are used as variable dependencies; choose which alias to keep.'
+							]
+						}
+					: target
+			)
+		} as typeof discoveryResponse;
+		stubDiscovery(aliasConflictResponse);
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
+		await page.getByRole('button', { name: 'Live JSON Editor', exact: true }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page
+					.getByRole('dialog', { name: 'Live JSON Editor' })
+					.getByText('Fix duplicate path aliases', { exact: true })
+			)
+			.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: 'Save and close' })).not.toBeDisabled();
+		await page.getByRole('checkbox', { name: 'Fix duplicate path aliases' }).click();
+		await expect
+			.element(page.getByRole('radio', { name: 'Replace $hpath with $HOUDINI_PATH' }))
+			.not.toBeChecked();
+		await expect
+			.element(page.getByRole('radio', { name: 'Replace $HOUDINI_PATH with $hpath' }))
+			.not.toBeChecked();
+		await expect.element(page.getByRole('button', { name: 'Save and close' })).toBeDisabled();
+
+		await page.getByRole('radio', { name: 'Replace $hpath with $HOUDINI_PATH' }).click();
+		await expect.element(page.getByRole('button', { name: 'Save and close' })).not.toBeDisabled();
+		await page.getByRole('button', { name: 'Save and close' }).click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toMatchObject({
+				action: 'update-config',
+				pluginId: 'package:mops',
+				installId: 'install:houdini-21.0-455-test',
+				replacePathAlias: 'HOUDINI_PATH'
+			});
+	});
+
+	it('reports when neither path alias is a variable dependency', async () => {
+		const unusedAliasResponse = {
+			...discoveryResponse,
+			targets: discoveryResponse.targets.map((target) =>
+				target.pluginId === 'package:mops'
+					? {
+							...target,
+							status: 'warning' as const,
+							usesLegacyPath: false,
+							pathAliasConflict: {
+								hpathUsedAsVariable: false,
+								houdiniPathUsedAsVariable: false
+							},
+							issues: [
+								'Package config defines both hpath and HOUDINI_PATH; neither alias is used as a variable dependency, so choose which alias to keep.'
+							]
+						}
+					: target
+			)
+		} as typeof discoveryResponse;
+		stubDiscovery(unusedAliasResponse);
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
+		await expect
+			.element(
+				page.getByText(
+					'Package config defines both hpath and HOUDINI_PATH; neither alias is used as a variable dependency, so choose which alias to keep.',
+					{ exact: true }
+				)
+			)
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText(
+					'Package config defines both hpath and HOUDINI_PATH; hpath is not used as a variable dependency, so remove hpath and keep HOUDINI_PATH.',
+					{ exact: true }
+				)
+			)
+			.not.toBeInTheDocument();
+	});
+
+	it('offers an existing plugin source as an optional fix', async () => {
+		const sourceFixResponse = {
+			...discoveryResponse,
+			targets: [
+				...discoveryResponse.targets,
+				{
+					...discoveryResponse.targets[0],
+					installId: 'install:houdini-21.0-455-test',
+					packagePath: 'C:/Users/test/Documents/houdini21.0/packages/MOPS-copy.json',
+					sourcePaths: ['C:/Users/test/Desktop/DCC/MOPS'],
+					status: 'enabled' as const
+				}
+			]
+		} as typeof discoveryResponse;
+		stubDiscovery(sourceFixResponse);
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
+		await expect
+			.element(page.getByRole('checkbox', { name: 'Restore source path from another config' }))
+			.not.toBeChecked();
+		await page.getByRole('checkbox', { name: 'Restore source path from another config' }).click();
+		await expect
+			.element(
+				page
+					.getByRole('dialog', { name: 'Live JSON Editor' })
+					.getByText('C:/Users/test/Desktop/DCC/MOPS', { exact: true })
+			)
+			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'Save and close' }).click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toMatchObject({
+				action: 'update-config',
+				pluginId: 'package:mops',
+				hpath: 'C:/Users/test/Desktop/DCC/MOPS'
+			});
 	});
 });

@@ -12,12 +12,15 @@ import type {
 	HoudiniPlatform,
 	HoudiniScanRequest,
 	HoudiniScanStage,
+	KnownIssueKind,
 	InstallHealth,
 	PackageOrigin,
+	PackagePathAliasConflict,
 	PluginRecord,
 	PluginSource,
 	PluginVersionSource
 } from '../../houdini/types.js';
+import { packageConfigIssueKinds, packageConfigIssueMessages } from '../../houdini/known-issues.js';
 
 const execFileAsync = promisify(execFile);
 const isWindows = process.platform === 'win32';
@@ -35,6 +38,8 @@ type PackageConfig = {
 	missingPaths: string[];
 	stalePaths: string[];
 	usesLegacyPath: boolean;
+	pathAliasConflict: PackagePathAliasConflict | null;
+	issueKinds: KnownIssueKind[];
 	sources: PluginSource[];
 	error?: string;
 };
@@ -579,26 +584,6 @@ function normalizePluginIds(pluginIds: string[] | undefined): Set<string> | unde
 	return new Set(pluginIds.filter((pluginId) => typeof pluginId === 'string' && pluginId.trim()));
 }
 
-function packageConfigIssues(packageConfig: PackageConfig): string[] {
-	if (packageConfig.error) return [packageConfig.error];
-
-	const issues: string[] = [];
-	if (packageConfig.stalePaths.length) {
-		issues.push(
-			`Package config references removed HPM source${packageConfig.stalePaths.length === 1 ? '' : 's'}: ${packageConfig.stalePaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
-		);
-	}
-	if (packageConfig.missingPaths.length) {
-		issues.push(
-			`Package config has missing path${packageConfig.missingPaths.length === 1 ? '' : 's'}: ${packageConfig.missingPaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
-		);
-	}
-	if (packageConfig.usesLegacyPath) {
-		issues.push('Package config uses deprecated path; replace it with hpath.');
-	}
-	return issues;
-}
-
 function buildDiscoveryResponse(
 	cache: DiscoveryCache,
 	source: 'live' | 'saved'
@@ -637,7 +622,7 @@ function buildDiscoveryResponse(
 		installs.map((install) => {
 			const packageConfig = packagesByInstall.get(install.id)?.get(plugin.id);
 			const status = resolvePackageTargetStatus(packageConfig);
-			const issues = packageConfig ? packageConfigIssues(packageConfig) : [];
+			const issues = packageConfig ? packageConfigIssueMessages(packageConfig) : [];
 
 			return {
 				pluginId: plugin.id,
@@ -653,6 +638,8 @@ function buildDiscoveryResponse(
 				packagePath: packageConfig?.packagePath ?? null,
 				sourcePaths: packageConfig?.paths ?? [],
 				usesLegacyPath: packageConfig?.usesLegacyPath ?? false,
+				pathAliasConflict: packageConfig?.pathAliasConflict ?? undefined,
+				issueKinds: packageConfig?.issueKinds ?? [],
 				origin: packageConfig?.origin ?? null,
 				issues,
 				note: packageConfig
@@ -895,6 +882,16 @@ async function readPackageConfigs(
 				missingPaths,
 				stalePaths,
 				usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
+				pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null,
+				issueKinds: packageConfigIssueKinds({
+					valid: !error,
+					error,
+					stalePaths,
+					missingPaths,
+					existingPaths,
+					usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
+					pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null
+				}),
 				sources: visibleSources,
 				error
 			};
@@ -916,6 +913,20 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 	const missingPaths = uniqueStrings([...left.missingPaths, ...right.missingPaths]);
 	const stalePaths = uniqueStrings([...left.stalePaths, ...right.stalePaths]);
 	const sources = mergePluginSources([...left.sources, ...right.sources]);
+	const error = [left.error, right.error].filter(Boolean).join('; ') || undefined;
+	const pathAliasConflict = mergePathAliasConflicts(
+		left.pathAliasConflict,
+		right.pathAliasConflict
+	);
+	const issueKinds = packageConfigIssueKinds({
+		valid: left.valid && right.valid,
+		error,
+		stalePaths,
+		missingPaths,
+		existingPaths,
+		usesLegacyPath: left.usesLegacyPath || right.usesLegacyPath,
+		pathAliasConflict
+	});
 
 	return {
 		...left,
@@ -933,8 +944,10 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		missingPaths,
 		stalePaths,
 		usesLegacyPath: left.usesLegacyPath || right.usesLegacyPath,
+		pathAliasConflict,
+		issueKinds,
 		sources,
-		error: [left.error, right.error].filter(Boolean).join('; ') || undefined
+		error
 	};
 }
 
@@ -1067,7 +1080,11 @@ export function resolvePackagePaths(
 	packageDirectory: string
 ): string[] {
 	const packageVariables = { ...variables, ...packageEnvironment(value.env) };
-	const rawPaths = [...stringValues(value.path), ...stringValues(value.hpath)];
+	const rawPaths = [
+		...stringValues(value.path),
+		...stringValues(value.hpath),
+		...stringValues(value.HOUDINI_PATH)
+	];
 	const env = packageEnvironmentValues(value.env);
 	for (const key of ['HOUDINI_PATH', 'HOUDINI_OTLSCAN_PATH', 'HOUDINI_TOOLBAR_PATH']) {
 		rawPaths.push(...(env[key] ?? []));
@@ -1108,6 +1125,7 @@ export function resolvePackageTargetStatus(
 				missingPaths: string[];
 				stalePaths?: string[];
 				usesLegacyPath?: boolean;
+				pathAliasConflict?: PackagePathAliasConflict | null;
 		  }
 		| undefined
 ): HoudiniDiscoveryResponse['targets'][number]['status'] {
@@ -1118,7 +1136,58 @@ export function resolvePackageTargetStatus(
 	if (packageConfig.missingPaths.length) return 'warning';
 	if (packageConfig.stalePaths?.length) return 'warning';
 	if (packageConfig.usesLegacyPath) return 'warning';
+	if (packageConfig.pathAliasConflict) return 'warning';
 	return packageConfig.enabled ? 'enabled' : 'disabled';
+}
+
+export function findPathAliasConflict(
+	value: Record<string, unknown>
+): PackagePathAliasConflict | null {
+	if (!hasJsonKey(value, 'hpath') || !hasJsonKey(value, 'HOUDINI_PATH')) return null;
+
+	const references = new Set<string>();
+	collectVariableReferences(value, references);
+	return {
+		hpathUsedAsVariable: references.has('hpath'),
+		houdiniPathUsedAsVariable: references.has('HOUDINI_PATH')
+	};
+}
+
+function mergePathAliasConflicts(
+	left: PackagePathAliasConflict | null,
+	right: PackagePathAliasConflict | null
+): PackagePathAliasConflict | null {
+	if (!left) return right;
+	if (!right) return left;
+	return {
+		hpathUsedAsVariable: left.hpathUsedAsVariable || right.hpathUsedAsVariable,
+		houdiniPathUsedAsVariable: left.houdiniPathUsedAsVariable || right.houdiniPathUsedAsVariable
+	};
+}
+
+function hasJsonKey(value: unknown, key: string): boolean {
+	if (Array.isArray(value)) return value.some((entry) => hasJsonKey(entry, key));
+	if (!isRecord(value)) return false;
+	return (
+		Object.prototype.hasOwnProperty.call(value, key) ||
+		Object.values(value).some((entry) => hasJsonKey(entry, key))
+	);
+}
+
+function collectVariableReferences(value: unknown, references: Set<string>): void {
+	if (typeof value === 'string') {
+		for (const match of value.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)/g)) {
+			references.add(match[1]);
+		}
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) collectVariableReferences(entry, references);
+		return;
+	}
+	if (isRecord(value)) {
+		for (const entry of Object.values(value)) collectVariableReferences(entry, references);
+	}
 }
 
 function packageEnvironment(value: unknown): Record<string, string> {

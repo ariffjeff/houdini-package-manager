@@ -8,6 +8,9 @@ import {
 	type HoudiniInstall,
 	type PluginRecord
 } from './types';
+import { isTargetIssue } from '../houdini/known-issues';
+
+export { isTargetIssue } from '../houdini/known-issues';
 
 const statusColors: Record<ActivationStatus, string> = {
 	enabled: '#399b82',
@@ -22,14 +25,6 @@ export const OFFICIAL_NODE_ID = 'official:sidefx';
 
 export function isOfficialPlugin(plugin: PluginRecord): boolean {
 	return plugin.origin === 'install' || plugin.origin === 'site';
-}
-
-export function isTargetIssue(target: ActivationTarget): boolean {
-	return (
-		target.status === 'warning' ||
-		target.status === 'incompatible' ||
-		(target.status === 'missing' && Boolean(target.packagePath))
-	);
 }
 
 export function createActivationGraph(

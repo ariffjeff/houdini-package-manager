@@ -237,6 +237,89 @@ it('loads and updates a package config source without replacing other keys', asy
 	});
 });
 
+it('keeps one path alias and removes the duplicate definition', async () => {
+	const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-alias-edit-'));
+	temporaryDirectories.push(root);
+	const packagePath = path.join(root, 'AJTools.json');
+	await writeFile(
+		packagePath,
+		'{"hpath":"C:/old/AJTools","env":[{"HOUDINI_PATH":"C:/houdini","OTHER":"C:/other"}]}',
+		'utf8'
+	);
+
+	const pluginId = 'package:ajtools';
+	const installId = 'install:19.5';
+	discoveryMocks.scanHoudiniWorkspace.mockResolvedValue({
+		installs: [{ id: installId, label: 'Houdini 19.5' }],
+		plugins: [{ id: pluginId, name: 'AJTools' }],
+		targets: [{ pluginId, installId, packagePath, packageFile: 'AJTools.json' }]
+	} as unknown as HoudiniDiscoveryResponse);
+
+	await runHoudiniPluginAction({
+		action: 'update-config',
+		pluginId,
+		installId,
+		hpath: 'C:/new/AJTools',
+		keepPathAlias: 'hpath'
+	});
+	expect(JSON.parse(await readFile(packagePath, 'utf8'))).toEqual({
+		hpath: 'C:/new/AJTools',
+		env: [{ OTHER: 'C:/other' }]
+	});
+
+	await writeFile(
+		packagePath,
+		'{"hpath":"C:/old/AJTools","env":[{"HOUDINI_PATH":"C:/houdini","OTHER":"C:/other"}]}',
+		'utf8'
+	);
+	await runHoudiniPluginAction({
+		action: 'update-config',
+		pluginId,
+		installId,
+		keepPathAlias: 'HOUDINI_PATH'
+	});
+	expect(JSON.parse(await readFile(packagePath, 'utf8'))).toEqual({
+		env: [{ HOUDINI_PATH: 'C:/houdini', OTHER: 'C:/other' }]
+	});
+});
+
+it('replaces references when migrating to the other path alias', async () => {
+	const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-alias-replace-'));
+	temporaryDirectories.push(root);
+	const packagePath = path.join(root, 'AJTools.json');
+	await writeFile(
+		packagePath,
+		'{"hpath":"C:/old/AJTools","env":[{"HOUDINI_PATH":"C:/houdini","SOURCE":"$hpath","PREFIX":"$hpath_extra"}],"nested":{"SOURCE":"$hpath/bin"}}',
+		'utf8'
+	);
+
+	const pluginId = 'package:ajtools';
+	const installId = 'install:19.5';
+	discoveryMocks.scanHoudiniWorkspace.mockResolvedValue({
+		installs: [{ id: installId, label: 'Houdini 19.5' }],
+		plugins: [{ id: pluginId, name: 'AJTools' }],
+		targets: [{ pluginId, installId, packagePath, packageFile: 'AJTools.json' }]
+	} as unknown as HoudiniDiscoveryResponse);
+
+	await runHoudiniPluginAction({
+		action: 'update-config',
+		pluginId,
+		installId,
+		replacePathAlias: 'HOUDINI_PATH'
+	});
+
+	expect(JSON.parse(await readFile(packagePath, 'utf8'))).toEqual({
+		env: [
+			{
+				HOUDINI_PATH: 'C:/houdini',
+				SOURCE: '$HOUDINI_PATH',
+				PREFIX: '$hpath_extra'
+			}
+		],
+		nested: { SOURCE: '$HOUDINI_PATH/bin' }
+	});
+});
+
 describe('Houdini plugin actions', () => {
 	it('installs selected Houdini targets at an explicit destination', async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-plugin-install-'));

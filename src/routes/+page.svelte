@@ -3,7 +3,6 @@
 	import { resolve } from '$app/paths';
 	import {
 		Check,
-		ChevronRight,
 		FileCog,
 		GitBranch,
 		Globe,
@@ -20,14 +19,22 @@
 	} from '@lucide/svelte';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
+	import IssueChecker from '$lib/activation-map/IssueChecker.svelte';
+	import LiveJsonEditor from '$lib/live-json-editor/LiveJsonEditor.svelte';
 	import {
 		createActivationGraph,
 		isOfficialPlugin,
-		isTargetIssue,
 		OFFICIAL_NODE_ID,
 		statusLabel,
 		targetFor
 	} from '$lib/activation-map/model';
+	import {
+		createIssueConfigOptions,
+		createIssueItems,
+		issueFilterForTarget,
+		issueFilterId,
+		type IssueItem
+	} from '$lib/activation-map/issue-checker';
 	import type {
 		ActivationEdge,
 		ActivationNode,
@@ -36,6 +43,11 @@
 		HoudiniInstall,
 		PluginRecord
 	} from '$lib/activation-map/types';
+	import {
+		hasTargetIssues,
+		targetIssueMessages,
+		targetIssueSummary
+	} from '$lib/houdini/known-issues';
 	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
 	import logo from '$lib/assets/hpm.svg';
 	import {
@@ -62,15 +74,6 @@
 		target: ActivationTarget;
 		installs: HoudiniInstall[];
 	};
-	type IssueItem = {
-		pluginId: string;
-		nodeId: string;
-		label: string;
-		packageFile: string;
-		statuses: ActivationTarget['status'][];
-		installs: string[];
-		notes: string[];
-	};
 	type TargetIssueDetails = {
 		installId: string;
 		installLabel: string;
@@ -85,30 +88,16 @@
 		top: number;
 		placement: 'above' | 'below';
 	};
-	type TargetConfigEditor = {
-		installId: string;
-		installLabel: string;
-		packagePath: string;
-		config: Record<string, unknown>;
-		hpath: string;
-		migrateLegacyPath: boolean;
-		state: 'loading' | 'ready' | 'saving' | 'saved' | 'error';
-		message: string;
+	type LiveJsonEditorContext = {
+		plugin: PluginRecord;
+		install: HoudiniInstall;
+		target: ActivationTarget;
 	};
 
 	const scanStages: Array<{ stage: ScanStage; label: string }> = [
-		{
-			stage: 'installs',
-			label: 'Houdini installs'
-		},
-		{
-			stage: 'plugins',
-			label: 'Plugin inventory'
-		},
-		{
-			stage: 'git',
-			label: 'Remote Git metadata'
-		}
+		{ stage: 'installs', label: 'Houdini installs' },
+		{ stage: 'plugins', label: 'Plugin inventory' },
+		{ stage: 'git', label: 'Remote Git metadata' }
 	];
 	const scanStageLabels: Record<ScanStage, string> = {
 		installs: 'Houdini installs',
@@ -152,8 +141,10 @@
 	let pluginScanState = $state<ActionState>('idle');
 	let pluginActionState = $state<ActionState>('idle');
 	let issuesDialogOpen = $state(false);
+	let issueCheckerFilterId = $state('all');
+	let groupIssueBuilds = $state(false);
 	let targetIssueDetails = $state<TargetIssueDetails | null>(null);
-	let targetConfigEditor = $state<TargetConfigEditor | null>(null);
+	let liveJsonEditorContext = $state<LiveJsonEditorContext | null>(null);
 	let tooltip = $state<TooltipState | null>(null);
 
 	let activationGraph = $derived(
@@ -191,46 +182,13 @@
 			activationPlugins.filter((plugin) => !isOfficialPlugin(plugin)).map((plugin) => plugin.id)
 		).size
 	);
-	let issueItems = $derived.by<IssueItem[]>(() => {
-		const issueGroups: Array<{ pluginId: string; targets: ActivationTarget[] }> = [];
-		for (const target of activationTargets) {
-			if (!isTargetIssue(target)) continue;
-			const group = issueGroups.find((item) => item.pluginId === target.pluginId);
-			if (group) {
-				group.targets.push(target);
-				continue;
-			}
-			issueGroups.push({ pluginId: target.pluginId, targets: [target] });
-		}
-
-		return issueGroups
-			.map(({ pluginId, targets }) => {
-				const plugin = activationPlugins.find((item) => item.id === pluginId);
-				const statuses = [...new Set(targets.map((target) => target.status))];
-				const installs = [
-					...new Set(
-						targets.map(
-							(target) =>
-								activationInstalls.find((install) => install.id === target.installId)?.label ??
-								target.installId
-						)
-					)
-				];
-				const notes = [...new Set(targets.map((target) => target.note).filter(Boolean))];
-
-				return {
-					pluginId,
-					nodeId: plugin && isOfficialPlugin(plugin) ? OFFICIAL_NODE_ID : `plugin:${pluginId}`,
-					label: plugin?.name ?? pluginId,
-					packageFile: plugin?.packageFile ?? targets[0].packageFile,
-					statuses,
-					installs,
-					notes
-				};
-			})
-			.sort((left, right) => left.label.localeCompare(right.label));
-	});
+	let issueItems = $derived(
+		createIssueItems(activationTargets, activationPlugins, activationInstalls)
+	);
 	let attentionCount = $derived(issueItems.length);
+	let issueConfigOptions = $derived(
+		createIssueConfigOptions(activationTargets, activationInstalls)
+	);
 	let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
 	let selectedGraphNodeId = $derived.by(() => {
 		if (!selectedNodeId) return null;
@@ -383,41 +341,6 @@
 
 		return groups;
 	});
-	let targetConfigPreview = $derived.by(() => {
-		const editor = targetConfigEditor;
-		if (!editor) return '{}';
-
-		const previewEntries: Array<[string, unknown]> = [];
-		let hpathWritten = false;
-		for (const [key, value] of Object.entries(editor.config)) {
-			if (key === 'path' && editor.migrateLegacyPath) {
-				previewEntries.push(['hpath', editor.hpath.trim()]);
-				hpathWritten = true;
-				continue;
-			}
-			if (key === 'hpath') {
-				previewEntries.push(['hpath', editor.hpath.trim()]);
-				hpathWritten = true;
-				continue;
-			}
-			previewEntries.push([key, value]);
-		}
-		if ((editor.migrateLegacyPath || editor.config.hpath !== undefined) && !hpathWritten) {
-			previewEntries.push(['hpath', editor.hpath.trim()]);
-		}
-		return JSON.stringify(Object.fromEntries(previewEntries), null, 2);
-	});
-	let targetConfigPreviewLines = $derived.by(() => {
-		const editor = targetConfigEditor;
-		if (!editor) return [];
-
-		const originalLines = new Set(JSON.stringify(editor.config, null, 2).split('\n'));
-		return targetConfigPreview.split('\n').map((text) => ({
-			text,
-			changed: !originalLines.has(text)
-		}));
-	});
-
 	function installBuildLabels(installs: HoudiniInstall[]): string[] {
 		return [...new Set(installs.map((install) => install.build))];
 	}
@@ -445,56 +368,6 @@
 		return matches.length || localSources.length !== 1 ? matches : selectedPluginTargetGroups;
 	}
 
-	function configHpath(config: Record<string, unknown>, fallback = ''): string {
-		if (typeof config.hpath === 'string') return config.hpath;
-		if (Array.isArray(config.hpath)) {
-			return config.hpath.filter((value): value is string => typeof value === 'string').join('; ');
-		}
-		if (typeof config.path === 'string') return config.path;
-		if (Array.isArray(config.path)) {
-			return config.path.filter((value): value is string => typeof value === 'string').join('; ');
-		}
-		return fallback;
-	}
-
-	function configPathText(value: unknown): string {
-		if (typeof value === 'string') return value;
-		if (Array.isArray(value)) {
-			return value.filter((entry): entry is string => typeof entry === 'string').join('; ');
-		}
-		return value === undefined ? 'Not set' : String(value);
-	}
-
-	function isInvalidPackageJson(target: ActivationTarget): boolean {
-		return target.status === 'warning' && target.note.startsWith('Invalid package JSON:');
-	}
-
-	function targetIssueMessages(target: ActivationTarget): string[] {
-		if (target.issues?.length) return target.issues;
-		if (target.note && !target.note.includes('discovered')) return [target.note];
-		if (target.status === 'missing') {
-			return ['The package config does not resolve to an available plugin source.'];
-		}
-		return ['The package config could not be activated for this Houdini install.'];
-	}
-
-	function hasTargetIssues(target: ActivationTarget): boolean {
-		return Boolean(
-			target.issues?.length ||
-			target.usesLegacyPath ||
-			['warning', 'incompatible', 'missing'].includes(target.status)
-		);
-	}
-
-	function targetIssueSummary(target: ActivationTarget): string {
-		if (targetIssueMessages(target).length > 1) return 'Multiple issues';
-		if (target.status === 'missing') return 'Plugin source not found';
-		if (isInvalidPackageJson(target)) return 'Invalid package JSON';
-		if (target.status === 'incompatible') return 'Plugin is incompatible';
-		if (target.usesLegacyPath) return 'Deprecated path key';
-		return 'Package config needs review';
-	}
-
 	function openTargetIssueDetails(install: HoudiniInstall, target: ActivationTarget) {
 		targetIssueDetails = {
 			installId: install.id,
@@ -510,80 +383,15 @@
 		targetIssueDetails = null;
 	}
 
-	async function openTargetConfigDialog(install: HoudiniInstall, target: ActivationTarget) {
+	function openTargetConfigDialog(install: HoudiniInstall, target: ActivationTarget) {
 		const plugin = selectedPlugin;
 		if (!plugin || !target.packagePath || isScanActive || pluginActionState === 'working') return;
 
-		targetConfigEditor = {
-			installId: install.id,
-			installLabel: install.label,
-			packagePath: target.packagePath,
-			config: {},
-			hpath: target.sourcePaths?.[0] ?? '',
-			migrateLegacyPath: target.usesLegacyPath ?? false,
-			state: 'loading',
-			message: ''
-		};
-
-		try {
-			const result = await runHoudiniPluginAction({
-				pluginId: plugin.id,
-				action: 'get-config',
-				installId: install.id
-			});
-			if (!targetConfigEditor || targetConfigEditor.installId !== install.id) return;
-			const config = result.config ?? {};
-			targetConfigEditor.config = config;
-			targetConfigEditor.hpath = configHpath(config, target.sourcePaths?.[0] ?? '');
-			targetConfigEditor.migrateLegacyPath = false;
-			targetConfigEditor.state = 'ready';
-		} catch (error) {
-			if (!targetConfigEditor || targetConfigEditor.installId !== install.id) return;
-			targetConfigEditor.state = 'error';
-			targetConfigEditor.message = getErrorMessage(error);
-		}
+		liveJsonEditorContext = { plugin, install, target };
 	}
 
 	function closeTargetConfigDialog() {
-		if (targetConfigEditor?.state === 'saving') return;
-		targetConfigEditor = null;
-	}
-
-	function openTargetConfigFile() {
-		const editor = targetConfigEditor;
-		if (!editor) return;
-
-		void runSelectedPluginAction({ action: 'open-config', installId: editor.installId });
-	}
-
-	async function saveTargetConfig() {
-		const plugin = selectedPlugin;
-		const editor = targetConfigEditor;
-		if (!plugin || !editor || !editor.hpath.trim() || editor.state === 'saving') return;
-
-		editor.state = 'saving';
-		editor.message = '';
-		try {
-			const result = await runHoudiniPluginAction({
-				pluginId: plugin.id,
-				action: 'update-config',
-				installId: editor.installId,
-				hpath: editor.hpath,
-				migrateLegacyPath: editor.migrateLegacyPath
-			});
-			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
-			const config = { ...editor.config };
-			if (editor.migrateLegacyPath) delete config.path;
-			config.hpath = editor.hpath.trim();
-			editor.config = config;
-			editor.hpath = editor.hpath.trim();
-			editor.state = 'saved';
-			editor.message = result.message;
-			closeTargetConfigDialog();
-		} catch (error) {
-			editor.state = 'error';
-			editor.message = getErrorMessage(error);
-		}
+		liveJsonEditorContext = null;
 	}
 
 	function installedVersionLabel(plugin: PluginRecord): string {
@@ -712,20 +520,24 @@
 		pluginActionState = 'idle';
 	}
 
-	function openIssuesDialog() {
+	function openIssuesDialog(target?: ActivationTarget) {
 		if (issueItems.length) issuesDialogOpen = true;
+		issueCheckerFilterId = target ? issueFilterId(issueFilterForTarget(target)) : 'all';
 	}
 
 	function closeIssuesDialog() {
 		issuesDialogOpen = false;
+		issueCheckerFilterId = 'all';
 	}
 
-	function selectIssue(issue: IssueItem) {
+	function selectIssue(issue: IssueItem, target: ActivationTarget) {
 		view = 'map';
 		searchQuery = '';
 		closeIssuesDialog();
 		focusNodeId = issue.nodeId;
 		selectNode(issue.nodeId);
+		const install = activationInstalls.find((item) => item.id === target.installId);
+		if (install) openTargetIssueDetails(install, target);
 	}
 
 	function openInstallDialog() {
@@ -772,7 +584,7 @@
 		if (event.key !== 'Escape') return;
 		if (issuesDialogOpen) closeIssuesDialog();
 		if (targetIssueDetails) closeTargetIssueDetails();
-		if (targetConfigEditor && targetConfigEditor.state !== 'saving') closeTargetConfigDialog();
+		if (liveJsonEditorContext) closeTargetConfigDialog();
 		if (installDialogOpen && installState !== 'working') closeInstallDialog();
 	}
 
@@ -1157,7 +969,7 @@
 						aria-haspopup="dialog"
 						aria-expanded={issuesDialogOpen}
 						disabled={!issueItems.length}
-						onclick={openIssuesDialog}
+						onclick={() => openIssuesDialog()}
 					>
 						<strong>{attentionCount}</strong><span>Issues</span>
 					</button>
@@ -1559,6 +1371,20 @@
 													</button>
 													<button
 														type="button"
+														class="node-action-button icon-action-button"
+														class:issue-config-button={hasTargetIssues(target)}
+														aria-label={`Edit Live JSON Editor for ${install.label}`}
+														data-tooltip="Live JSON editor"
+														disabled={isScanActive || pluginActionState === 'working'}
+														onclick={(event) => {
+															stopActionPropagation(event);
+															void openTargetConfigDialog(install, target);
+														}}
+													>
+														<Cog size={22} strokeWidth={1.8} aria-hidden="true" />
+													</button>
+													<button
+														type="button"
 														class={[
 															'node-action-button',
 															'icon-action-button',
@@ -1579,22 +1405,6 @@
 														}}
 													>
 														<FileCog size={22} strokeWidth={1.8} aria-hidden="true" />
-													</button>
-													<button
-														type="button"
-														class="node-action-button icon-action-button"
-														class:issue-config-button={hasTargetIssues(target)}
-														aria-label={`Edit config options for ${install.label}`}
-														data-tooltip={hasTargetIssues(target)
-															? 'Review config issues'
-															: 'Edit config options'}
-														disabled={isScanActive || pluginActionState === 'working'}
-														onclick={(event) => {
-															stopActionPropagation(event);
-															void openTargetConfigDialog(install, target);
-														}}
-													>
-														<Cog size={22} strokeWidth={1.8} aria-hidden="true" />
 													</button>
 													<button
 														type="button"
@@ -1636,12 +1446,12 @@
 												</div>
 											</div>
 											<div class="target-actions target-status-actions">
-												{#if target.usesLegacyPath || ['warning', 'incompatible', 'missing'].includes(target.status)}
+												{#if hasTargetIssues(target)}
 													<button
 														type="button"
-														class="missing-source-warning target-missing-source-warning"
-														aria-label={`View ${targetIssueSummary(target)} for ${install.label}`}
-														data-tooltip="View issue details"
+														class="node-action-button icon-action-button issue-config-button"
+														aria-label={`Open issue list for ${install.label}`}
+														data-tooltip="Open issue list"
 														disabled={isScanActive || pluginActionState === 'working'}
 														onclick={(event) => {
 															stopActionPropagation(event);
@@ -1649,10 +1459,6 @@
 														}}
 													>
 														<TriangleAlert size={18} strokeWidth={1.9} aria-hidden="true" />
-														<div>
-															<strong>{targetIssueSummary(target)}</strong>
-															<small>View issue details</small>
-														</div>
 													</button>
 												{/if}
 												<div class="node-action-row" aria-label={`${install.label} plugin actions`}>
@@ -1989,173 +1795,28 @@
 		</div>
 	{/if}
 	{#if issuesDialogOpen}
-		<div class="issues-dialog-backdrop">
-			<button
-				type="button"
-				class="issues-dialog-dismiss"
-				aria-label="Close issues dialog"
-				onclick={closeIssuesDialog}
-			></button>
-			<dialog open class="issues-dialog" aria-labelledby="issues-dialog-title">
-				<div class="issues-dialog-header">
-					<div>
-						<h2 id="issues-dialog-title">Issues</h2>
-						<p>{issueItems.length} config issues across the workspace</p>
-					</div>
-					<button
-						type="button"
-						class="dialog-close-button"
-						aria-label="Close issues dialog"
-						onclick={closeIssuesDialog}
-					>
-						<X size={18} strokeWidth={1.8} aria-hidden="true" />
-					</button>
-				</div>
-				<div class="issue-list">
-					{#each issueItems as issue (issue.pluginId)}
-						<button
-							type="button"
-							class="issue-list-item"
-							aria-label={`Open ${issue.label} issue details`}
-							onclick={() => selectIssue(issue)}
-						>
-							<span
-								class={['issue-status-marker', `status-${issue.statuses[0]}`]}
-								aria-hidden="true"
-							></span>
-							<span class="issue-list-copy">
-								<strong>{issue.label}</strong>
-								<small>{issue.packageFile} / {issue.statuses.map(statusLabel).join(' / ')}</small>
-								<small>Affects: {issue.installs.join(', ')}</small>
-								{#if issue.notes.length}
-									<small class="issue-list-note">{issue.notes.join(' / ')}</small>
-								{/if}
-							</span>
-							<ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" />
-						</button>
-					{/each}
-				</div>
-			</dialog>
-		</div>
+		<IssueChecker
+			{issueItems}
+			{issueConfigOptions}
+			installs={activationInstalls}
+			filterId={issueCheckerFilterId}
+			{groupIssueBuilds}
+			onClose={closeIssuesDialog}
+			onFilterChange={(filterId) => (issueCheckerFilterId = filterId)}
+			onGroupBuildsChange={(value) => (groupIssueBuilds = value)}
+			onSelectIssue={selectIssue}
+		/>
 	{/if}
-	{#if targetConfigEditor && selectedPlugin}
-		<div class="issues-dialog-backdrop">
-			<button
-				type="button"
-				class="issues-dialog-dismiss"
-				aria-label="Close config options dialog"
-				disabled={targetConfigEditor.state === 'saving'}
-				onclick={closeTargetConfigDialog}
-			></button>
-			<dialog open class="issues-dialog target-config-dialog" aria-labelledby="target-config-title">
-				<div class="issues-dialog-header">
-					<div>
-						<h2 id="target-config-title">Config options</h2>
-						<p>{selectedPlugin.name} / {targetConfigEditor.installLabel}</p>
-					</div>
-					<button
-						type="button"
-						class="dialog-close-button"
-						aria-label="Close config options dialog"
-						disabled={targetConfigEditor.state === 'saving'}
-						onclick={closeTargetConfigDialog}
-					>
-						<X size={18} strokeWidth={1.8} aria-hidden="true" />
-					</button>
-				</div>
-				<div class="target-config-content">
-					<label class="install-dialog-field">
-						<span>Local plugin source</span>
-						<input
-							class="config-source-input"
-							type="text"
-							bind:value={targetConfigEditor.hpath}
-							disabled={targetConfigEditor.state === 'loading' ||
-								targetConfigEditor.state === 'saving'}
-							placeholder="C:\\Plugins\\{selectedPlugin.name}"
-						/>
-					</label>
-					{#if targetConfigEditor.config.path !== undefined}
-						<p class="config-legacy-warning" role="alert">
-							This config uses the deprecated <code>path</code> key. Use <code>hpath</code> instead.
-						</p>
-						<label class="config-migration-toggle">
-							<input
-								type="checkbox"
-								bind:checked={targetConfigEditor.migrateLegacyPath}
-								disabled={targetConfigEditor.state === 'saving'}
-							/>
-							<span
-								>Auto-remove <code>path</code> and replace it with <code>hpath</code> on save</span
-							>
-						</label>
-					{/if}
-					<div class="config-path-box" aria-label="Package path configuration">
-						{#if targetConfigEditor.config.path !== undefined}
-							<div class="config-path-row is-legacy">
-								<span><code>path</code><small>deprecated</small></span>
-								<code>{configPathText(targetConfigEditor.config.path)}</code>
-							</div>
-						{/if}
-						<div class="config-path-row is-current">
-							<span><code>hpath</code><small>current</small></span>
-							<code>{targetConfigEditor.hpath.trim() || 'Not set'}</code>
-						</div>
-					</div>
-					<div class="config-preview-panel">
-						<div class="config-preview-heading">
-							<span>Live JSON preview</span>
-							<code>{targetConfigEditor.packagePath}</code>
-						</div>
-						<pre>{#if targetConfigEditor.state === 'loading'}Loading config...{:else}{#each targetConfigPreviewLines as line, index (index)}<span
-										class={line.changed ? 'config-preview-line is-changed' : 'config-preview-line'}
-										>{line.text}</span
-									>{/each}{/if}</pre>
-					</div>
-					{#if targetConfigEditor.message}
-						<p
-							class={[
-								'install-message',
-								`is-${targetConfigEditor.state === 'error' ? 'error' : 'success'}`
-							]}
-							aria-live="polite"
-						>
-							{targetConfigEditor.message}
-						</p>
-					{/if}
-				</div>
-				<div class="target-issue-actions">
-					<button
-						type="button"
-						class="dialog-secondary-button"
-						disabled={targetConfigEditor.state === 'saving'}
-						onclick={closeTargetConfigDialog}
-					>
-						Cancel
-					</button>
-					<button
-						type="button"
-						class="dialog-secondary-button"
-						disabled={targetConfigEditor.state === 'loading' ||
-							targetConfigEditor.state === 'saving' ||
-							pluginActionState === 'working'}
-						onclick={openTargetConfigFile}
-					>
-						Open config file
-					</button>
-					<button
-						type="button"
-						class="dialog-primary-button"
-						disabled={targetConfigEditor.state === 'loading' ||
-							targetConfigEditor.state === 'saving' ||
-							!targetConfigEditor.hpath.trim()}
-						onclick={() => void saveTargetConfig()}
-					>
-						{targetConfigEditor.state === 'saving' ? 'Saving...' : 'Save and close'}
-					</button>
-				</div>
-			</dialog>
-		</div>
+	{#if liveJsonEditorContext}
+		<LiveJsonEditor
+			plugin={liveJsonEditorContext.plugin}
+			install={liveJsonEditorContext.install}
+			target={liveJsonEditorContext.target}
+			targets={activationTargets}
+			{isScanActive}
+			onClose={closeTargetConfigDialog}
+			onDiscovery={(response) => applyDiscovery(response, 'plugins')}
+		/>
 	{/if}
 	{#if targetIssueDetails}
 		<div class="issues-dialog-backdrop">
@@ -2189,12 +1850,10 @@
 					{/each}
 				</ul>
 				<div class="target-issue-actions">
-					<button type="button" class="dialog-secondary-button" onclick={closeTargetIssueDetails}>
-						Close
-					</button>
 					<button
 						type="button"
 						class="dialog-secondary-button"
+						aria-label="Open config"
 						disabled={isScanActive || pluginActionState === 'working'}
 						onclick={() => {
 							const issue = targetIssueDetails;
@@ -2202,12 +1861,14 @@
 							closeTargetIssueDetails();
 							void runSelectedPluginAction({ action: 'open-config', installId: issue.installId });
 						}}
+						data-tooltip="Open JSON config"
 					>
-						Open config
+						<FileCog size={18} strokeWidth={1.8} aria-hidden="true" />
 					</button>
 					<button
 						type="button"
 						class="dialog-primary-button"
+						aria-label="Live JSON Editor"
 						disabled={isScanActive || pluginActionState === 'working'}
 						onclick={() => {
 							const issue = targetIssueDetails;
@@ -2218,8 +1879,9 @@
 							closeTargetIssueDetails();
 							void openTargetConfigDialog(install, issue.target);
 						}}
+						data-tooltip="Open live JSON editor"
 					>
-						Config Editor
+						<Cog size={18} strokeWidth={1.8} aria-hidden="true" />
 					</button>
 				</div>
 			</dialog>
@@ -2805,80 +2467,6 @@
 		outline: none;
 	}
 
-	.issue-list {
-		display: flex;
-		min-height: 0;
-		flex-direction: column;
-		gap: 8px;
-		overflow-y: auto;
-		padding-top: 16px;
-	}
-
-	.issue-list-item {
-		display: grid;
-		grid-template-columns: 9px minmax(0, 1fr) auto;
-		align-items: start;
-		gap: 12px;
-		width: 100%;
-		padding: 12px;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		background: rgba(255, 255, 255, 0.025);
-		color: var(--text);
-		cursor: pointer;
-		font: inherit;
-		text-align: left;
-	}
-
-	.issue-list-item:hover,
-	.issue-list-item:focus-visible {
-		border-color: rgba(223, 109, 88, 0.7);
-		background: rgba(223, 109, 88, 0.09);
-		outline: none;
-	}
-
-	.issue-status-marker {
-		width: 9px;
-		height: 9px;
-		margin-top: 4px;
-		border-radius: 50%;
-		background: #d39b38;
-	}
-
-	.issue-status-marker.status-incompatible,
-	.issue-status-marker.status-missing {
-		background: #df6d58;
-	}
-
-	.issue-list-copy {
-		display: flex;
-		min-width: 0;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.issue-list-copy strong {
-		font-size: 13px;
-		font-weight: 600;
-	}
-
-	.issue-list-copy small {
-		color: var(--text-muted);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
-		line-height: 1.4;
-		overflow-wrap: anywhere;
-	}
-
-	.issue-list-copy .issue-list-note {
-		color: #d39b38;
-	}
-
-	.issue-list-item > :last-child {
-		margin-top: 2px;
-		color: var(--text-dim);
-	}
-
 	.target-issue-messages {
 		max-height: min(260px, 35dvh);
 		margin: 20px 0;
@@ -2920,197 +2508,6 @@
 		font-family: inherit;
 		font-size: 10px;
 		font-weight: 700;
-	}
-
-	.target-config-dialog {
-		width: min(760px, 100%);
-	}
-
-	.target-config-content {
-		display: flex;
-		min-height: 0;
-		flex-direction: column;
-		gap: 16px;
-		margin: 20px 0;
-	}
-
-	.config-source-input {
-		width: 100%;
-		min-width: 0;
-		padding: 9px 10px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--surface-raised);
-		color: var(--text);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
-	}
-
-	.config-source-input:focus-visible {
-		border-color: #399b82;
-		outline: none;
-	}
-
-	.config-legacy-warning {
-		margin: -4px 0 0;
-		padding: 9px 11px;
-		border: 1px solid rgba(211, 155, 56, 0.55);
-		border-left: 3px solid #d39b38;
-		border-radius: 4px;
-		background: rgba(211, 155, 56, 0.1);
-		color: #e2b65d;
-		font-size: 11px;
-		line-height: 1.45;
-	}
-
-	.config-legacy-warning code,
-	.config-migration-toggle code {
-		color: #f0c875;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 0.95em;
-	}
-
-	.config-migration-toggle {
-		display: flex;
-		align-items: flex-start;
-		gap: 9px;
-		padding: 9px 11px;
-		border: 1px solid rgba(211, 155, 56, 0.35);
-		border-radius: 4px;
-		background: rgba(211, 155, 56, 0.05);
-		color: var(--text-dim);
-		font-size: 10px;
-		line-height: 1.45;
-		cursor: pointer;
-	}
-
-	.config-migration-toggle:has(input:checked) {
-		border-color: rgba(57, 155, 130, 0.6);
-		background: rgba(57, 155, 130, 0.09);
-		color: #b8ded2;
-	}
-
-	.config-migration-toggle input {
-		width: 14px;
-		height: 14px;
-		flex: 0 0 auto;
-		margin: 1px 0 0;
-		accent-color: #399b82;
-	}
-
-	.config-path-box {
-		display: grid;
-		gap: 1px;
-		padding: 5px;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		background: rgba(0, 0, 0, 0.16);
-	}
-
-	.config-path-row {
-		display: grid;
-		grid-template-columns: 92px minmax(0, 1fr);
-		gap: 10px;
-		align-items: start;
-		padding: 7px 8px;
-		border-radius: 3px;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
-		line-height: 1.4;
-	}
-
-	.config-path-row > span {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font-weight: 600;
-	}
-
-	.config-path-row > span code {
-		font-size: inherit;
-	}
-
-	.config-path-row small {
-		font-family: inherit;
-		font-size: 8px;
-		font-weight: 500;
-		letter-spacing: 0.03em;
-		text-transform: uppercase;
-	}
-
-	.config-path-row > :last-child {
-		min-width: 0;
-		overflow-wrap: anywhere;
-	}
-
-	.config-path-row.is-legacy {
-		background: rgba(211, 155, 56, 0.1);
-		color: #e2b65d;
-	}
-
-	.config-path-row.is-legacy small {
-		color: #d39b38;
-	}
-
-	.config-path-row.is-current {
-		background: rgba(57, 155, 130, 0.09);
-		color: #b8ded2;
-	}
-
-	.config-path-row.is-current small {
-		color: #55b79d;
-	}
-
-	.config-preview-panel {
-		min-width: 0;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		background: rgba(0, 0, 0, 0.14);
-		overflow: hidden;
-	}
-
-	.config-preview-heading {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 9px 11px;
-		border-bottom: 1px solid var(--line);
-		color: var(--text-dim);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
-	}
-
-	.config-preview-heading code {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.config-preview-panel pre {
-		max-height: min(360px, 42dvh);
-		margin: 0;
-		overflow: auto;
-		padding: 12px;
-		color: var(--text);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
-		line-height: 1.5;
-		white-space: pre-wrap;
-		word-break: break-word;
-	}
-
-	.config-preview-line {
-		display: block;
-		min-height: 1.5em;
-		margin: 0 -4px;
-		padding: 0 4px;
-	}
-
-	.config-preview-line.is-changed {
-		background: rgba(74, 164, 132, 0.2);
-		box-shadow: inset 3px 0 #55b79d;
 	}
 
 	.target-issue-actions {
@@ -3510,47 +2907,6 @@
 		border-color: #d39b38;
 		background: rgba(211, 155, 56, 0.2);
 		color: #f0bd55;
-	}
-
-	.missing-source-warning {
-		display: flex;
-		align-items: center;
-		justify-content: flex-start;
-		gap: 10px;
-		padding: 8px 10px;
-		border: 1px solid rgba(211, 155, 56, 0.38);
-		border-radius: 5px;
-		background: rgba(211, 155, 56, 0.08);
-		color: #d39b38;
-	}
-
-	.missing-source-warning > div {
-		text-align: left;
-	}
-
-	.missing-source-warning:hover:not(:disabled),
-	.missing-source-warning:focus-visible:not(:disabled) {
-		border-color: #d39b38;
-		background: rgba(211, 155, 56, 0.16);
-		color: #f0bd55;
-		cursor: pointer;
-	}
-
-	.missing-source-warning strong,
-	.missing-source-warning small {
-		display: block;
-	}
-
-	.missing-source-warning strong {
-		font-size: 10px;
-	}
-
-	.missing-source-warning small {
-		margin-top: 3px;
-		color: var(--text-muted);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
-		line-height: 1.35;
 	}
 
 	.icon-action-button {
