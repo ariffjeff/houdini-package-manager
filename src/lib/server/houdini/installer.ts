@@ -1,6 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { discoverHoudiniWorkspace, scanHoudiniWorkspace } from './discovery.js';
@@ -36,8 +35,7 @@ export async function installHoudiniPlugin(
 	const installs = selectInstalls(current.installs, request);
 	if (!installs.length) throw new Error('No Houdini install matched the requested scope.');
 
-	const pluginSlug = slugify(plugin);
-	const repositoryPath = await managedRepositoryPath(pluginSlug, request, installs[0]);
+	const repositoryPath = path.normalize(request.destinationPath);
 	await ensureGitCheckout(plugin.repositoryUrl, request.version, repositoryPath, signal);
 
 	for (const install of installs) {
@@ -59,9 +57,11 @@ export async function installHoudiniPlugin(
 	throwIfAborted(signal);
 	const discovery = await discoverHoudiniWorkspace();
 	const targetLabel =
-		request.scope === 'global' ? 'all detected Houdini installs' : installs[0].label;
+		installs.length === current.installs.length
+			? 'all detected Houdini installs'
+			: installs.map((install) => install.label).join(', ');
 	return {
-		message: `${plugin.name} ${request.version} installed for ${targetLabel}.`,
+		message: `${plugin.name} ${request.version} installed for ${targetLabel} at ${repositoryPath}.`,
 		discovery
 	};
 }
@@ -182,17 +182,23 @@ export function validateInstallPluginRequest(request: InstallPluginRequest): voi
 	) {
 		throw new Error('A valid plugin version tag is required.');
 	}
-	if (request.scope !== 'global' && request.scope !== 'install') {
-		throw new Error('Install scope must be global or install.');
+	if (
+		!Array.isArray(request.installIds) ||
+		!request.installIds.length ||
+		request.installIds.some((installId) => typeof installId !== 'string' || !installId.trim())
+	) {
+		throw new Error('At least one Houdini install id is required.');
+	}
+	if (new Set(request.installIds).size !== request.installIds.length) {
+		throw new Error('Houdini install ids must be unique.');
 	}
 	if (
-		request.installId !== undefined &&
-		(typeof request.installId !== 'string' || !request.installId.trim())
+		typeof request.destinationPath !== 'string' ||
+		!request.destinationPath.trim() ||
+		/[\0\r\n]/.test(request.destinationPath) ||
+		!path.isAbsolute(request.destinationPath)
 	) {
-		throw new Error('Install id must be a non-empty string when provided.');
-	}
-	if (request.scope === 'install' && !request.installId?.trim()) {
-		throw new Error('An install id is required for install-scoped requests.');
+		throw new Error('An absolute plugin destination path is required.');
 	}
 }
 
@@ -200,22 +206,12 @@ function selectInstalls(
 	installs: HoudiniInstall[],
 	request: InstallPluginRequest
 ): HoudiniInstall[] {
-	if (request.scope === 'global') return installs;
-	if (!request.installId) return [];
-	return installs.filter((install) => install.id === request.installId);
-}
-
-async function managedRepositoryPath(
-	pluginSlug: string,
-	request: InstallPluginRequest,
-	install: HoudiniInstall
-): Promise<string> {
-	if (request.scope === 'global') {
-		return path.join(os.homedir(), 'Documents', 'HPM', 'plugins', pluginSlug);
+	const selectedIds = new Set(request.installIds);
+	const selectedInstalls = installs.filter((install) => selectedIds.has(install.id));
+	if (selectedInstalls.length !== selectedIds.size) {
+		throw new Error('One or more requested Houdini installs were not found.');
 	}
-
-	const packageDirectory = await writableUserPackageDirectory(install);
-	return path.join(path.dirname(packageDirectory), 'hpm', 'plugins', pluginSlug);
+	return selectedInstalls;
 }
 
 async function writableUserPackageDirectory(install: HoudiniInstall): Promise<string> {
@@ -395,13 +391,6 @@ function throwIfAborted(signal?: AbortSignal): void {
 	if (signal?.aborted) {
 		throw new DOMException('Plugin installation was cancelled.', 'AbortError');
 	}
-}
-
-function slugify(plugin: PluginRecord): string {
-	return plugin.id
-		.replace(/^package:/, '')
-		.replace(/[^a-z0-9]+/gi, '-')
-		.toLowerCase();
 }
 
 async function hasEntries(directory: string): Promise<boolean> {

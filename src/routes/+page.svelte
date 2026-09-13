@@ -125,8 +125,10 @@
 	let activationInstalls = $state<HoudiniInstall[]>([]);
 	let activationTargets = $state<ActivationTarget[]>([]);
 	let installVersion = $state('');
-	let installScope = $state<'global' | 'install'>('global');
-	let installTargetId = $state('');
+	let installDialogOpen = $state(false);
+	let selectedInstallIds = $state<string[]>([]);
+	let installDestinationChoice = $state('custom');
+	let installCustomDestination = $state('');
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
 	let installController: AbortController | null = null;
@@ -251,7 +253,40 @@
 	let requestedInstallVersion = $derived(
 		installVersion || selectedPluginVersions[0] || selectedPlugin?.version || ''
 	);
-	let requestedInstallId = $derived(installTargetId);
+	let remoteSourceOptions = $derived.by(() => {
+		const sourcePaths = (selectedPlugin?.sources ?? [])
+			.filter((source) => source.exists)
+			.map((source) => source.path);
+		const hpmPath = hpmPluginDestination;
+		return [...new Set(hpmPath ? [...sourcePaths, hpmPath] : sourcePaths)];
+	});
+	let hpmPluginDestination = $derived.by(() => {
+		const plugin = selectedPlugin;
+		if (!plugin) return '';
+
+		const staleHpmPath = plugin.stalePaths?.find((sourcePath) =>
+			/[\\/]hpm[\\/]plugins[\\/]/i.test(sourcePath)
+		);
+		if (staleHpmPath) return staleHpmPath;
+
+		const userPreferences = activationInstalls[0]?.userPreferences;
+		const pluginSlug = plugin.id.split(':').at(-1)?.trim();
+		if (!userPreferences || !pluginSlug) return '';
+
+		const separator = userPreferences.includes('\\') ? '\\' : '/';
+		const documentsPath = userPreferences.replace(/[\\/]houdini[^\\/]*$/i, '');
+		return `${documentsPath}${separator}HPM${separator}plugins${separator}${pluginSlug}`;
+	});
+	let requestedInstallDestination = $derived(
+		installDestinationChoice === 'custom'
+			? installCustomDestination.trim()
+			: installDestinationChoice
+	);
+	let selectedInstallSummary = $derived(
+		selectedInstallIds.length === activationInstalls.length
+			? 'All detected Houdini installs'
+			: `${selectedInstallIds.length} of ${activationInstalls.length} Houdini installs`
+	);
 	let filteredPlugins = $derived.by(() => {
 		if (!normalizedQuery) return activationPlugins;
 
@@ -480,6 +515,7 @@
 	}
 
 	function selectNode(id: string | null) {
+		installDialogOpen = false;
 		selectedNodeId = id;
 		persistSelectedNode(id);
 		installVersion = '';
@@ -507,10 +543,49 @@
 		selectNode(issue.nodeId);
 	}
 
+	function openInstallDialog() {
+		const plugin = selectedPlugin;
+		if (
+			!plugin ||
+			!plugin.repositoryUrl ||
+			!selectedPluginVersions.length ||
+			!activationInstalls.length
+		) {
+			return;
+		}
+
+		installVersion = selectedPluginVersions.includes(installVersion)
+			? installVersion
+			: selectedPluginVersions[0];
+		selectedInstallIds = activationInstalls.map((install) => install.id);
+		const existingSource = remoteSourceOptions[0];
+		installDestinationChoice = existingSource ?? 'custom';
+		installCustomDestination = existingSource ?? '';
+		installState = 'idle';
+		installMessage = '';
+		installDialogOpen = true;
+	}
+
+	function closeInstallDialog() {
+		if (installState === 'working') return;
+		installDialogOpen = false;
+	}
+
+	function toggleInstallTarget(installId: string, checked: boolean) {
+		selectedInstallIds = checked
+			? [...new Set([...selectedInstallIds, installId])]
+			: selectedInstallIds.filter((id) => id !== installId);
+	}
+
+	function setAllInstallTargets(selected: boolean) {
+		selectedInstallIds = selected ? activationInstalls.map((install) => install.id) : [];
+	}
+
 	function handleWindowKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape') return;
 		if (issuesDialogOpen) closeIssuesDialog();
 		if (targetIssueDetails) closeTargetIssueDetails();
+		if (installDialogOpen && installState !== 'working') closeInstallDialog();
 	}
 
 	async function rescanSelectedPluginConfigs() {
@@ -581,7 +656,8 @@
 			!plugin ||
 			!requestedInstallVersion ||
 			!selectedPluginVersions.includes(requestedInstallVersion) ||
-			(installScope === 'install' && !requestedInstallId)
+			!selectedInstallIds.length ||
+			!requestedInstallDestination
 		) {
 			return;
 		}
@@ -595,14 +671,15 @@
 				{
 					pluginId: plugin.id,
 					version: requestedInstallVersion,
-					scope: installScope,
-					installId: installScope === 'install' ? requestedInstallId : undefined
+					installIds: [...selectedInstallIds],
+					destinationPath: requestedInstallDestination
 				},
 				controller.signal
 			);
 			applyDiscovery(result.discovery, 'all');
 			installState = 'success';
 			installMessage = result.message;
+			installDialogOpen = false;
 		} catch (error) {
 			if (
 				controller.signal.aborted ||
@@ -1095,18 +1172,19 @@
 							{/if}
 							{#if selectedPlugin.repositoryUrl || selectedPluginVersions.length || installMessage}
 								<div class="panel-section plugin-actions">
-									{#if selectedPlugin.repositoryUrl}
-										<div class="remote-source-block">
-											<div class="panel-section-heading">
-												<div>
-													<h4 id="remote-sources-title">Remote Source</h4>
-													<p>Derived from /.git</p>
-												</div>
-											</div>
-											<div class="remote-source-actions">
+									<div class="panel-section-heading remote-source-heading m-0">
+										<div>
+											<h4 id="remote-sources-title">Remote Source</h4>
+											<p>Derived from /.git</p>
+										</div>
+									</div>
+									<div class="remote-source-block">
+										<div class="remote-source-actions">
+											{#if selectedPlugin.repositoryUrl}
 												<button
 													type="button"
 													class="sync-button"
+													aria-label="Sync Git"
 													disabled={isScanActive || gitSyncState === 'working'}
 													data-tooltip="Sync git metadata"
 													onclick={(event) => {
@@ -1124,6 +1202,7 @@
 												<a
 													class="source-button"
 													href={selectedPlugin.repositoryUrl}
+													aria-label="Open source"
 													target="_blank"
 													rel="external noopener noreferrer"
 													data-tooltip="Open remote repository"
@@ -1135,64 +1214,32 @@
 														aria-hidden="true"
 													/>
 												</a>
-											</div>
-											{#if gitSyncMessage}
-												<p class={['git-sync-message', `is-${gitSyncState}`]} aria-live="polite">
-													{gitSyncMessage}
-												</p>
 											{/if}
-										</div>
-									{/if}
-									{#if selectedPluginVersions.length}
-										<div class="install-controls">
-											<label>
-												<span>Version</span>
-												<select
-													value={requestedInstallVersion}
-													onchange={(event) =>
-														(installVersion = (event.currentTarget as HTMLSelectElement).value)}
+											{#if selectedPluginVersions.length}
+												{#if !selectedPlugin.installedVersions?.includes(selectedPluginVersions[0])}
+													<span class="new-version-note">
+														<span>New: {selectedPluginVersions[0]}</span>
+													</span>
+												{/if}
+												<button
+													type="button"
+													class="install-button"
+													aria-label={`Configure remote install for ${selectedPlugin.name}`}
+													disabled={installState === 'working'}
+													onclick={openInstallDialog}
+													data-tooltip="Choose install options"
 												>
-													{#each selectedPluginVersions as version (version)}
-														<option value={version}>{version}</option>
-													{/each}
-												</select>
-											</label>
-											<label>
-												<span>Install scope</span>
-												<select bind:value={installScope}>
-													<option value="global">All Houdini installs</option>
-													<option value="install">One Houdini install</option>
-												</select>
-											</label>
-											{#if installScope === 'install'}
-												<label>
-													<span>Target install</span>
-													<select bind:value={installTargetId}>
-														<option value="" hidden>Select an install</option>
-														{#each activationInstalls as install (install.id)}
-															<option value={install.id}>{install.label} / {install.build}</option>
-														{/each}
-													</select>
-												</label>
-											{/if}
-											<button
-												type="button"
-												class="install-button"
-												disabled={installState === 'working' ||
-													!requestedInstallVersion ||
-													(installScope === 'install' && !requestedInstallId)}
-												onclick={() => void installSelectedPlugin()}
-												data-tooltip="Install plugin from remote"
-											>
-												<HardDriveDownload class="install-icon" />
-											</button>
-											{#if installState === 'working'}
-												<button type="button" class="cancel-button" onclick={cancelInstall}>
-													Cancel installation
+													<HardDriveDownload class="install-icon" />
+													<span>Configure install</span>
 												</button>
 											{/if}
 										</div>
-									{/if}
+										{#if gitSyncMessage}
+											<p class={['git-sync-message', `is-${gitSyncState}`]} aria-live="polite">
+												{gitSyncMessage}
+											</p>
+										{/if}
+									</div>
 									{#if installMessage}
 										<p class={['install-message', `is-${installState}`]} aria-live="polite">
 											{installMessage}
@@ -1480,6 +1527,168 @@
 			</div>
 		{/if}
 	</main>
+	{#if installDialogOpen && selectedPlugin}
+		<div class="issues-dialog-backdrop install-dialog-backdrop">
+			<button
+				type="button"
+				class="issues-dialog-dismiss"
+				aria-label="Close install configuration dialog"
+				onclick={closeInstallDialog}
+			></button>
+			<dialog open class="issues-dialog install-dialog" aria-labelledby="install-dialog-title">
+				<div class="issues-dialog-header">
+					<div>
+						<h2 id="install-dialog-title">Install {selectedPlugin.name}</h2>
+						<p>Choose where the remote checkout lives and which Houdini installs use it.</p>
+					</div>
+					<button
+						type="button"
+						class="dialog-close-button"
+						aria-label="Close install configuration dialog"
+						disabled={installState === 'working'}
+						onclick={closeInstallDialog}
+					>
+						<X size={18} strokeWidth={1.8} aria-hidden="true" />
+					</button>
+				</div>
+				<div class="install-dialog-content">
+					<label class="install-dialog-field">
+						<span>Version</span>
+						<select bind:value={installVersion} disabled={installState === 'working'}>
+							{#each selectedPluginVersions as version (version)}
+								<option value={version}>{version}</option>
+							{/each}
+						</select>
+					</label>
+
+					<fieldset class="install-dialog-fieldset">
+						<div class="install-fieldset-heading">
+							<div>
+								<legend>Houdini installs</legend>
+								<p>Select any combination of detected installs.</p>
+							</div>
+							<div class="install-selection-actions">
+								<button
+									type="button"
+									class="selection-link"
+									disabled={installState === 'working'}
+									onclick={() => setAllInstallTargets(true)}>All</button
+								>
+								<button
+									type="button"
+									class="selection-link"
+									disabled={installState === 'working'}
+									onclick={() => setAllInstallTargets(false)}>Clear</button
+								>
+							</div>
+						</div>
+						<div class="install-target-options">
+							{#each activationInstalls as install (install.id)}
+								<label class="install-target-option">
+									<input
+										type="checkbox"
+										checked={selectedInstallIds.includes(install.id)}
+										disabled={installState === 'working'}
+										onchange={(event) =>
+											toggleInstallTarget(
+												install.id,
+												(event.currentTarget as HTMLInputElement).checked
+											)}
+									/>
+									<span>
+										<strong>{install.label}</strong>
+										<small>{install.platform} / {install.build}</small>
+									</span>
+								</label>
+							{/each}
+						</div>
+					</fieldset>
+
+					<fieldset class="install-dialog-fieldset">
+						<legend>Plugin destination</legend>
+						<p>Git will clone or update the remote source at this exact folder.</p>
+						{#each remoteSourceOptions as sourcePath (sourcePath)}
+							<label class="install-destination-option">
+								<input
+									type="radio"
+									name="install-destination"
+									checked={installDestinationChoice === sourcePath}
+									disabled={installState === 'working'}
+									onchange={() => (installDestinationChoice = sourcePath)}
+								/>
+								<span>
+									<strong
+										>{sourcePath === hpmPluginDestination
+											? 'Use HPM plugin folder'
+											: 'Use discovered source'}</strong
+									>
+									<small>{sourcePath}</small>
+								</span>
+							</label>
+						{/each}
+						<label class="install-destination-option">
+							<input
+								type="radio"
+								name="install-destination"
+								checked={installDestinationChoice === 'custom'}
+								disabled={installState === 'working'}
+								onchange={() => (installDestinationChoice = 'custom')}
+							/>
+							<span>
+								<strong>Use a custom folder</strong>
+								<small>Enter the full path for the plugin checkout.</small>
+							</span>
+						</label>
+						<input
+							class="install-destination-input"
+							type="text"
+							aria-label="Custom plugin destination"
+							value={installCustomDestination}
+							placeholder="C:\\Plugins\\{selectedPlugin.name}"
+							disabled={installDestinationChoice !== 'custom' || installState === 'working'}
+							oninput={(event) =>
+								(installCustomDestination = (event.currentTarget as HTMLInputElement).value)}
+						/>
+					</fieldset>
+
+					<div class="install-review">
+						<div>
+							<span>Install plan</span>
+							<strong>{requestedInstallVersion} / {selectedInstallSummary}</strong>
+						</div>
+						<code>{requestedInstallDestination || 'Choose a destination folder'}</code>
+					</div>
+					{#if installMessage}
+						<p class={['install-message', `is-${installState}`]} aria-live="polite">
+							{installMessage}
+						</p>
+					{/if}
+				</div>
+				<div class="target-issue-actions install-dialog-actions">
+					{#if installState === 'working'}
+						<button type="button" class="dialog-secondary-button" onclick={cancelInstall}>
+							Cancel installation
+						</button>
+					{:else}
+						<button type="button" class="dialog-secondary-button" onclick={closeInstallDialog}>
+							Close
+						</button>
+					{/if}
+					<button
+						type="button"
+						class="dialog-primary-button"
+						disabled={installState === 'working' ||
+							!requestedInstallVersion ||
+							!selectedInstallIds.length ||
+							!requestedInstallDestination}
+						onclick={() => void installSelectedPlugin()}
+					>
+						Install plugin
+					</button>
+				</div>
+			</dialog>
+		</div>
+	{/if}
 	{#if issuesDialogOpen}
 		<div class="issues-dialog-backdrop">
 			<button
@@ -2435,7 +2644,6 @@
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 16px;
 		margin-bottom: 10px;
 	}
 
@@ -2453,10 +2661,9 @@
 	}
 
 	.panel-section-heading p {
-		margin-top: 3px;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 11px;
 		line-height: 1.4;
 	}
 
@@ -2483,7 +2690,6 @@
 	.plugin-actions {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
 		margin-bottom: 18px;
 	}
 
@@ -2689,22 +2895,25 @@
 	}
 
 	.remote-source-block {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		align-items: center;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
 		gap: 8px 16px;
 		padding-top: 2px;
 	}
 
-	.remote-source-block .panel-section-heading {
-		margin: 0;
+	.remote-source-heading {
+		align-items: flex-start;
+		flex-direction: column;
 	}
 
 	.remote-source-actions {
 		display: flex;
-		flex-wrap: wrap;
-		justify-content: flex-end;
+		min-width: 0;
+		align-items: center;
+		justify-content: flex-start;
 		gap: 6px;
+		white-space: nowrap;
 	}
 
 	.remote-source-actions .source-button,
@@ -2731,6 +2940,30 @@
 		font-size: 11px;
 		font-weight: 600;
 		text-decoration: none;
+	}
+
+	.install-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		border-color: rgba(57, 155, 130, 0.5);
+		background: rgba(57, 155, 130, 0.1);
+		color: #8de0c5;
+	}
+
+	.new-version-note {
+		display: inline-flex;
+		height: 38px;
+		align-items: center;
+		box-sizing: border-box;
+		gap: 5px;
+		padding: 0 8px;
+		border: 1px solid rgba(211, 155, 56, 0.4);
+		border-radius: 4px;
+		background: rgba(211, 155, 56, 0.09);
+		color: #d39b38;
+		font-size: 11px;
+		line-height: 1;
 	}
 
 	.source-button:hover,
@@ -2771,20 +3004,8 @@
 		color: #df6d58;
 	}
 
-	.install-controls {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 9px;
-	}
-
-	.install-controls label {
-		display: flex;
-		min-width: 0;
-		flex-direction: column;
-		gap: 5px;
-	}
-
-	.install-controls label span {
+	.install-dialog-field > span,
+	.install-review span {
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 8px;
@@ -2792,9 +3013,40 @@
 		text-transform: uppercase;
 	}
 
-	.install-controls select {
+	.install-dialog-fieldset p,
+	.install-target-option small,
+	.install-destination-option small {
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		line-height: 1.4;
+	}
+
+	.install-dialog {
+		width: min(760px, 100%);
+	}
+
+	.install-dialog-content {
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+		gap: 14px;
+		margin-top: 20px;
+		overflow-y: auto;
+		padding-right: 2px;
+	}
+
+	.install-dialog-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.install-dialog-field select,
+	.install-destination-input {
+		width: 100%;
 		min-width: 0;
-		padding: 7px 8px;
+		padding: 9px 10px;
 		border: 1px solid var(--line);
 		border-radius: 4px;
 		background: var(--surface-raised);
@@ -2802,14 +3054,171 @@
 		font-size: 11px;
 	}
 
-	.install-controls .install-button {
-		grid-column: 1 / -1;
-		justify-self: start;
+	.install-dialog-fieldset {
+		min-width: 0;
+		margin: 0;
+		padding: 12px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
 	}
 
-	.install-controls .cancel-button {
-		grid-column: 1 / -1;
-		justify-self: start;
+	.install-dialog-fieldset legend {
+		padding: 0 5px;
+		color: var(--text);
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.install-dialog-fieldset p {
+		margin: 3px 0 10px;
+	}
+
+	.install-fieldset-heading {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.install-fieldset-heading legend {
+		padding: 0;
+	}
+
+	.install-fieldset-heading p {
+		margin-bottom: 0;
+	}
+
+	.install-selection-actions {
+		display: flex;
+		flex: 0 0 auto;
+		gap: 8px;
+	}
+
+	.selection-link {
+		padding: 2px 0;
+		border: 0;
+		background: transparent;
+		color: #55c4a5;
+		cursor: pointer;
+		font: inherit;
+		font-size: 10px;
+	}
+
+	.selection-link:hover:not(:disabled),
+	.selection-link:focus-visible:not(:disabled) {
+		color: var(--text);
+		outline: none;
+		text-decoration: underline;
+	}
+
+	.selection-link:disabled {
+		cursor: wait;
+		opacity: 0.5;
+	}
+
+	.install-target-options {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		margin-top: 12px;
+	}
+
+	.install-target-option,
+	.install-destination-option {
+		display: flex;
+		min-width: 0;
+		align-items: flex-start;
+		gap: 9px;
+		padding: 9px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.02);
+		cursor: pointer;
+	}
+
+	.install-target-option:hover,
+	.install-destination-option:hover {
+		border-color: var(--line-strong);
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	.install-target-option input,
+	.install-destination-option input {
+		accent-color: #399b82;
+		flex: 0 0 auto;
+		margin: 2px 0 0;
+	}
+
+	.install-target-option span,
+	.install-destination-option span {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 3px;
+	}
+
+	.install-target-option strong,
+	.install-destination-option strong {
+		font-size: 11px;
+		font-weight: 600;
+	}
+
+	.install-target-option small,
+	.install-destination-option small {
+		overflow-wrap: anywhere;
+	}
+
+	.install-destination-option {
+		margin-top: 8px;
+	}
+
+	.install-destination-input {
+		margin-top: 8px;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+	}
+
+	.install-destination-input:disabled {
+		cursor: not-allowed;
+		opacity: 0.5;
+	}
+
+	.install-review {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 8px;
+		padding: 11px 12px;
+		border: 1px solid rgba(57, 155, 130, 0.32);
+		border-radius: 5px;
+		background: rgba(57, 155, 130, 0.06);
+	}
+
+	.install-review > div {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.install-review strong {
+		font-size: 11px;
+		font-weight: 600;
+	}
+
+	.install-review code {
+		max-width: 100%;
+		overflow-wrap: anywhere;
+		color: #55c4a5;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.4;
+	}
+
+	.install-dialog-actions {
+		margin-top: 18px;
+	}
+
+	.install-dialog-actions .dialog-secondary-button {
 		border-color: rgba(223, 109, 88, 0.5);
 		color: #df6d58;
 	}
@@ -3234,6 +3643,36 @@
 	}
 
 	@media (max-width: 760px) {
+		.install-dialog-backdrop {
+			padding: 12px;
+		}
+
+		.install-dialog {
+			max-height: calc(100dvh - 24px);
+			padding: 16px;
+		}
+
+		.install-dialog-content {
+			margin-top: 16px;
+		}
+
+		.install-target-options {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.install-fieldset-heading {
+			flex-direction: column;
+		}
+
+		.install-dialog-actions {
+			align-items: stretch;
+			flex-direction: column-reverse;
+		}
+
+		.install-dialog-actions button {
+			width: 100%;
+		}
+
 		.scan-status-header {
 			align-items: stretch;
 			flex-direction: column;

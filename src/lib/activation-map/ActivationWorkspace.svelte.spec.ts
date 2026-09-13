@@ -4,6 +4,12 @@ import { render } from 'vitest-browser-svelte';
 import Page from '../../routes/+page.svelte';
 
 let scanRequests: Array<{ stage: string; pluginIds?: string[] }> = [];
+let installRequests: Array<{
+	pluginId: string;
+	version: string;
+	installIds: string[];
+	destinationPath: string;
+}> = [];
 let pluginActionRequests: Array<{
 	action: string;
 	pluginId: string;
@@ -13,6 +19,7 @@ let pluginActionRequests: Array<{
 }> = [];
 let holdPluginAction = false;
 let releasePluginAction: (() => void) | null = null;
+let holdInstall = false;
 
 const discoveryResponse = {
 	installs: [
@@ -151,9 +158,11 @@ function stubDiscovery(
 	snapshotResponse: typeof discoveryResponse | null = null
 ) {
 	scanRequests = [];
+	installRequests = [];
 	pluginActionRequests = [];
 	holdPluginAction = false;
 	releasePluginAction = null;
+	holdInstall = false;
 	vi.stubGlobal(
 		'fetch',
 		vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -206,11 +215,27 @@ function stubDiscovery(
 				);
 			}
 			if (requestPath === '/__hpm/houdini/install') {
-				return new Promise<never>((_, reject) => {
-					init?.signal?.addEventListener('abort', () =>
-						reject(new DOMException('The operation was aborted.', 'AbortError'))
-					);
-				});
+				const request = JSON.parse(String(init?.body)) as {
+					pluginId: string;
+					version: string;
+					installIds: string[];
+					destinationPath: string;
+				};
+				installRequests.push(request);
+				if (holdInstall) {
+					return new Promise<never>((_, reject) => {
+						init?.signal?.addEventListener('abort', () =>
+							reject(new DOMException('The operation was aborted.', 'AbortError'))
+						);
+					});
+				}
+				return new Response(
+					JSON.stringify({
+						message: `MOPS ${request.version} installed at ${request.destinationPath}.`,
+						discovery: response
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
 			}
 			if (requestPath !== '/__hpm/houdini/scan') {
 				throw new Error(`Unexpected request: ${requestPath}`);
@@ -475,9 +500,7 @@ it('groups plugin targets that share a Houdini minor version', async () => {
 	render(Page);
 
 	await expect.element(page.getByText('3 installs scanned')).toBeInTheDocument();
-	await expect
-		.element(page.getByRole('img', { name: '2 versions installed', exact: true }))
-		.toBeInTheDocument();
+	await expect.element(page.getByRole('img', { name: /2 versions installed/ })).toBeInTheDocument();
 	await expect.element(page.getByText('455', { exact: true })).toBeInTheDocument();
 	await expect.element(page.getByText('456', { exact: true })).toBeInTheDocument();
 	await expect
@@ -537,7 +560,9 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByRole('link', { name: 'Open source' }))
 			.toHaveAttribute('href', 'https://github.com/toadstorm/MOPS');
-		await expect.element(page.getByRole('combobox', { name: 'Version' })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Configure remote install for MOPS' }))
+			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('group', { name: 'Official Houdini packages, 1 package configs' }))
 			.toBeInTheDocument();
@@ -623,19 +648,81 @@ describe('activation workspace', () => {
 
 	it('cancels a remote plugin installation', async () => {
 		stubDiscovery();
+		holdInstall = true;
 		render(Page);
 
 		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
-		await page.getByRole('button', { name: 'Install version' }).click();
+		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
+		await page.getByRole('button', { name: 'Install plugin', exact: true }).click();
+		await expect.poll(() => installRequests).toHaveLength(1);
 		await expect
-			.element(page.getByRole('button', { name: 'Cancel installation' }))
+			.element(page.getByRole('button', { name: 'Cancel installation', exact: true }))
 			.toBeInTheDocument();
 
-		await page.getByRole('button', { name: 'Cancel installation' }).click();
+		await page.getByRole('button', { name: 'Cancel installation', exact: true }).click();
 		await expect
-			.element(page.getByText('Installation cancelled.', { exact: true }))
+			.element(page.getByRole('dialog').getByText('Installation cancelled.', { exact: true }))
 			.toBeInTheDocument();
-		await expect.element(page.getByRole('button', { name: 'Install version' })).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Configure remote install for MOPS' }))
+			.toBeInTheDocument();
+	});
+
+	it('installs a remote plugin for selected Houdini installs at a chosen destination', async () => {
+		const secondInstallId = 'install:houdini-22.0-100-test';
+		const multiInstallResponse = {
+			...discoveryResponse,
+			installs: [
+				...discoveryResponse.installs,
+				{
+					...discoveryResponse.installs[0],
+					id: secondInstallId,
+					label: 'Houdini 22.0',
+					version: '22.0',
+					build: '100'
+				}
+			],
+			targets: [
+				...discoveryResponse.targets,
+				{
+					...discoveryResponse.targets[0],
+					installId: secondInstallId,
+					packagePath: 'C:/Users/test/Documents/houdini22.0/packages/MOPS.json'
+				}
+			]
+		} as typeof discoveryResponse;
+		stubDiscovery(multiInstallResponse);
+		render(Page);
+
+		await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Install MOPS', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText('Use HPM plugin folder', { exact: true }))
+			.toBeInTheDocument();
+
+		await page.getByRole('checkbox', { name: /Houdini 21\.0/ }).click();
+		await page.getByRole('radio', { name: /Use a custom folder/ }).click();
+		const destination = 'C:/Users/test/Plugins/MOPS';
+		await page.getByRole('textbox', { name: 'Custom plugin destination' }).fill(destination);
+		await expect.element(page.getByText('1 of 2 Houdini installs')).toBeInTheDocument();
+		await expect.element(page.getByText(destination, { exact: true })).toBeInTheDocument();
+
+		await page.getByRole('button', { name: 'Install plugin', exact: true }).click();
+		await expect
+			.poll(() => installRequests.at(-1))
+			.toEqual({
+				pluginId: 'package:mops',
+				version: 'v1.10.0',
+				installIds: [secondInstallId],
+				destinationPath: destination
+			});
+		await expect
+			.element(page.getByText(`MOPS v1.10.0 installed at ${destination}.`, { exact: true }))
+			.toBeInTheDocument();
 	});
 
 	it('refreshes and toggles the selected plugin config', async () => {

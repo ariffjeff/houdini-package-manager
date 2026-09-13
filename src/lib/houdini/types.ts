@@ -103,8 +103,8 @@ export type HoudiniDiscoveryResponse = {
 export type InstallPluginRequest = {
 	pluginId: string;
 	version: string;
-	scope: 'global' | 'install';
-	installId?: string;
+	installIds: string[];
+	destinationPath: string;
 };
 
 export type InstallPluginResponse = {
