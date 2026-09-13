@@ -579,6 +579,26 @@ function normalizePluginIds(pluginIds: string[] | undefined): Set<string> | unde
 	return new Set(pluginIds.filter((pluginId) => typeof pluginId === 'string' && pluginId.trim()));
 }
 
+function packageConfigIssues(packageConfig: PackageConfig): string[] {
+	if (packageConfig.error) return [packageConfig.error];
+
+	const issues: string[] = [];
+	if (packageConfig.stalePaths.length) {
+		issues.push(
+			`Package config references removed HPM source${packageConfig.stalePaths.length === 1 ? '' : 's'}: ${packageConfig.stalePaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
+		);
+	}
+	if (packageConfig.missingPaths.length) {
+		issues.push(
+			`Package config has missing path${packageConfig.missingPaths.length === 1 ? '' : 's'}: ${packageConfig.missingPaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
+		);
+	}
+	if (packageConfig.usesLegacyPath) {
+		issues.push('Package config uses deprecated path; replace it with hpath.');
+	}
+	return issues;
+}
+
 function buildDiscoveryResponse(
 	cache: DiscoveryCache,
 	source: 'live' | 'saved'
@@ -617,6 +637,7 @@ function buildDiscoveryResponse(
 		installs.map((install) => {
 			const packageConfig = packagesByInstall.get(install.id)?.get(plugin.id);
 			const status = resolvePackageTargetStatus(packageConfig);
+			const issues = packageConfig ? packageConfigIssues(packageConfig) : [];
 
 			return {
 				pluginId: plugin.id,
@@ -633,17 +654,12 @@ function buildDiscoveryResponse(
 				sourcePaths: packageConfig?.paths ?? [],
 				usesLegacyPath: packageConfig?.usesLegacyPath ?? false,
 				origin: packageConfig?.origin ?? null,
+				issues,
 				note: packageConfig
-					? (packageConfig.error ??
-						(packageConfig.stalePaths.length
-							? `Package config references removed HPM source${packageConfig.stalePaths.length === 1 ? '' : 's'}: ${packageConfig.stalePaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
-							: packageConfig.missingPaths.length
-								? `Package config has missing path${packageConfig.missingPaths.length === 1 ? '' : 's'}: ${packageConfig.missingPaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
-								: packageConfig.usesLegacyPath
-									? 'Package config uses deprecated path; replace it with hpath.'
-									: packageConfig.enabled
-										? 'Package config was discovered and is enabled by default.'
-										: 'Package config was discovered with enable=false.'))
+					? (issues[0] ??
+						(packageConfig.enabled
+							? 'Package config was discovered and is enabled by default.'
+							: 'Package config was discovered with enable=false.'))
 					: 'No package config with this name was found for this Houdini install.'
 			};
 		})

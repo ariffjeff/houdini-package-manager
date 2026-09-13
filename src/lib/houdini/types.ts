@@ -94,6 +94,7 @@ export type HoudiniDiscoveryResponse = {
 		usesLegacyPath?: boolean;
 		origin: PackageOrigin | null;
 		note: string;
+		issues?: string[];
 	}>;
 	scannedAt: string;
 	stageScannedAt: Record<HoudiniDiscoveryStage, string | null>;

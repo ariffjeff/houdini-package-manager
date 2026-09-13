@@ -26,6 +26,7 @@ export type ActivationTarget = {
 	usesLegacyPath?: boolean;
 	origin: PackageOrigin | null;
 	note: string;
+	issues?: string[];
 };
 
 export type ActivationNodeData = {

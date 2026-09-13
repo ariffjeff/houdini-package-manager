@@ -586,6 +586,25 @@ describe('activation workspace', () => {
 			.element(page.getByText('C:/Users/test/Documents/HPM/plugins/mops', { exact: true }))
 			.not.toBeInTheDocument();
 		await expect
+			.element(page.getByRole('button', { name: 'View Deprecated path key for Houdini 21.0' }))
+			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'View Deprecated path key for Houdini 21.0' }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Deprecated path key' }))
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText(
+					'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops; available source: C:/Users/test/Desktop/DCC/MOPS',
+					{ exact: true }
+				)
+			)
+			.toBeInTheDocument();
+		await page
+			.getByRole('dialog', { name: 'Deprecated path key' })
+			.getByRole('button', { name: 'Close target issue dialog' })
+			.click();
+		await expect
 			.element(page.getByRole('link', { name: 'Open source' }))
 			.toHaveAttribute('href', 'https://github.com/toadstorm/MOPS');
 		await expect
@@ -894,6 +913,47 @@ describe('activation workspace', () => {
 			.not.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('button', { name: 'Enable plugin for Houdini 21.0' }))
+			.toBeInTheDocument();
+	});
+
+	it('lists multiple target issues in the issue dialog', async () => {
+		const multipleIssueResponse = {
+			...discoveryResponse,
+			targets: discoveryResponse.targets.map((target) =>
+				target.pluginId === 'package:mops'
+					? {
+							...target,
+							status: 'warning' as const,
+							issues: [
+								'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops',
+								'Package config uses deprecated path; replace it with hpath.'
+							]
+						}
+					: target
+			)
+		} as typeof discoveryResponse;
+		stubDiscovery(multipleIssueResponse);
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await page.getByRole('button', { name: 'Multiple issues for Houdini 21.0' }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Multiple issues' }))
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText(
+					'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops',
+					{ exact: true }
+				)
+			)
+			.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText('Package config uses deprecated path; replace it with hpath.', {
+					exact: true
+				})
+			)
 			.toBeInTheDocument();
 	});
 });

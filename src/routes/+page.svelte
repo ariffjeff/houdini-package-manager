@@ -77,7 +77,7 @@
 		packageFile: string;
 		target: ActivationTarget;
 		summary: string;
-		message: string;
+		messages: string[];
 	};
 	type TooltipState = {
 		text: string;
@@ -469,13 +469,21 @@
 		return target.status === 'warning' && target.note.startsWith('Invalid package JSON:');
 	}
 
-	function targetIssueSummary(target: ActivationTarget): string {
-		if (target.usesLegacyPath && ['enabled', 'disabled'].includes(target.status)) {
-			return 'Deprecated path key';
+	function targetIssueMessages(target: ActivationTarget): string[] {
+		if (target.issues?.length) return target.issues;
+		if (target.note && !target.note.includes('discovered')) return [target.note];
+		if (target.status === 'missing') {
+			return ['The package config does not resolve to an available plugin source.'];
 		}
+		return ['The package config could not be activated for this Houdini install.'];
+	}
+
+	function targetIssueSummary(target: ActivationTarget): string {
+		if (targetIssueMessages(target).length > 1) return 'Multiple issues';
 		if (target.status === 'missing') return 'Plugin source not found';
 		if (isInvalidPackageJson(target)) return 'Invalid package JSON';
 		if (target.status === 'incompatible') return 'Plugin is incompatible';
+		if (target.usesLegacyPath) return 'Deprecated path key';
 		return 'Package config needs review';
 	}
 
@@ -486,11 +494,7 @@
 			packageFile: target.packageFile,
 			target,
 			summary: targetIssueSummary(target),
-			message:
-				target.note ||
-				(target.status === 'missing'
-					? 'The package config does not resolve to an available plugin source.'
-					: 'The package config could not be activated for this Houdini install.')
+			messages: targetIssueMessages(target)
 		};
 	}
 
@@ -1624,7 +1628,7 @@
 												</div>
 											</div>
 											<div class="target-actions target-status-actions">
-												{#if ['warning', 'incompatible', 'missing'].includes(target.status)}
+												{#if target.usesLegacyPath || ['warning', 'incompatible', 'missing'].includes(target.status)}
 													<button
 														type="button"
 														class="missing-source-warning target-missing-source-warning"
@@ -2168,7 +2172,14 @@
 						<X size={18} strokeWidth={1.8} aria-hidden="true" />
 					</button>
 				</div>
-				<p class="target-issue-message">{targetIssueDetails.message}</p>
+				<ul class="target-issue-messages">
+					{#each targetIssueDetails.messages as message, index (`${message}-${index}`)}
+						<li>
+							<span class="target-issue-number" aria-hidden="true">{index + 1}</span>
+							<span>{message}</span>
+						</li>
+					{/each}
+				</ul>
 				<div class="target-issue-actions">
 					<button type="button" class="dialog-secondary-button" onclick={closeTargetIssueDetails}>
 						Close
@@ -2860,20 +2871,47 @@
 		color: var(--text-dim);
 	}
 
-	.target-issue-message {
+	.target-issue-messages {
 		max-height: min(260px, 35dvh);
 		margin: 20px 0;
 		overflow: auto;
-		padding: 12px;
+		display: grid;
+		gap: 7px;
+		padding: 10px;
 		border: 1px solid var(--line);
 		border-radius: 5px;
 		background: rgba(0, 0, 0, 0.14);
-		color: var(--text-dim);
+		list-style: none;
+	}
+
+	.target-issue-messages li {
+		display: grid;
+		grid-template-columns: 22px minmax(0, 1fr);
+		align-items: start;
+		gap: 9px;
+		padding: 9px 10px;
+		border: 1px solid rgba(211, 155, 56, 0.2);
+		border-radius: 4px;
+		background: rgba(211, 155, 56, 0.08);
+		color: #e7d6ae;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 11px;
 		line-height: 1.5;
 		overflow-wrap: anywhere;
-		white-space: pre-wrap;
+	}
+
+	.target-issue-number {
+		display: inline-grid;
+		width: 22px;
+		height: 22px;
+		place-items: center;
+		border: 1px solid rgba(211, 155, 56, 0.45);
+		border-radius: 50%;
+		background: rgba(211, 155, 56, 0.16);
+		color: #f0c96f;
+		font-family: inherit;
+		font-size: 10px;
+		font-weight: 700;
 	}
 
 	.target-config-dialog {
