@@ -1361,7 +1361,7 @@
 																				sourceTarget.target
 																			)}
 																	>
-																		Houdini {sourceTarget.representativeInstall.version}
+																		{sourceTarget.representativeInstall.version}
 																	</button>
 																{/each}
 															</div>
@@ -3906,8 +3906,7 @@
 		border-radius: 3px;
 		background: rgba(57, 155, 130, 0.09);
 		color: #9ed7c7;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 11px;
 		line-height: 1.2;
 		cursor: pointer;
 	}
