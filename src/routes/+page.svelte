@@ -2540,7 +2540,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 6px;
-		margin-bottom: 36px;
+		margin-bottom: 18px;
 	}
 
 	.detail-meta span,
