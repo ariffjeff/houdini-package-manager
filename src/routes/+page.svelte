@@ -1576,7 +1576,6 @@
 						<div class="install-fieldset-heading">
 							<div>
 								<legend>Houdini installs</legend>
-								<p>Select any combination of detected installs.</p>
 							</div>
 							<div class="install-selection-actions">
 								<button
@@ -2324,7 +2323,7 @@
 		z-index: 1;
 		display: flex;
 		width: min(640px, 100%);
-		max-height: min(720px, calc(100dvh - 48px));
+		max-height: min(900px, calc(100dvh - 48px));
 		flex-direction: column;
 		overflow: hidden;
 		padding: 22px;
@@ -3039,7 +3038,7 @@
 	.install-destination-option small {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 11px;
 		line-height: 1.4;
 	}
 
@@ -3088,10 +3087,6 @@
 		color: var(--text);
 		font-size: 12px;
 		font-weight: 600;
-	}
-
-	.install-dialog-fieldset p {
-		margin: 3px 0 10px;
 	}
 
 	.install-fieldset-heading {
