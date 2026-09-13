@@ -389,7 +389,9 @@
 
 		const preview = { ...editor.config };
 		if (editor.migrateLegacyPath) delete preview.path;
-		preview.hpath = editor.hpath.trim();
+		if (editor.migrateLegacyPath || editor.config.hpath !== undefined) {
+			preview.hpath = editor.hpath.trim();
+		}
 		return JSON.stringify(preview, null, 2);
 	});
 

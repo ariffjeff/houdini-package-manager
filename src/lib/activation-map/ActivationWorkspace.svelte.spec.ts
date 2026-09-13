@@ -213,7 +213,6 @@ function stubDiscovery(
 							request.action === 'get-config'
 								? {
 										path: 'C:/Users/test/Documents/HPM/plugins/mops',
-										hpath: 'C:/Users/test/Desktop/DCC/MOPS',
 										enable: false
 									}
 								: undefined,
@@ -781,6 +780,7 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
 			.toBeInTheDocument();
+		await expect.element(page.getByText(/"hpath":/)).not.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Open config file', exact: true }).click();
 		await expect
 			.poll(() => pluginActionRequests.at(-1))
