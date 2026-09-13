@@ -273,7 +273,7 @@ it('hides target-specific actions for a missing plugin target', async () => {
 		.element(page.getByText('C:/Users/test/Desktop/DCC/MOPS', { exact: true }))
 		.not.toBeInTheDocument();
 	await expect
-		.element(page.getByRole('button', { name: 'Open config with missing source for Houdini 21.0' }))
+		.element(page.getByRole('button', { name: 'View Plugin source not found for Houdini 21.0' }))
 		.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('button', { name: 'Rescan config for Houdini 21.0' }))
@@ -285,9 +285,19 @@ it('hides target-specific actions for a missing plugin target', async () => {
 			stage: 'plugins',
 			pluginIds: ['package:mops']
 		});
-	await page
-		.getByRole('button', { name: 'Open config with missing source for Houdini 21.0' })
-		.click();
+	await page.getByRole('button', { name: 'View Plugin source not found for Houdini 21.0' }).click();
+	await expect
+		.element(page.getByRole('heading', { name: 'Plugin source not found', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(
+			page.getByText(
+				'Package config references removed HPM source: C:/Users/test/Documents/HPM/plugins/mops; available source: C:/Users/test/Desktop/DCC/MOPS',
+				{ exact: true }
+			)
+		)
+		.toBeInTheDocument();
+	await page.getByRole('button', { name: 'Open config', exact: true }).click();
 	await expect
 		.poll(() => pluginActionRequests.at(-1))
 		.toEqual({
@@ -312,6 +322,38 @@ it('hides target-specific actions for a missing plugin target', async () => {
 	await expect
 		.element(page.getByRole('button', { name: 'Disable plugin for Houdini 21.0' }))
 		.not.toBeInTheDocument();
+});
+
+it('shows invalid package JSON details for a plugin target', async () => {
+	const invalidJsonNote =
+		'Invalid package JSON: Expected property name or } in JSON at position 18';
+	const invalidJsonResponse = {
+		...discoveryResponse,
+		targets: discoveryResponse.targets.map((target) =>
+			target.pluginId === 'package:mops'
+				? { ...target, status: 'warning' as const, note: invalidJsonNote }
+				: target
+		)
+	} as typeof discoveryResponse;
+	stubDiscovery(invalidJsonResponse);
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect.element(page.getByText('Invalid package JSON', { exact: true })).toBeInTheDocument();
+	await expect.element(page.getByText(invalidJsonNote, { exact: true })).not.toBeInTheDocument();
+	await page.getByRole('button', { name: 'View Invalid package JSON for Houdini 21.0' }).click();
+	await expect
+		.element(page.getByRole('heading', { name: 'Invalid package JSON', exact: true }))
+		.toBeInTheDocument();
+	await expect.element(page.getByText(invalidJsonNote, { exact: true })).toBeInTheDocument();
+	await page.getByRole('button', { name: 'Open config', exact: true }).click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toEqual({
+			action: 'open-config',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test'
+		});
 });
 
 it('groups repeated config issues and selects the matching plugin node', async () => {

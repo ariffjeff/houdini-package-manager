@@ -69,6 +69,13 @@
 		installs: string[];
 		notes: string[];
 	};
+	type TargetIssueDetails = {
+		installId: string;
+		installLabel: string;
+		packageFile: string;
+		summary: string;
+		message: string;
+	};
 	type TooltipState = {
 		text: string;
 		left: number;
@@ -128,6 +135,7 @@
 	let pluginScanState = $state<ActionState>('idle');
 	let pluginActionState = $state<ActionState>('idle');
 	let issuesDialogOpen = $state(false);
+	let targetIssueDetails = $state<TargetIssueDetails | null>(null);
 	let tooltip = $state<TooltipState | null>(null);
 
 	let activationGraph = $derived(
@@ -329,6 +337,35 @@
 		return [...new Set(installs.map((install) => install.build))];
 	}
 
+	function isInvalidPackageJson(target: ActivationTarget): boolean {
+		return target.status === 'warning' && target.note.startsWith('Invalid package JSON:');
+	}
+
+	function targetIssueSummary(target: ActivationTarget): string {
+		if (target.status === 'missing') return 'Plugin source not found';
+		if (isInvalidPackageJson(target)) return 'Invalid package JSON';
+		if (target.status === 'incompatible') return 'Plugin is incompatible';
+		return 'Package config needs review';
+	}
+
+	function openTargetIssueDetails(install: HoudiniInstall, target: ActivationTarget) {
+		targetIssueDetails = {
+			installId: install.id,
+			installLabel: install.label,
+			packageFile: target.packageFile,
+			summary: targetIssueSummary(target),
+			message:
+				target.note ||
+				(target.status === 'missing'
+					? 'The package config does not resolve to an available plugin source.'
+					: 'The package config could not be activated for this Houdini install.')
+		};
+	}
+
+	function closeTargetIssueDetails() {
+		targetIssueDetails = null;
+	}
+
 	function installedVersionLabel(plugin: PluginRecord): string {
 		const installedVersions = plugin.installedVersions ?? [];
 		if (installedVersions.length > 1) return `${installedVersions.length} versions installed`;
@@ -471,7 +508,9 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && issuesDialogOpen) closeIssuesDialog();
+		if (event.key !== 'Escape') return;
+		if (issuesDialogOpen) closeIssuesDialog();
+		if (targetIssueDetails) closeTargetIssueDetails();
 	}
 
 	async function rescanSelectedPluginConfigs() {
@@ -1275,25 +1314,22 @@
 												</div>
 											</div>
 											<div class="target-actions target-status-actions">
-												{#if target.status === 'missing'}
+												{#if ['warning', 'incompatible', 'missing'].includes(target.status)}
 													<button
 														type="button"
 														class="missing-source-warning target-missing-source-warning"
-														aria-label={`Open config with missing source for ${install.label}`}
-														data-tooltip="Open package config"
+														aria-label={`View ${targetIssueSummary(target)} for ${install.label}`}
+														data-tooltip="View issue details"
 														disabled={isScanActive || pluginActionState === 'working'}
 														onclick={(event) => {
 															stopActionPropagation(event);
-															void runSelectedPluginAction({
-																action: 'open-config',
-																installId: install.id
-															});
+															openTargetIssueDetails(install, target);
 														}}
 													>
 														<TriangleAlert size={18} strokeWidth={1.9} aria-hidden="true" />
 														<div>
-															<strong>Plugin source not found</strong>
-															<small>Update the config to point to a plugin folder.</small>
+															<strong>{targetIssueSummary(target)}</strong>
+															<small>View issue details</small>
 														</div>
 													</button>
 												{/if}
@@ -1490,6 +1526,51 @@
 							<ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" />
 						</button>
 					{/each}
+				</div>
+			</dialog>
+		</div>
+	{/if}
+	{#if targetIssueDetails}
+		<div class="issues-dialog-backdrop">
+			<button
+				type="button"
+				class="issues-dialog-dismiss"
+				aria-label="Close target issue dialog"
+				onclick={closeTargetIssueDetails}
+			></button>
+			<dialog open class="issues-dialog target-issue-dialog" aria-labelledby="target-issue-title">
+				<div class="issues-dialog-header">
+					<div>
+						<h2 id="target-issue-title">{targetIssueDetails.summary}</h2>
+						<p>{targetIssueDetails.installLabel} / {targetIssueDetails.packageFile}</p>
+					</div>
+					<button
+						type="button"
+						class="dialog-close-button"
+						aria-label="Close target issue dialog"
+						onclick={closeTargetIssueDetails}
+					>
+						<X size={18} strokeWidth={1.8} aria-hidden="true" />
+					</button>
+				</div>
+				<p class="target-issue-message">{targetIssueDetails.message}</p>
+				<div class="target-issue-actions">
+					<button type="button" class="dialog-secondary-button" onclick={closeTargetIssueDetails}>
+						Close
+					</button>
+					<button
+						type="button"
+						class="dialog-primary-button"
+						disabled={isScanActive || pluginActionState === 'working'}
+						onclick={() => {
+							const issue = targetIssueDetails;
+							if (!issue) return;
+							closeTargetIssueDetails();
+							void runSelectedPluginAction({ action: 'open-config', installId: issue.installId });
+						}}
+					>
+						Open config
+					</button>
 				</div>
 			</dialog>
 		</div>
@@ -2146,6 +2227,68 @@
 	.issue-list-item > :last-child {
 		margin-top: 2px;
 		color: var(--text-dim);
+	}
+
+	.target-issue-message {
+		max-height: min(260px, 35dvh);
+		margin: 20px 0;
+		overflow: auto;
+		padding: 12px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.14);
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.5;
+		overflow-wrap: anywhere;
+		white-space: pre-wrap;
+	}
+
+	.target-issue-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+
+	.dialog-secondary-button,
+	.dialog-primary-button {
+		min-height: 34px;
+		padding: 0 12px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		font: inherit;
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.dialog-secondary-button {
+		background: transparent;
+		color: var(--text-muted);
+	}
+
+	.dialog-primary-button {
+		border-color: rgba(223, 109, 88, 0.58);
+		background: rgba(223, 109, 88, 0.14);
+		color: #ffb09f;
+	}
+
+	.dialog-secondary-button:hover,
+	.dialog-secondary-button:focus-visible,
+	.dialog-primary-button:hover:not(:disabled),
+	.dialog-primary-button:focus-visible:not(:disabled) {
+		border-color: #df6d58;
+		outline: none;
+	}
+
+	.dialog-primary-button:hover:not(:disabled),
+	.dialog-primary-button:focus-visible:not(:disabled) {
+		background: rgba(223, 109, 88, 0.24);
+	}
+
+	.dialog-primary-button:disabled {
+		cursor: wait;
+		opacity: 0.55;
 	}
 
 	.detail-meta-item::after,
