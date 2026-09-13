@@ -132,6 +132,7 @@
 	let installDestinationChoice = $state('custom');
 	let installCustomDestination = $state('');
 	let openInstalledFolder = $state(false);
+	let openInstalledConfig = $state(false);
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
 	let installController: AbortController | null = null;
@@ -565,6 +566,7 @@
 		installDestinationChoice = existingSource ?? 'custom';
 		installCustomDestination = existingSource ?? '';
 		openInstalledFolder = false;
+		openInstalledConfig = false;
 		installState = 'idle';
 		installMessage = '';
 		installDialogOpen = true;
@@ -683,7 +685,7 @@
 			);
 			applyDiscovery(result.discovery, 'all');
 			installState = 'success';
-			installMessage = result.message;
+			const postInstallMessages = [result.message];
 			installDialogOpen = false;
 			if (openInstalledFolder) {
 				try {
@@ -693,9 +695,21 @@
 						sourcePath: destinationPath
 					});
 				} catch (error) {
-					installMessage = `${result.message} ${getErrorMessage(error)}`;
+					postInstallMessages.push(getErrorMessage(error));
 				}
 			}
+			if (openInstalledConfig) {
+				try {
+					await runHoudiniPluginAction({
+						pluginId: plugin.id,
+						action: 'open-config',
+						installId: selectedInstallIds[0]
+					});
+				} catch (error) {
+					postInstallMessages.push(getErrorMessage(error));
+				}
+			}
+			installMessage = postInstallMessages.join(' ');
 		} catch (error) {
 			if (
 				controller.signal.aborted ||
@@ -1673,6 +1687,11 @@
 							oninput={(event) =>
 								(installCustomDestination = (event.currentTarget as HTMLInputElement).value)}
 						/>
+					</fieldset>
+
+					<fieldset class="install-dialog-fieldset">
+						<legend>After install</legend>
+						<p>Choose which installed plugin locations to open when setup finishes.</p>
 						<label class="install-open-folder-option">
 							<input
 								type="checkbox"
@@ -1680,7 +1699,17 @@
 								disabled={installState === 'working'}
 							/>
 							<span>
-								<strong>Open plugin folder after installation</strong>
+								<strong>Open plugin folder</strong>
+							</span>
+						</label>
+						<label class="install-open-folder-option">
+							<input
+								type="checkbox"
+								bind:checked={openInstalledConfig}
+								disabled={installState === 'working'}
+							/>
+							<span>
+								<strong>Open plugin config</strong>
 							</span>
 						</label>
 					</fieldset>
