@@ -14,13 +14,15 @@
 		TriangleAlert,
 		CloudSync,
 		HardDriveDownload,
-		X,
 		Cog
 	} from '@lucide/svelte';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
 	import IssueChecker from '$lib/activation-map/IssueChecker.svelte';
+	import TargetIssueDialog from '$lib/activation-map/TargetIssueDialog.svelte';
+	import type { TargetIssueDetails } from '$lib/activation-map/target-issue-dialog';
 	import LiveJsonEditor from '$lib/live-json-editor/LiveJsonEditor.svelte';
+	import PluginInstallDialog from '$lib/plugin-install/PluginInstallDialog.svelte';
 	import {
 		createActivationGraph,
 		isOfficialPlugin,
@@ -49,6 +51,7 @@
 		targetIssueSummary
 	} from '$lib/houdini/known-issues';
 	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
+	import type { InstallDialogOptions, InstallDialogRequest } from '$lib/plugin-install/types';
 	import logo from '$lib/assets/hpm.svg';
 	import {
 		fetchHoudiniDiscoverySnapshot,
@@ -73,14 +76,6 @@
 		representativeInstall: HoudiniInstall;
 		target: ActivationTarget;
 		installs: HoudiniInstall[];
-	};
-	type TargetIssueDetails = {
-		installId: string;
-		installLabel: string;
-		packageFile: string;
-		target: ActivationTarget;
-		summary: string;
-		messages: string[];
 	};
 	type TooltipState = {
 		text: string;
@@ -126,13 +121,7 @@
 	let activationPlugins = $state<PluginRecord[]>([]);
 	let activationInstalls = $state<HoudiniInstall[]>([]);
 	let activationTargets = $state<ActivationTarget[]>([]);
-	let installVersion = $state('');
 	let installDialogOpen = $state(false);
-	let selectedInstallIds = $state<string[]>([]);
-	let installDestinationChoice = $state('custom');
-	let installCustomDestination = $state('');
-	let openInstalledFolder = $state(false);
-	let openInstalledConfig = $state(false);
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
 	let installController: AbortController | null = null;
@@ -224,9 +213,6 @@
 		selectedNode?.data.kind === 'official' ? activationPlugins.filter(isOfficialPlugin) : []
 	);
 	let selectedPluginVersions = $derived(selectedPlugin?.availableVersions ?? []);
-	let requestedInstallVersion = $derived(
-		installVersion || selectedPluginVersions[0] || selectedPlugin?.version || ''
-	);
 	let remoteSourceOptions = $derived.by(() => {
 		const sourcePaths = (selectedPlugin?.sources ?? [])
 			.filter((source) => source.exists)
@@ -251,16 +237,6 @@
 		const documentsPath = userPreferences.replace(/[\\/]houdini[^\\/]*$/i, '');
 		return `${documentsPath}${separator}HPM${separator}plugins${separator}${pluginSlug}`;
 	});
-	let requestedInstallDestination = $derived(
-		installDestinationChoice === 'custom'
-			? installCustomDestination.trim()
-			: installDestinationChoice
-	);
-	let selectedInstallSummary = $derived(
-		selectedInstallIds.length === activationInstalls.length
-			? 'All detected Houdini installs'
-			: `${selectedInstallIds.length} of ${activationInstalls.length} Houdini installs`
-	);
 	let filteredPlugins = $derived.by(() => {
 		if (!normalizedQuery) return activationPlugins;
 
@@ -511,7 +487,6 @@
 		installDialogOpen = false;
 		selectedNodeId = id;
 		persistSelectedNode(id);
-		installVersion = '';
 		installState = 'idle';
 		installMessage = '';
 		gitSyncState = 'idle';
@@ -551,15 +526,6 @@
 			return;
 		}
 
-		installVersion = selectedPluginVersions.includes(installVersion)
-			? installVersion
-			: selectedPluginVersions[0];
-		selectedInstallIds = activationInstalls.map((install) => install.id);
-		const existingSource = remoteSourceOptions[0];
-		installDestinationChoice = existingSource ?? 'custom';
-		installCustomDestination = existingSource ?? '';
-		openInstalledFolder = false;
-		openInstalledConfig = false;
 		installState = 'idle';
 		installMessage = '';
 		installDialogOpen = true;
@@ -568,16 +534,6 @@
 	function closeInstallDialog() {
 		if (installState === 'working') return;
 		installDialogOpen = false;
-	}
-
-	function toggleInstallTarget(installId: string, checked: boolean) {
-		selectedInstallIds = checked
-			? [...new Set([...selectedInstallIds, installId])]
-			: selectedInstallIds.filter((id) => id !== installId);
-	}
-
-	function setAllInstallTargets(selected: boolean) {
-		selectedInstallIds = selected ? activationInstalls.map((install) => install.id) : [];
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
@@ -650,15 +606,17 @@
 		tooltip = null;
 	}
 
-	async function installSelectedPlugin() {
+	async function installSelectedPlugin(
+		request: InstallDialogRequest,
+		options: InstallDialogOptions
+	) {
 		const plugin = selectedPlugin;
-		const destinationPath = requestedInstallDestination;
 		if (
 			!plugin ||
-			!requestedInstallVersion ||
-			!selectedPluginVersions.includes(requestedInstallVersion) ||
-			!selectedInstallIds.length ||
-			!destinationPath
+			request.pluginId !== plugin.id ||
+			!selectedPluginVersions.includes(request.version) ||
+			!request.installIds.length ||
+			!request.destinationPath
 		) {
 			return;
 		}
@@ -668,36 +626,28 @@
 		const controller = new AbortController();
 		installController = controller;
 		try {
-			const result = await installHoudiniPlugin(
-				{
-					pluginId: plugin.id,
-					version: requestedInstallVersion,
-					installIds: [...selectedInstallIds],
-					destinationPath
-				},
-				controller.signal
-			);
+			const result = await installHoudiniPlugin(request, controller.signal);
 			applyDiscovery(result.discovery, 'all');
 			installState = 'success';
 			const postInstallMessages = [result.message];
 			installDialogOpen = false;
-			if (openInstalledFolder) {
+			if (options.openInstalledFolder) {
 				try {
 					await runHoudiniPluginAction({
 						pluginId: plugin.id,
 						action: 'open-source',
-						sourcePath: destinationPath
+						sourcePath: request.destinationPath
 					});
 				} catch (error) {
 					postInstallMessages.push(getErrorMessage(error));
 				}
 			}
-			if (openInstalledConfig) {
+			if (options.openInstalledConfig) {
 				try {
 					await runHoudiniPluginAction({
 						pluginId: plugin.id,
 						action: 'open-config',
-						installId: selectedInstallIds[0]
+						installId: request.installIds[0]
 					});
 				} catch (error) {
 					postInstallMessages.push(getErrorMessage(error));
@@ -1609,190 +1559,18 @@
 		{/if}
 	</main>
 	{#if installDialogOpen && selectedPlugin}
-		<div class="issues-dialog-backdrop install-dialog-backdrop">
-			<button
-				type="button"
-				class="issues-dialog-dismiss"
-				aria-label="Close install configuration dialog"
-				onclick={closeInstallDialog}
-			></button>
-			<dialog open class="issues-dialog install-dialog" aria-labelledby="install-dialog-title">
-				<div class="issues-dialog-header">
-					<div>
-						<h2 id="install-dialog-title">Install {selectedPlugin.name}</h2>
-						<p>Choose where the remote checkout lives and which Houdini installs use it.</p>
-					</div>
-					<button
-						type="button"
-						class="dialog-close-button"
-						aria-label="Close install configuration dialog"
-						disabled={installState === 'working'}
-						onclick={closeInstallDialog}
-					>
-						<X size={18} strokeWidth={1.8} aria-hidden="true" />
-					</button>
-				</div>
-				<div class="install-dialog-content">
-					<label class="install-dialog-field">
-						<span>Version</span>
-						<select bind:value={installVersion} disabled={installState === 'working'}>
-							{#each selectedPluginVersions as version (version)}
-								<option value={version}>{version}</option>
-							{/each}
-						</select>
-					</label>
-
-					<fieldset class="install-dialog-fieldset">
-						<div class="install-fieldset-heading">
-							<div>
-								<legend>Houdini installs</legend>
-							</div>
-							<div class="install-selection-actions">
-								<button
-									type="button"
-									class="selection-link"
-									disabled={installState === 'working'}
-									onclick={() => setAllInstallTargets(true)}>All</button
-								>
-								<button
-									type="button"
-									class="selection-link"
-									disabled={installState === 'working'}
-									onclick={() => setAllInstallTargets(false)}>Clear</button
-								>
-							</div>
-						</div>
-						<div class="install-target-options">
-							{#each activationInstalls as install (install.id)}
-								<label class="install-target-option">
-									<input
-										type="checkbox"
-										checked={selectedInstallIds.includes(install.id)}
-										disabled={installState === 'working'}
-										onchange={(event) =>
-											toggleInstallTarget(
-												install.id,
-												(event.currentTarget as HTMLInputElement).checked
-											)}
-									/>
-									<span>
-										<strong>{install.label}</strong>
-										<small>{install.platform} / {install.build}</small>
-									</span>
-								</label>
-							{/each}
-						</div>
-					</fieldset>
-
-					<fieldset class="install-dialog-fieldset">
-						<legend>Plugin destination</legend>
-						<p>Git will clone or update the remote source at this exact folder.</p>
-						{#each remoteSourceOptions as sourcePath (sourcePath)}
-							<label class="install-destination-option">
-								<input
-									type="radio"
-									name="install-destination"
-									checked={installDestinationChoice === sourcePath}
-									disabled={installState === 'working'}
-									onchange={() => (installDestinationChoice = sourcePath)}
-								/>
-								<span>
-									<strong
-										>{sourcePath === hpmPluginDestination
-											? 'Use HPM plugin folder'
-											: 'Use discovered source'}</strong
-									>
-									<small>{sourcePath}</small>
-								</span>
-							</label>
-						{/each}
-						<label class="install-destination-option">
-							<input
-								type="radio"
-								name="install-destination"
-								checked={installDestinationChoice === 'custom'}
-								disabled={installState === 'working'}
-								onchange={() => (installDestinationChoice = 'custom')}
-							/>
-							<span>
-								<strong>Use a custom folder</strong>
-								<small>Enter the full path for the plugin checkout.</small>
-							</span>
-						</label>
-						<input
-							class="install-destination-input"
-							type="text"
-							aria-label="Custom plugin destination"
-							value={installCustomDestination}
-							placeholder="C:\\Plugins\\{selectedPlugin.name}"
-							disabled={installDestinationChoice !== 'custom' || installState === 'working'}
-							oninput={(event) =>
-								(installCustomDestination = (event.currentTarget as HTMLInputElement).value)}
-						/>
-					</fieldset>
-
-					<fieldset class="install-dialog-fieldset">
-						<legend>After install</legend>
-						<p>Choose which installed plugin locations to open when setup finishes.</p>
-						<label class="install-open-folder-option">
-							<input
-								type="checkbox"
-								bind:checked={openInstalledFolder}
-								disabled={installState === 'working'}
-							/>
-							<span>
-								<strong>Open plugin folder</strong>
-							</span>
-						</label>
-						<label class="install-open-folder-option">
-							<input
-								type="checkbox"
-								bind:checked={openInstalledConfig}
-								disabled={installState === 'working'}
-							/>
-							<span>
-								<strong>Open plugin config</strong>
-							</span>
-						</label>
-					</fieldset>
-
-					<div class="install-review">
-						<div>
-							<span>Install plan</span>
-							<strong>{requestedInstallVersion} / {selectedInstallSummary}</strong>
-						</div>
-						<code>{requestedInstallDestination || 'Choose a destination folder'}</code>
-					</div>
-					{#if installMessage}
-						<p class={['install-message', `is-${installState}`]} aria-live="polite">
-							{installMessage}
-						</p>
-					{/if}
-				</div>
-				<div class="target-issue-actions install-dialog-actions">
-					{#if installState === 'working'}
-						<button type="button" class="dialog-secondary-button" onclick={cancelInstall}>
-							Cancel installation
-						</button>
-					{:else}
-						<button type="button" class="dialog-secondary-button" onclick={closeInstallDialog}>
-							Close
-						</button>
-					{/if}
-					<button
-						type="button"
-						class="dialog-primary-button"
-						disabled={installState === 'working' ||
-							!requestedInstallVersion ||
-							!selectedInstallIds.length ||
-							!requestedInstallDestination}
-						onclick={() => void installSelectedPlugin()}
-					>
-						Install plugin
-					</button>
-				</div>
-			</dialog>
-		</div>
+		<PluginInstallDialog
+			plugin={selectedPlugin}
+			versions={selectedPluginVersions}
+			installs={activationInstalls}
+			{remoteSourceOptions}
+			{hpmPluginDestination}
+			{installState}
+			message={installMessage}
+			onClose={closeInstallDialog}
+			onCancel={cancelInstall}
+			onInstall={(request, options) => void installSelectedPlugin(request, options)}
+		/>
 	{/if}
 	{#if issuesDialogOpen}
 		<IssueChecker
@@ -1819,73 +1597,17 @@
 		/>
 	{/if}
 	{#if targetIssueDetails}
-		<div class="issues-dialog-backdrop">
-			<button
-				type="button"
-				class="issues-dialog-dismiss"
-				aria-label="Close target issue dialog"
-				onclick={closeTargetIssueDetails}
-			></button>
-			<dialog open class="issues-dialog target-issue-dialog" aria-labelledby="target-issue-title">
-				<div class="issues-dialog-header">
-					<div>
-						<h2 id="target-issue-title">{targetIssueDetails.summary}</h2>
-						<p>{targetIssueDetails.installLabel} / {targetIssueDetails.packageFile}</p>
-					</div>
-					<button
-						type="button"
-						class="dialog-close-button"
-						aria-label="Close target issue dialog"
-						onclick={closeTargetIssueDetails}
-					>
-						<X size={18} strokeWidth={1.8} aria-hidden="true" />
-					</button>
-				</div>
-				<ul class="target-issue-messages">
-					{#each targetIssueDetails.messages as message, index (`${message}-${index}`)}
-						<li>
-							<span class="target-issue-number" aria-hidden="true">{index + 1}</span>
-							<span>{message}</span>
-						</li>
-					{/each}
-				</ul>
-				<div class="target-issue-actions">
-					<button
-						type="button"
-						class="dialog-secondary-button"
-						aria-label="Open config"
-						disabled={isScanActive || pluginActionState === 'working'}
-						onclick={() => {
-							const issue = targetIssueDetails;
-							if (!issue) return;
-							closeTargetIssueDetails();
-							void runSelectedPluginAction({ action: 'open-config', installId: issue.installId });
-						}}
-						data-tooltip="Open JSON config"
-					>
-						<FileCog size={18} strokeWidth={1.8} aria-hidden="true" />
-					</button>
-					<button
-						type="button"
-						class="dialog-primary-button"
-						aria-label="Live JSON Editor"
-						disabled={isScanActive || pluginActionState === 'working'}
-						onclick={() => {
-							const issue = targetIssueDetails;
-							const install = issue
-								? activationInstalls.find((candidate) => candidate.id === issue.installId)
-								: undefined;
-							if (!issue || !install) return;
-							closeTargetIssueDetails();
-							void openTargetConfigDialog(install, issue.target);
-						}}
-						data-tooltip="Open live JSON editor"
-					>
-						<Cog size={18} strokeWidth={1.8} aria-hidden="true" />
-					</button>
-				</div>
-			</dialog>
-		</div>
+		<TargetIssueDialog
+			details={targetIssueDetails}
+			actionsDisabled={isScanActive || pluginActionState === 'working'}
+			onClose={closeTargetIssueDetails}
+			onOpenConfig={(installId) =>
+				void runSelectedPluginAction({ action: 'open-config', installId })}
+			onOpenEditor={(installId, target) => {
+				const install = activationInstalls.find((candidate) => candidate.id === installId);
+				if (install) openTargetConfigDialog(install, target);
+			}}
+		/>
 	{/if}
 	{#if tooltip}
 		<div
@@ -2391,171 +2113,6 @@
 		transform: translate(-50%, -100%);
 	}
 
-	.issues-dialog-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 9000;
-		display: grid;
-		place-items: center;
-		padding: 24px;
-		background: rgba(9, 14, 15, 0.72);
-	}
-
-	.issues-dialog-dismiss {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		border: 0;
-		background: transparent;
-		cursor: default;
-	}
-
-	.issues-dialog {
-		position: relative;
-		z-index: 1;
-		display: flex;
-		width: min(640px, 100%);
-		max-height: min(900px, calc(100dvh - 48px));
-		flex-direction: column;
-		overflow: hidden;
-		padding: 22px;
-		border: 1px solid var(--line-strong);
-		border-radius: 8px;
-		background: #182224;
-		box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
-	}
-
-	.issues-dialog-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 20px;
-	}
-
-	.issues-dialog-header h2 {
-		margin: 0;
-		font-size: 22px;
-		font-weight: 600;
-	}
-
-	.issues-dialog-header p:last-child {
-		margin: 7px 0 0;
-		color: var(--text-muted);
-		font-size: 12px;
-	}
-
-	.dialog-close-button {
-		display: inline-flex;
-		width: 34px;
-		height: 34px;
-		align-items: center;
-		justify-content: center;
-		flex: 0 0 auto;
-		padding: 0;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		background: transparent;
-		color: var(--text-muted);
-		cursor: pointer;
-	}
-
-	.dialog-close-button:hover,
-	.dialog-close-button:focus-visible {
-		border-color: #df6d58;
-		color: #ffb09f;
-		outline: none;
-	}
-
-	.target-issue-messages {
-		max-height: min(260px, 35dvh);
-		margin: 20px 0;
-		overflow: auto;
-		display: grid;
-		gap: 7px;
-		padding: 10px;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		background: rgba(0, 0, 0, 0.14);
-		list-style: none;
-	}
-
-	.target-issue-messages li {
-		display: grid;
-		grid-template-columns: 22px minmax(0, 1fr);
-		align-items: start;
-		gap: 9px;
-		padding: 9px 10px;
-		border: 1px solid rgba(211, 155, 56, 0.2);
-		border-radius: 4px;
-		background: rgba(211, 155, 56, 0.08);
-		color: #e7d6ae;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
-		line-height: 1.5;
-		overflow-wrap: anywhere;
-	}
-
-	.target-issue-number {
-		display: inline-grid;
-		width: 22px;
-		height: 22px;
-		place-items: center;
-		border: 1px solid rgba(211, 155, 56, 0.45);
-		border-radius: 50%;
-		background: rgba(211, 155, 56, 0.16);
-		color: #f0c96f;
-		font-family: inherit;
-		font-size: 10px;
-		font-weight: 700;
-	}
-
-	.target-issue-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-	}
-
-	.dialog-secondary-button,
-	.dialog-primary-button {
-		min-height: 34px;
-		padding: 0 12px;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		font: inherit;
-		font-size: 11px;
-		cursor: pointer;
-	}
-
-	.dialog-secondary-button {
-		background: transparent;
-		color: var(--text-muted);
-	}
-
-	.dialog-primary-button {
-		border-color: rgba(211, 155, 56, 0.18);
-		background: rgba(211, 155, 56, 0.1);
-		color: rgba(211, 155, 56, 1);
-	}
-
-	.dialog-secondary-button:hover,
-	.dialog-secondary-button:focus-visible,
-	.dialog-primary-button:hover:not(:disabled),
-	.dialog-primary-button:focus-visible:not(:disabled) {
-		border-color: #e7d6ae;
-		outline: none;
-	}
-
-	.dialog-primary-button:hover:not(:disabled),
-	.dialog-primary-button:focus-visible:not(:disabled) {
-		background: rgba(211, 155, 56, 0.18);
-	}
-
-	.dialog-primary-button:disabled {
-		cursor: wait;
-		opacity: 0.55;
-	}
-
 	.detail-meta-item::after,
 	.icon-action-button::after,
 	.toggle-action::after,
@@ -3026,227 +2583,6 @@
 	}
 
 	.git-sync-message.is-error {
-		color: #df6d58;
-	}
-
-	.install-dialog-field > span,
-	.install-review span {
-		color: var(--text-dim);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 8px;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-	}
-
-	.install-dialog-fieldset p,
-	.install-target-option small,
-	.install-destination-option small {
-		color: var(--text-muted);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
-		line-height: 1.4;
-	}
-
-	.install-dialog {
-		width: min(760px, 100%);
-	}
-
-	.install-dialog-content {
-		display: flex;
-		min-height: 0;
-		flex-direction: column;
-		gap: 14px;
-		margin-top: 20px;
-		overflow-y: auto;
-		padding-right: 2px;
-	}
-
-	.install-dialog-field {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.install-dialog-field select,
-	.install-destination-input {
-		width: 100%;
-		min-width: 0;
-		padding: 9px 10px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--surface-raised);
-		color: var(--text);
-		font-size: 11px;
-	}
-
-	.install-dialog-fieldset {
-		min-width: 0;
-		margin: 0;
-		padding: 12px;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-	}
-
-	.install-dialog-fieldset legend {
-		padding: 0 5px;
-		color: var(--text);
-		font-size: 12px;
-		font-weight: 600;
-	}
-
-	.install-fieldset-heading {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.install-fieldset-heading legend {
-		padding: 0;
-	}
-
-	.install-selection-actions {
-		display: flex;
-		flex: 0 0 auto;
-		gap: 8px;
-	}
-
-	.selection-link {
-		padding: 2px 0;
-		border: 0;
-		background: transparent;
-		color: #55c4a5;
-		cursor: pointer;
-		font: inherit;
-		font-size: 10px;
-	}
-
-	.selection-link:hover:not(:disabled),
-	.selection-link:focus-visible:not(:disabled) {
-		color: var(--text);
-		outline: none;
-		text-decoration: underline;
-	}
-
-	.selection-link:disabled {
-		cursor: wait;
-		opacity: 0.5;
-	}
-
-	.install-target-options {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 8px;
-		margin-top: 12px;
-	}
-
-	.install-target-option,
-	.install-destination-option,
-	.install-open-folder-option {
-		display: flex;
-		min-width: 0;
-		align-items: flex-start;
-		gap: 9px;
-		padding: 9px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: rgba(255, 255, 255, 0.02);
-		cursor: pointer;
-	}
-
-	.install-target-option:hover,
-	.install-destination-option:hover,
-	.install-open-folder-option:hover {
-		border-color: var(--line-strong);
-		background: rgba(255, 255, 255, 0.04);
-	}
-
-	.install-target-option input,
-	.install-destination-option input,
-	.install-open-folder-option input {
-		accent-color: #399b82;
-		flex: 0 0 auto;
-		margin: 2px 0 0;
-	}
-
-	.install-target-option span,
-	.install-destination-option span,
-	.install-open-folder-option span {
-		display: flex;
-		min-width: 0;
-		flex-direction: column;
-		gap: 3px;
-	}
-
-	.install-target-option strong,
-	.install-destination-option strong,
-	.install-open-folder-option strong {
-		font-size: 11px;
-		font-weight: 600;
-	}
-
-	.install-target-option small,
-	.install-destination-option small,
-	.install-open-folder-option small {
-		overflow-wrap: anywhere;
-	}
-
-	.install-destination-option {
-		margin-top: 8px;
-	}
-
-	.install-destination-input {
-		margin-top: 8px;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
-	}
-
-	.install-open-folder-option {
-		margin-top: 8px;
-	}
-
-	.install-destination-input:disabled {
-		cursor: not-allowed;
-		opacity: 0.5;
-	}
-
-	.install-review {
-		display: flex;
-		min-width: 0;
-		flex-direction: column;
-		gap: 8px;
-		padding: 11px 12px;
-		border: 1px solid rgba(57, 155, 130, 0.32);
-		border-radius: 5px;
-		background: rgba(57, 155, 130, 0.06);
-	}
-
-	.install-review > div {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.install-review strong {
-		font-size: 11px;
-		font-weight: 600;
-	}
-
-	.install-review code {
-		max-width: 100%;
-		overflow-wrap: anywhere;
-		color: #55c4a5;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
-		line-height: 1.4;
-	}
-
-	.install-dialog-actions {
-		margin-top: 18px;
-	}
-
-	.install-dialog-actions .dialog-secondary-button {
-		border-color: rgba(223, 109, 88, 0.5);
 		color: #df6d58;
 	}
 
@@ -3731,36 +3067,6 @@
 	}
 
 	@media (max-width: 760px) {
-		.install-dialog-backdrop {
-			padding: 12px;
-		}
-
-		.install-dialog {
-			max-height: calc(100dvh - 24px);
-			padding: 16px;
-		}
-
-		.install-dialog-content {
-			margin-top: 16px;
-		}
-
-		.install-target-options {
-			grid-template-columns: minmax(0, 1fr);
-		}
-
-		.install-fieldset-heading {
-			flex-direction: column;
-		}
-
-		.install-dialog-actions {
-			align-items: stretch;
-			flex-direction: column-reverse;
-		}
-
-		.install-dialog-actions button {
-			width: 100%;
-		}
-
 		.scan-status-header {
 			align-items: stretch;
 			flex-direction: column;
