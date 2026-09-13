@@ -2870,7 +2870,7 @@
 		background: rgba(0, 0, 0, 0.14);
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 11px;
 		line-height: 1.5;
 		overflow-wrap: anywhere;
 		white-space: pre-wrap;
