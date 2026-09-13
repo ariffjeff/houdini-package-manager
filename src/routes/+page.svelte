@@ -512,6 +512,13 @@
 		targetConfigEditor = null;
 	}
 
+	function openTargetConfigFile() {
+		const editor = targetConfigEditor;
+		if (!editor) return;
+
+		void runSelectedPluginAction({ action: 'open-config', installId: editor.installId });
+	}
+
 	async function saveTargetConfig() {
 		const plugin = selectedPlugin;
 		const editor = targetConfigEditor;
@@ -2081,7 +2088,17 @@
 						disabled={targetConfigEditor.state === 'saving'}
 						onclick={closeTargetConfigDialog}
 					>
-						Close
+						Cancel
+					</button>
+					<button
+						type="button"
+						class="dialog-secondary-button"
+						disabled={targetConfigEditor.state === 'loading' ||
+							targetConfigEditor.state === 'saving' ||
+							pluginActionState === 'working'}
+						onclick={openTargetConfigFile}
+					>
+						Open config file
 					</button>
 					<button
 						type="button"

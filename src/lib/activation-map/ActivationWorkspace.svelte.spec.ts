@@ -781,6 +781,14 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
 			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'Open config file', exact: true }).click();
+		await expect
+			.poll(() => pluginActionRequests.at(-1))
+			.toMatchObject({
+				action: 'open-config',
+				pluginId: 'package:mops',
+				installId: 'install:houdini-21.0-455-test'
+			});
 		const sourceInput = page.getByRole('textbox', { name: 'Local plugin source' });
 		await page.getByRole('checkbox', { name: /Auto-remove path/ }).click();
 		await sourceInput.fill('C:/Users/test/Plugins/MOPS');
