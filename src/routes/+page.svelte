@@ -419,6 +419,14 @@
 		return fallback;
 	}
 
+	function configPathText(value: unknown): string {
+		if (typeof value === 'string') return value;
+		if (Array.isArray(value)) {
+			return value.filter((entry): entry is string => typeof entry === 'string').join('; ');
+		}
+		return value === undefined ? 'Not set' : String(value);
+	}
+
 	function isInvalidPackageJson(target: ActivationTarget): boolean {
 		return target.status === 'warning' && target.note.startsWith('Invalid package JSON:');
 	}
@@ -1996,6 +2004,18 @@
 							>
 						</label>
 					{/if}
+					<div class="config-path-box" aria-label="Package path configuration">
+						{#if targetConfigEditor.config.path !== undefined}
+							<div class="config-path-row is-legacy">
+								<span><code>path</code><small>deprecated</small></span>
+								<code>{configPathText(targetConfigEditor.config.path)}</code>
+							</div>
+						{/if}
+						<div class="config-path-row is-current">
+							<span><code>hpath</code><small>current</small></span>
+							<code>{targetConfigEditor.hpath.trim() || 'Not set'}</code>
+						</div>
+					</div>
 					<div class="config-preview-panel">
 						<div class="config-preview-heading">
 							<span>Live JSON preview</span>
@@ -2798,6 +2818,116 @@
 	.config-source-input:focus-visible {
 		border-color: #399b82;
 		outline: none;
+	}
+
+	.config-legacy-warning {
+		margin: -4px 0 0;
+		padding: 9px 11px;
+		border: 1px solid rgba(211, 155, 56, 0.55);
+		border-left: 3px solid #d39b38;
+		border-radius: 4px;
+		background: rgba(211, 155, 56, 0.1);
+		color: #e2b65d;
+		font-size: 11px;
+		line-height: 1.45;
+	}
+
+	.config-legacy-warning code,
+	.config-migration-toggle code {
+		color: #f0c875;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 0.95em;
+	}
+
+	.config-migration-toggle {
+		display: flex;
+		align-items: flex-start;
+		gap: 9px;
+		padding: 9px 11px;
+		border: 1px solid rgba(211, 155, 56, 0.35);
+		border-radius: 4px;
+		background: rgba(211, 155, 56, 0.05);
+		color: var(--text-dim);
+		font-size: 10px;
+		line-height: 1.45;
+		cursor: pointer;
+	}
+
+	.config-migration-toggle:has(input:checked) {
+		border-color: rgba(57, 155, 130, 0.6);
+		background: rgba(57, 155, 130, 0.09);
+		color: #b8ded2;
+	}
+
+	.config-migration-toggle input {
+		width: 14px;
+		height: 14px;
+		flex: 0 0 auto;
+		margin: 1px 0 0;
+		accent-color: #399b82;
+	}
+
+	.config-path-box {
+		display: grid;
+		gap: 1px;
+		padding: 5px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.16);
+	}
+
+	.config-path-row {
+		display: grid;
+		grid-template-columns: 92px minmax(0, 1fr);
+		gap: 10px;
+		align-items: start;
+		padding: 7px 8px;
+		border-radius: 3px;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.4;
+	}
+
+	.config-path-row > span {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-weight: 600;
+	}
+
+	.config-path-row > span code {
+		font-size: inherit;
+	}
+
+	.config-path-row small {
+		font-family: inherit;
+		font-size: 8px;
+		font-weight: 500;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+	}
+
+	.config-path-row > :last-child {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.config-path-row.is-legacy {
+		background: rgba(211, 155, 56, 0.1);
+		color: #e2b65d;
+	}
+
+	.config-path-row.is-legacy small {
+		color: #d39b38;
+	}
+
+	.config-path-row.is-current {
+		background: rgba(57, 155, 130, 0.09);
+		color: #b8ded2;
+	}
+
+	.config-path-row.is-current small {
+		color: #55b79d;
 	}
 
 	.config-preview-panel {
