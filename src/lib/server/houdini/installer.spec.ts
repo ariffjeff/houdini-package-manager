@@ -206,13 +206,26 @@ describe('Houdini plugin actions', () => {
 			path.join(root, 'Documents', 'houdini20.0', 'packages'),
 			path.join(root, 'Documents', 'houdini21.0', 'packages')
 		];
-		await Promise.all(packageDirectories.map((directory) => mkdir(directory, { recursive: true })));
+		const preferenceDirectories = [
+			path.join(root, 'houdini19.5', 'packages'),
+			path.join(root, 'houdini20.0', 'packages'),
+			path.join(root, 'houdini21.0', 'packages')
+		];
+		await Promise.all(
+			[...packageDirectories, ...preferenceDirectories].map((directory) =>
+				mkdir(directory, { recursive: true })
+			)
+		);
 
 		const installs = ['19.5', '20.0', '21.0'].map((version, index) => ({
 			id: `install:${version}`,
 			label: `Houdini ${version}`,
+			version,
 			packageDirectory: packageDirectories[index],
-			packageRoots: [{ path: packageDirectories[index], origin: 'user' as const }]
+			packageRoots: [
+				{ path: preferenceDirectories[index], origin: 'user' as const },
+				{ path: packageDirectories[index], origin: 'user' as const }
+			]
 		}));
 		const pluginId = 'package:ajtools';
 		const repositoryUrl = 'https://github.com/example/AJTools';

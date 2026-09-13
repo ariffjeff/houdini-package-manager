@@ -218,16 +218,22 @@ async function writableUserPackageDirectory(install: HoudiniInstall): Promise<st
 	const userRoots = install.packageRoots
 		.filter((root) => root.origin === 'user')
 		.map((root) => root.path);
+	const expectedVersionDirectory = `houdini${install.version}`.toLowerCase();
+	const documentsRoot = userRoots.find((root) => {
+		const normalizedRoot = path.normalize(root);
+		return (
+			path.basename(normalizedRoot).toLowerCase() === 'packages' &&
+			path.basename(path.dirname(normalizedRoot)).toLowerCase() === expectedVersionDirectory &&
+			path.basename(path.dirname(path.dirname(normalizedRoot))).toLowerCase() === 'documents'
+		);
+	});
+	if (documentsRoot) return documentsRoot;
 
 	for (const root of userRoots) {
 		if (await isDirectory(root)) return root;
 	}
 
-	return (
-		userRoots.find((root) => root.toLowerCase().includes(`${path.sep}documents${path.sep}`)) ??
-		userRoots[0] ??
-		install.packageDirectory
-	);
+	return userRoots[0] ?? install.packageDirectory;
 }
 
 async function ensureGitCheckout(
