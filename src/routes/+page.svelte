@@ -387,12 +387,35 @@
 		const editor = targetConfigEditor;
 		if (!editor) return '{}';
 
-		const preview = { ...editor.config };
-		if (editor.migrateLegacyPath) delete preview.path;
-		if (editor.migrateLegacyPath || editor.config.hpath !== undefined) {
-			preview.hpath = editor.hpath.trim();
+		const previewEntries: Array<[string, unknown]> = [];
+		let hpathWritten = false;
+		for (const [key, value] of Object.entries(editor.config)) {
+			if (key === 'path' && editor.migrateLegacyPath) {
+				previewEntries.push(['hpath', editor.hpath.trim()]);
+				hpathWritten = true;
+				continue;
+			}
+			if (key === 'hpath') {
+				previewEntries.push(['hpath', editor.hpath.trim()]);
+				hpathWritten = true;
+				continue;
+			}
+			previewEntries.push([key, value]);
 		}
-		return JSON.stringify(preview, null, 2);
+		if ((editor.migrateLegacyPath || editor.config.hpath !== undefined) && !hpathWritten) {
+			previewEntries.push(['hpath', editor.hpath.trim()]);
+		}
+		return JSON.stringify(Object.fromEntries(previewEntries), null, 2);
+	});
+	let targetConfigPreviewLines = $derived.by(() => {
+		const editor = targetConfigEditor;
+		if (!editor) return [];
+
+		const originalLines = new Set(JSON.stringify(editor.config, null, 2).split('\n'));
+		return targetConfigPreview.split('\n').map((text) => ({
+			text,
+			changed: !originalLines.has(text)
+		}));
 	});
 
 	function installBuildLabels(installs: HoudiniInstall[]): string[] {
@@ -2072,9 +2095,10 @@
 							<span>Live JSON preview</span>
 							<code>{targetConfigEditor.packagePath}</code>
 						</div>
-						<pre>{targetConfigEditor.state === 'loading'
-								? 'Loading config...'
-								: targetConfigPreview}</pre>
+						<pre>{#if targetConfigEditor.state === 'loading'}Loading config...{:else}{#each targetConfigPreviewLines as line, index (index)}<span
+										class={line.changed ? 'config-preview-line is-changed' : 'config-preview-line'}
+										>{line.text}</span
+									>{/each}{/if}</pre>
 					</div>
 					{#if targetConfigEditor.message}
 						<p
@@ -3029,6 +3053,18 @@
 		line-height: 1.5;
 		white-space: pre-wrap;
 		word-break: break-word;
+	}
+
+	.config-preview-line {
+		display: block;
+		min-height: 1.5em;
+		margin: 0 -4px;
+		padding: 0 4px;
+	}
+
+	.config-preview-line.is-changed {
+		background: rgba(74, 164, 132, 0.2);
+		box-shadow: inset 3px 0 #55b79d;
 	}
 
 	.target-issue-actions {

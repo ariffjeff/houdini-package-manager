@@ -795,6 +795,9 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
 			.toBeInTheDocument();
+		await expect
+			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
+			.toHaveClass(/is-changed/);
 		await page.getByRole('button', { name: 'Save and close', exact: true }).click();
 		await expect
 			.poll(() => pluginActionRequests.at(-1))
