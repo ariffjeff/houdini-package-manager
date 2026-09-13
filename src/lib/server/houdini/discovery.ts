@@ -635,10 +635,10 @@ function buildDiscoveryResponse(
 				origin: packageConfig?.origin ?? null,
 				note: packageConfig
 					? (packageConfig.error ??
-						(packageConfig.missingPaths.length
-							? `Package config has missing path${packageConfig.missingPaths.length === 1 ? '' : 's'}: ${packageConfig.missingPaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
-							: packageConfig.stalePaths.length
-								? `Package config references removed HPM source${packageConfig.stalePaths.length === 1 ? '' : 's'}: ${packageConfig.stalePaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
+						(packageConfig.stalePaths.length
+							? `Package config references removed HPM source${packageConfig.stalePaths.length === 1 ? '' : 's'}: ${packageConfig.stalePaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
+							: packageConfig.missingPaths.length
+								? `Package config has missing path${packageConfig.missingPaths.length === 1 ? '' : 's'}: ${packageConfig.missingPaths.join(', ')}${packageConfig.existingPaths.length ? `; available source${packageConfig.existingPaths.length === 1 ? '' : 's'}: ${packageConfig.existingPaths.join(', ')}` : ''}`
 								: packageConfig.usesLegacyPath
 									? 'Package config uses deprecated path; replace it with hpath.'
 									: packageConfig.enabled
@@ -1002,12 +1002,14 @@ function sourcePathKey(value: string): string {
 	return path.normalize(value.replace(/[;]+$/, '')).toLowerCase();
 }
 
-function isManagedHpmPath(candidate: string, packageValue?: Record<string, unknown>): boolean {
-	const normalized = path.normalize(candidate).toLowerCase();
+export function isManagedHpmPath(
+	candidate: string,
+	packageValue?: Record<string, unknown>
+): boolean {
+	const normalized = candidate.replace(/[\\/]+/g, '/').toLowerCase();
 	const hpmMetadata = packageValue?.hpm;
 	return (
-		(isRecord(hpmMetadata) && hpmMetadata.managed === true) ||
-		/[\\/]hpm[\\/]plugins[\\/]/i.test(normalized)
+		(isRecord(hpmMetadata) && hpmMetadata.managed === true) || normalized.includes('/hpm/plugins/')
 	);
 }
 
@@ -1098,6 +1100,7 @@ export function resolvePackageTargetStatus(
 	if (packageConfig.missingPaths.length && !packageConfig.existingPaths.length) return 'missing';
 	if (packageConfig.stalePaths?.length && !packageConfig.existingPaths.length) return 'missing';
 	if (packageConfig.missingPaths.length) return 'warning';
+	if (packageConfig.stalePaths?.length) return 'warning';
 	if (packageConfig.usesLegacyPath) return 'warning';
 	return packageConfig.enabled ? 'enabled' : 'disabled';
 }

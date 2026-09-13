@@ -9,6 +9,7 @@ import {
 	parseInstallIdentity,
 	findMissingPackagePaths,
 	githubAccountFromRepositoryUrl,
+	isManagedHpmPath,
 	mergePluginRecords,
 	mergePluginSources,
 	resolvePackagePaths,
@@ -162,7 +163,7 @@ UNSET_VALUE := '<not defined>'
 				missingPaths: [],
 				stalePaths: [missingPath]
 			})
-		).toBe('enabled');
+		).toBe('warning');
 		expect(
 			resolvePackageTargetStatus({
 				valid: true,
@@ -182,6 +183,12 @@ UNSET_VALUE := '<not defined>'
 			})
 		).toBe('missing');
 		expect(resolvePackageTargetStatus(undefined)).toBe('missing');
+	});
+
+	it('recognizes managed HPM paths with doubled slash delimiters', () => {
+		expect(isManagedHpmPath('C:\\\\Users\\\\user\\\\Documents\\\\HPM\\\\plugins\\\\mops')).toBe(
+			true
+		);
 	});
 
 	it('groups source paths, versions, and official origins for one plugin', () => {
