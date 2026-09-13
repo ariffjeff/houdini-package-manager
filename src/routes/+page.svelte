@@ -75,6 +75,7 @@
 		installId: string;
 		installLabel: string;
 		packageFile: string;
+		target: ActivationTarget;
 		summary: string;
 		message: string;
 	};
@@ -437,6 +438,7 @@
 			installId: install.id,
 			installLabel: install.label,
 			packageFile: target.packageFile,
+			target,
 			summary: targetIssueSummary(target),
 			message:
 				target.note ||
@@ -2065,6 +2067,22 @@
 				<div class="target-issue-actions">
 					<button type="button" class="dialog-secondary-button" onclick={closeTargetIssueDetails}>
 						Close
+					</button>
+					<button
+						type="button"
+						class="dialog-secondary-button"
+						disabled={isScanActive || pluginActionState === 'working'}
+						onclick={() => {
+							const issue = targetIssueDetails;
+							const install = issue
+								? activationInstalls.find((candidate) => candidate.id === issue.installId)
+								: undefined;
+							if (!issue || !install) return;
+							closeTargetIssueDetails();
+							void openTargetConfigDialog(install, issue.target);
+						}}
+					>
+						Edit config options
 					</button>
 					<button
 						type="button"

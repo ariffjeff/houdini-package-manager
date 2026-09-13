@@ -394,6 +394,22 @@ it('shows invalid package JSON details for a plugin target', async () => {
 		.element(page.getByRole('heading', { name: 'Invalid package JSON', exact: true }))
 		.toBeInTheDocument();
 	await expect.element(page.getByText(invalidJsonNote, { exact: true })).toBeInTheDocument();
+	await page.getByRole('button', { name: 'Edit config options', exact: true }).click();
+	await expect
+		.element(page.getByRole('heading', { name: 'Config options', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toMatchObject({
+			action: 'get-config',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test'
+		});
+	await page
+		.getByRole('dialog', { name: 'Config options' })
+		.getByRole('button', { name: 'Close config options dialog' })
+		.click();
+	await page.getByRole('button', { name: 'View Invalid package JSON for Houdini 21.0' }).click();
 	await page.getByRole('button', { name: 'Open config', exact: true }).click();
 	await expect
 		.poll(() => pluginActionRequests.at(-1))
