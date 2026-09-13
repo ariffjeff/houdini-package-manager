@@ -295,8 +295,8 @@ async function writeManagedPackage(
 		}
 	}
 
-	packageValue.path = repositoryPath;
-	packageValue.enable = true;
+	delete packageValue.path;
+	packageValue.hpath = repositoryPath;
 	packageValue.hpm = {
 		managed: true,
 		repository: plugin.repositoryUrl,

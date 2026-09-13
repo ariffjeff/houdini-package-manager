@@ -287,10 +287,11 @@ describe('Houdini plugin actions', () => {
 				await readFile(path.join(packageDirectories[index], 'AJTools.json'), 'utf8')
 			) as Record<string, unknown>;
 			expect(packageValue).toMatchObject({
-				path: path.normalize(destinationPath),
-				enable: true,
+				hpath: path.normalize(destinationPath),
 				hpm: { managed: true, repository: repositoryUrl, version: 'v1.0.0' }
 			});
+			expect(packageValue.path).toBeUndefined();
+			expect(packageValue.enable).toBeUndefined();
 		}
 		await expect(
 			readFile(path.join(packageDirectories[1], 'AJTools.json'), 'utf8')
