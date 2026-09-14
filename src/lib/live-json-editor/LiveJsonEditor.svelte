@@ -352,133 +352,135 @@
 			</button>
 		</div>
 		<div class="target-config-content">
-			<div class="config-fixes-section" aria-labelledby="config-fixes-title">
-				<div class="config-fixes-heading">
-					<div>
-						<strong id="config-fixes-title">Auto-fixes</strong>
-						<p>Choose which detected fixes to apply when saving.</p>
+			{#if editor.sourcePathFixCandidates.length || editor.pathAliasConflict || editor.config.path !== undefined}
+				<div class="config-fixes-section" aria-labelledby="config-fixes-title">
+					<div class="config-fixes-heading">
+						<div>
+							<strong id="config-fixes-title">Auto-fixes</strong>
+							<p>Choose which detected fixes to apply when saving.</p>
+						</div>
 					</div>
-				</div>
-				{#if editor.sourcePathFixCandidates.length}
-					<div class="config-fix-option">
-						<label class="config-fix-toggle">
-							<input
-								type="checkbox"
-								bind:checked={editor.applySourcePathFix}
-								disabled={editor.state === 'loading' || editor.state === 'saving'}
-							/>
-							<span>Restore source path from another config</span>
-						</label>
-						<p class="config-fix-description">
-							Replace the removed HPM source with a path already used by another config for this
-							plugin.
-						</p>
-						{#if editor.sourcePathFixCandidates.length > 1}
-							<label class="install-dialog-field config-fix-source-field">
-								<span>Existing plugin source</span>
-								<select
-									aria-label="Existing plugin source"
-									bind:value={editor.sourcePathFixPath}
-									disabled={!editor.applySourcePathFix || editor.state === 'saving'}
-								>
-									{#each editor.sourcePathFixCandidates as candidate (candidate)}
-										<option value={candidate}>{candidate}</option>
-									{/each}
-								</select>
+					{#if editor.sourcePathFixCandidates.length}
+						<div class="config-fix-option">
+							<label class="config-fix-toggle">
+								<input
+									type="checkbox"
+									bind:checked={editor.applySourcePathFix}
+									disabled={editor.state === 'loading' || editor.state === 'saving'}
+								/>
+								<span>Restore source path from another config</span>
 							</label>
-						{:else}
-							<code class="config-fix-source-value">{editor.sourcePathFixPath}</code>
-						{/if}
-					</div>
-				{/if}
-				{#if editor.pathAliasConflict}
-					<div class="config-fix-option">
-						<label class="config-fix-toggle">
-							<input
-								type="checkbox"
-								bind:checked={editor.applyPathAliasFix}
-								disabled={editor.state === 'loading' || editor.state === 'saving'}
-							/>
-							<span>Fix duplicate path aliases</span>
-						</label>
-						<p class="config-fix-description">
-							{pathAliasConflictDescription(editor.pathAliasConflict)}
-						</p>
-						{#if editor.applyPathAliasFix}
-							<div
-								class="config-alias-options"
-								role="radiogroup"
-								aria-label="Path alias resolution"
-							>
-								{#if !editor.pathAliasConflict.houdiniPathUsedAsVariable}
-									<label>
-										<input
-											type="radio"
-											name={`path-alias-${install.id}`}
-											value="keep-hpath"
-											bind:group={editor.pathAliasResolution}
-											disabled={editor.state === 'loading' || editor.state === 'saving'}
-										/>
-										<span>Keep <code>hpath</code></span>
-									</label>
-								{/if}
-								{#if !editor.pathAliasConflict.hpathUsedAsVariable}
-									<label>
-										<input
-											type="radio"
-											name={`path-alias-${install.id}`}
-											value="keep-HOUDINI_PATH"
-											bind:group={editor.pathAliasResolution}
-											disabled={editor.state === 'loading' || editor.state === 'saving'}
-										/>
-										<span>Keep <code>HOUDINI_PATH</code></span>
-									</label>
-								{/if}
-								{#if editor.pathAliasConflict.hpathUsedAsVariable}
-									<label>
-										<input
-											type="radio"
-											name={`path-alias-${install.id}`}
-											value="replace-HOUDINI_PATH"
-											bind:group={editor.pathAliasResolution}
-											disabled={editor.state === 'loading' || editor.state === 'saving'}
-										/>
-										<span>Replace <code>$hpath</code> with <code>$HOUDINI_PATH</code></span>
-									</label>
-								{/if}
-								{#if editor.pathAliasConflict.houdiniPathUsedAsVariable}
-									<label>
-										<input
-											type="radio"
-											name={`path-alias-${install.id}`}
-											value="replace-hpath"
-											bind:group={editor.pathAliasResolution}
-											disabled={editor.state === 'loading' || editor.state === 'saving'}
-										/>
-										<span>Replace <code>$HOUDINI_PATH</code> with <code>$hpath</code></span>
-									</label>
-								{/if}
-							</div>
-						{/if}
-					</div>
-				{/if}
-				{#if editor.config.path !== undefined}
-					<div class="config-fix-option">
-						<label class="config-fix-toggle">
-							<input
-								type="checkbox"
-								bind:checked={editor.migrateLegacyPath}
-								disabled={editor.state === 'loading' || editor.state === 'saving'}
-							/>
-							<span>Remove deprecated <code>path</code> key</span>
-						</label>
-						<p class="config-fix-description">
-							The deprecated <code>path</code> key will be removed and replaced with
-							<code>hpath</code>.
-						</p>
-					</div>
-				{/if}
-			</div>
+							<p class="config-fix-description">
+								Replace the removed HPM source with a path already used by another config for this
+								plugin.
+							</p>
+							{#if editor.sourcePathFixCandidates.length > 1}
+								<label class="install-dialog-field config-fix-source-field">
+									<span>Existing plugin source</span>
+									<select
+										aria-label="Existing plugin source"
+										bind:value={editor.sourcePathFixPath}
+										disabled={!editor.applySourcePathFix || editor.state === 'saving'}
+									>
+										{#each editor.sourcePathFixCandidates as candidate (candidate)}
+											<option value={candidate}>{candidate}</option>
+										{/each}
+									</select>
+								</label>
+							{:else}
+								<code class="config-fix-source-value">{editor.sourcePathFixPath}</code>
+							{/if}
+						</div>
+					{/if}
+					{#if editor.pathAliasConflict}
+						<div class="config-fix-option">
+							<label class="config-fix-toggle">
+								<input
+									type="checkbox"
+									bind:checked={editor.applyPathAliasFix}
+									disabled={editor.state === 'loading' || editor.state === 'saving'}
+								/>
+								<span>Fix duplicate path aliases</span>
+							</label>
+							<p class="config-fix-description">
+								{pathAliasConflictDescription(editor.pathAliasConflict)}
+							</p>
+							{#if editor.applyPathAliasFix}
+								<div
+									class="config-alias-options"
+									role="radiogroup"
+									aria-label="Path alias resolution"
+								>
+									{#if !editor.pathAliasConflict.houdiniPathUsedAsVariable}
+										<label>
+											<input
+												type="radio"
+												name={`path-alias-${install.id}`}
+												value="keep-hpath"
+												bind:group={editor.pathAliasResolution}
+												disabled={editor.state === 'loading' || editor.state === 'saving'}
+											/>
+											<span>Keep <code>hpath</code></span>
+										</label>
+									{/if}
+									{#if !editor.pathAliasConflict.hpathUsedAsVariable}
+										<label>
+											<input
+												type="radio"
+												name={`path-alias-${install.id}`}
+												value="keep-HOUDINI_PATH"
+												bind:group={editor.pathAliasResolution}
+												disabled={editor.state === 'loading' || editor.state === 'saving'}
+											/>
+											<span>Keep <code>HOUDINI_PATH</code></span>
+										</label>
+									{/if}
+									{#if editor.pathAliasConflict.hpathUsedAsVariable}
+										<label>
+											<input
+												type="radio"
+												name={`path-alias-${install.id}`}
+												value="replace-HOUDINI_PATH"
+												bind:group={editor.pathAliasResolution}
+												disabled={editor.state === 'loading' || editor.state === 'saving'}
+											/>
+											<span>Replace <code>$hpath</code> with <code>$HOUDINI_PATH</code></span>
+										</label>
+									{/if}
+									{#if editor.pathAliasConflict.houdiniPathUsedAsVariable}
+										<label>
+											<input
+												type="radio"
+												name={`path-alias-${install.id}`}
+												value="replace-hpath"
+												bind:group={editor.pathAliasResolution}
+												disabled={editor.state === 'loading' || editor.state === 'saving'}
+											/>
+											<span>Replace <code>$HOUDINI_PATH</code> with <code>$hpath</code></span>
+										</label>
+									{/if}
+								</div>
+							{/if}
+						</div>
+					{/if}
+					{#if editor.config.path !== undefined}
+						<div class="config-fix-option">
+							<label class="config-fix-toggle">
+								<input
+									type="checkbox"
+									bind:checked={editor.migrateLegacyPath}
+									disabled={editor.state === 'loading' || editor.state === 'saving'}
+								/>
+								<span>Remove deprecated <code>path</code> key</span>
+							</label>
+							<p class="config-fix-description">
+								The deprecated <code>path</code> key will be removed and replaced with
+								<code>hpath</code>.
+							</p>
+						</div>
+					{/if}
+				</div>
+			{/if}
 			<label class="install-dialog-field">
 				<span><code>hpath</code> Local plugin source</span>
 				<input
