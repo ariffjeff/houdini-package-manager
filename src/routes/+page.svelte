@@ -719,7 +719,7 @@
 />
 <svelte:window onkeydown={handleWindowKeydown} />
 
-<div class="min-h-screen px-3.5 pb-7 sm:px-6 lg:px-10 lg:pb-13.5">
+<div class="page-shell px-3.5 pb-4 sm:px-6 lg:px-10">
 	<header
 		class="mx-auto flex flex-wrap items-center gap-4.5 border-white/10 py-4.5 lg:flex-nowrap lg:gap-10 lg:py-5.5"
 	>
@@ -747,120 +747,113 @@
 		</div>
 	</header>
 
-	<main class="mx-auto">
+	<main class="page-main mx-auto">
 		<section
-			class="rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-[0_18px_55px_rgba(0,0,0,0.22)] lg:p-6.5"
+			class="library-surface rounded-xl border border-white/10 bg-white/[0.035] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.22)] lg:p-4.5"
 			id="library"
 		>
-			<div class="scan-status-panel" aria-labelledby="scan-status-title">
-				<div class="scan-status-header">
-					<div>
+			<div class="library-toolbar">
+				<div class="scan-status-panel" aria-labelledby="scan-status-title">
+					<div class="scan-status-header">
 						<h2 id="scan-status-title">Discovery stages</h2>
-					</div>
-					<button
-						type="button"
-						class="rescan-button"
-						disabled={isScanActive}
-						onclick={() => void runGlobalScan()}>Rescan all</button
-					>
-				</div>
-				<div class="scan-status-grid">
-					{#each scanStages as scan (scan.stage)}
-						<article
-							class="scan-card"
-							aria-labelledby={`scan-${scan.stage}-title`}
-							aria-busy={scanStatuses[scan.stage].state === 'loading'}
+						<button
+							type="button"
+							class="rescan-button"
+							disabled={isScanActive}
+							onclick={() => void runGlobalScan()}>Rescan all</button
 						>
-							<div class="scan-card-heading">
-								<div>
+					</div>
+					<div class="scan-status-grid">
+						{#each scanStages as scan (scan.stage)}
+							<article
+								class={['scan-card', `scan-card-state-${scanStatuses[scan.stage].state}`]}
+								aria-labelledby={`scan-${scan.stage}-title`}
+								aria-busy={scanStatuses[scan.stage].state === 'loading'}
+							>
+								<div class="scan-card-heading">
 									<h3 id={`scan-${scan.stage}-title`}>{scan.label}</h3>
+									<span
+										class={[
+											'scan-state',
+											`scan-state-${scanStatuses[scan.stage].state}`,
+											scanStatuses[scan.stage].source === 'saved' ? 'scan-state-saved' : ''
+										]}
+										role="status"
+										aria-live="polite"
+										aria-label={`${scan.label}: ${scanStateLabel(scan.stage)}`}
+									>
+										{scanStateLabel(scan.stage)}
+									</span>
 								</div>
-								<span
-									class={[
-										'scan-state',
-										`scan-state-${scanStatuses[scan.stage].state}`,
-										scanStatuses[scan.stage].source === 'saved' ? 'scan-state-saved' : ''
-									]}
-									role="status"
-									aria-live="polite"
-									aria-label={`${scan.label}: ${scanStateLabel(scan.stage)}`}
-								>
-									{scanStateLabel(scan.stage)}
-								</span>
-							</div>
-							<p class="scan-card-meta">
-								{#if scanStatuses[scan.stage].scannedAt}
-									{@const stageScannedAt = scanStatuses[scan.stage].scannedAt}
-									<span>{scan.stage === 'git' ? 'Last synced' : 'Last scanned'}</span>
-									<time datetime={stageScannedAt}>
-										{formatScanTime(stageScannedAt)}
-									</time>
-								{:else}
-									<span>Not yet scanned</span>
-								{/if}
-							</p>
-							{#if scanStatuses[scan.stage].source === 'saved'}
-								<p class="scan-card-source">Saved locally; may be stale.</p>
-							{/if}
-							{#if scanStatuses[scan.stage].error}
-								<p class="scan-card-error" aria-live="polite">
-									{scanStatuses[scan.stage].error}
+								<p class="scan-card-meta">
+									{#if scanStatuses[scan.stage].scannedAt}
+										{@const stageScannedAt = scanStatuses[scan.stage].scannedAt}
+										<time datetime={stageScannedAt}>{formatScanTime(stageScannedAt)}</time>
+									{:else}
+										<span>Not yet scanned</span>
+									{/if}
 								</p>
-							{/if}
+								{#if scanStatuses[scan.stage].source === 'saved'}
+									<p class="scan-card-source">Saved</p>
+								{/if}
+								{#if scanStatuses[scan.stage].error}
+									<p class="scan-card-error" aria-live="polite">
+										{scanStatuses[scan.stage].error}
+									</p>
+								{/if}
+								<button
+									type="button"
+									class="scan-action"
+									aria-label={`${scan.stage === 'git' ? 'Sync' : 'Scan'} ${scan.label}`}
+									disabled={isScanActive}
+									onclick={() => void runStage(scan.stage)}
+								>
+									{scan.stage === 'git' ? 'Sync' : 'Scan'}
+								</button>
+							</article>
+						{/each}
+					</div>
+				</div>
+				<div class="workspace-header">
+					<div class="intro-stats" aria-label="Activation summary">
+						<div><strong>{pluginCount}</strong><span>user plugins</span></div>
+						<div><strong>{activationInstalls.length}</strong><span>Houdinis</span></div>
+						<button
+							type="button"
+							class="attention-stat issue-stat"
+							aria-haspopup="dialog"
+							aria-expanded={issuesDialogOpen}
+							disabled={!issueItems.length}
+							onclick={() => openIssuesDialog()}
+						>
+							<strong>{attentionCount}</strong><span>Issues</span>
+						</button>
+					</div>
+					<div class="workspace-actions flex w-full flex-wrap items-center gap-3 lg:w-auto">
+						<div class="view-switch" role="group" aria-label="Library view">
 							<button
 								type="button"
-								class="scan-action"
-								aria-label={`${scan.stage === 'git' ? 'Sync' : 'Scan'} ${scan.label}`}
-								disabled={isScanActive}
-								onclick={() => void runStage(scan.stage)}
+								class={view === 'map' ? 'active' : ''}
+								aria-pressed={view === 'map'}
+								onclick={() => (view = 'map')}
 							>
-								{scan.stage === 'git' ? 'Sync' : 'Scan'}
+								Map
 							</button>
-						</article>
-					{/each}
-				</div>
-			</div>
-			<div
-				class="workspace-header flex flex-col gap-5 border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between"
-			>
-				<div class="intro-stats" aria-label="Activation summary">
-					<div><strong>{pluginCount}</strong><span>user plugins</span></div>
-					<div><strong>{activationInstalls.length}</strong><span>Houdinis</span></div>
-					<button
-						type="button"
-						class="attention-stat issue-stat"
-						aria-haspopup="dialog"
-						aria-expanded={issuesDialogOpen}
-						disabled={!issueItems.length}
-						onclick={() => openIssuesDialog()}
-					>
-						<strong>{attentionCount}</strong><span>Issues</span>
-					</button>
-				</div>
-				<div class="workspace-actions flex w-full flex-wrap items-center gap-3 lg:w-auto">
-					<div class="view-switch" role="group" aria-label="Library view">
-						<button
-							type="button"
-							class={view === 'map' ? 'active' : ''}
-							aria-pressed={view === 'map'}
-							onclick={() => (view = 'map')}
-						>
-							Map
-						</button>
-						<button
-							type="button"
-							class={view === 'table' ? 'active' : ''}
-							aria-pressed={view === 'table'}
-							onclick={() => (view = 'table')}
-						>
-							Table
-						</button>
+							<button
+								type="button"
+								class={view === 'table' ? 'active' : ''}
+								aria-pressed={view === 'table'}
+								onclick={() => (view = 'table')}
+							>
+								Table
+							</button>
+						</div>
+						<label class="search-field min-w-37.5 flex-1 sm:w-47.5 sm:flex-none">
+							<span class="sr-only">Filter plugins or installs</span>
+							<span class="search-icon">/</span>
+							<input bind:value={searchQuery} type="search" placeholder="Filter library" />
+						</label>
 					</div>
-					<label class="search-field min-w-37.5 flex-1 sm:w-47.5 sm:flex-none">
-						<span class="sr-only">Filter plugins or installs</span>
-						<span class="search-icon">/</span>
-						<input bind:value={searchQuery} type="search" placeholder="Filter library" />
-					</label>
 				</div>
 			</div>
 
@@ -1034,6 +1027,30 @@
 </div>
 
 <style>
+	.page-shell {
+		display: flex;
+		height: 100dvh;
+		min-height: 0;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.page-main {
+		display: flex;
+		min-height: 0;
+		flex: 1;
+		width: 100%;
+		flex-direction: column;
+	}
+
+	.library-surface {
+		display: flex;
+		min-height: 0;
+		flex: 1;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
 	nav a {
 		padding: 8px 0;
 		color: var(--text-dim);
@@ -1074,41 +1091,81 @@
 		box-shadow: 0 0 0 4px rgba(223, 109, 88, 0.12);
 	}
 
+	.library-toolbar {
+		display: grid;
+		grid-template-columns: minmax(0, 450px) auto;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		margin-bottom: 14px;
+		padding: 9px;
+		border: 1px solid rgba(211, 232, 225, 0.1);
+		border-radius: 8px;
+		background: rgba(8, 15, 13, 0.34);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+	}
+
 	.scan-status-panel {
-		margin-bottom: 20px;
-		padding-bottom: 18px;
-		border-bottom: 1px solid var(--line);
+		width: 100%;
+		min-width: 0;
+		padding-right: 2px;
 	}
 
 	.scan-status-header {
 		display: flex;
-		align-items: end;
+		align-items: center;
 		justify-content: space-between;
-		gap: 16px;
-		margin-bottom: 12px;
+		gap: 10px;
+		width: 100%;
+		margin-bottom: 6px;
 	}
 
 	.scan-status-header h2 {
 		margin: 0;
-		font-size: 18px;
+		color: var(--text-muted);
+		font-size: 9px;
 		font-weight: 600;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
 	}
 
 	.scan-status-grid {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 10px;
+		grid-template-columns: repeat(3, minmax(108px, 1fr));
+		gap: 6px;
+		width: min(100%, 450px);
 	}
 
 	.scan-card {
 		display: flex;
-		min-width: 0;
 		flex-direction: column;
-		gap: 8px;
-		padding: 10px;
+		min-width: 0;
+		min-height: 104px;
+		gap: 3px;
+		padding: 7px 8px;
 		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: rgba(255, 255, 255, 0.025);
+		border-radius: 5px;
+		background: rgba(255, 255, 255, 0.035);
+		box-shadow: inset 2px 0 0 rgba(135, 148, 143, 0.35);
+		overflow: hidden;
+		transition:
+			border-color 120ms ease,
+			background-color 120ms ease;
+	}
+
+	.scan-card-state-loading {
+		border-color: rgba(211, 155, 56, 0.35);
+		box-shadow: inset 2px 0 0 #d39b38;
+	}
+
+	.scan-card-state-ready {
+		border-color: rgba(57, 155, 130, 0.32);
+		box-shadow: inset 2px 0 0 #399b82;
+	}
+
+	.scan-card-state-error {
+		border-color: rgba(223, 109, 88, 0.42);
+		box-shadow: inset 2px 0 0 #df6d58;
 	}
 
 	.scan-card-heading {
@@ -1125,12 +1182,12 @@
 	}
 
 	.scan-state {
-		padding: 4px 6px;
+		padding: 2px 4px;
 		border: 1px solid var(--line);
 		border-radius: 4px;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 8px;
+		font-size: 10px;
 		font-weight: 600;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
@@ -1162,8 +1219,11 @@
 		margin: 0;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 10px;
 		line-height: 1.4;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.scan-card-meta {
@@ -1184,19 +1244,19 @@
 		margin: 0;
 		color: #df6d58;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 10px;
 		line-height: 1.4;
 		overflow-wrap: anywhere;
 	}
 
 	.scan-action {
 		width: 100%;
-		min-height: 32px;
 		margin-top: auto;
-		padding: 7px 9px;
+		min-height: 23px;
+		padding: 3px 7px;
 		border: 1px solid var(--line-strong);
-		border-radius: 5px;
-		background: var(--surface-raised);
+		border-radius: 999px;
+		background: transparent;
 		color: var(--text);
 		cursor: pointer;
 		font-size: 10px;
@@ -1210,6 +1270,7 @@
 	.scan-action:hover,
 	.scan-action:focus-visible {
 		border-color: #399b82;
+		background: rgba(57, 155, 130, 0.12);
 		outline: none;
 	}
 
@@ -1234,15 +1295,15 @@
 
 	.intro-stats {
 		display: flex;
-		align-self: end;
-		gap: 28px;
-		padding-bottom: 3px;
+		align-items: center;
+		gap: 12px;
+		padding: 0;
 	}
 
 	.intro-stats div,
 	.intro-stats button {
-		min-width: 82px;
-		padding-left: 14px;
+		min-width: 64px;
+		padding-left: 8px;
 		border-left: 1px solid var(--line-strong);
 	}
 
@@ -1262,17 +1323,33 @@
 	}
 
 	.intro-stats strong {
-		font-size: 29px;
+		font-size: 20px;
 		font-weight: 600;
 	}
 
 	.intro-stats span {
-		margin-top: 4px;
+		margin-top: 1px;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
+	}
+
+	.workspace-header {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 12px;
+		min-width: max-content;
+		padding-left: 16px;
+		border-left: 1px solid var(--line);
+	}
+
+	.workspace-actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 
 	.intro-stats .attention-stat strong {
@@ -1312,15 +1389,15 @@
 
 	.view-switch {
 		display: flex;
-		padding: 3px;
+		padding: 2px;
 		border: 1px solid var(--line);
 		border-radius: 6px;
-		background: var(--surface-muted);
+		background: rgba(255, 255, 255, 0.045);
 	}
 
 	.view-switch button {
-		min-width: 64px;
-		padding: 7px 11px;
+		min-width: 48px;
+		padding: 5px 8px;
 		border: 0;
 		border-radius: 4px;
 		background: transparent;
@@ -1331,7 +1408,7 @@
 	}
 
 	.view-switch button.active {
-		background: var(--surface-raised);
+		background: #263732;
 		box-shadow: 0 2px 7px rgba(0, 0, 0, 0.22);
 		color: var(--text);
 	}
@@ -1340,11 +1417,11 @@
 		display: flex;
 		align-items: center;
 		gap: 9px;
-		width: 190px;
-		padding: 7px 11px;
+		width: 150px;
+		padding: 5px 8px;
 		border: 1px solid var(--line);
 		border-radius: 6px;
-		background: var(--surface-raised);
+		background: rgba(255, 255, 255, 0.045);
 		color: var(--text-muted);
 	}
 
@@ -1369,13 +1446,13 @@
 	}
 
 	.rescan-button {
-		padding: 8px 11px;
+		padding: 5px 8px;
 		border: 1px solid var(--line-strong);
 		border-radius: 5px;
-		background: var(--surface-muted);
+		background: rgba(255, 255, 255, 0.045);
 		color: var(--text);
 		cursor: pointer;
-		font-size: 11px;
+		font-size: 9px;
 		font-weight: 600;
 	}
 
@@ -1387,7 +1464,8 @@
 
 	.workspace-state {
 		display: flex;
-		min-height: min(420px, calc(100dvh - 280px));
+		flex: 1;
+		min-height: 0;
 		align-items: center;
 		justify-content: center;
 		flex-direction: column;
@@ -1433,7 +1511,7 @@
 
 	.map-layout {
 		display: grid;
-		height: calc(100dvh - 320px);
+		flex: 1;
 		min-height: 0;
 		grid-template-columns: minmax(0, 1fr) 700px;
 	}
@@ -1538,14 +1616,45 @@
 	}
 
 	@media (max-width: 1100px) {
+		.library-toolbar {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 10px;
+		}
+
+		.workspace-header {
+			justify-content: flex-start;
+			min-width: 0;
+			padding-top: 2px;
+			padding-left: 0;
+			border-top: 1px solid var(--line);
+			border-left: 0;
+		}
+
 		.map-layout {
-			height: calc(100dvh - 340px);
 			grid-template-columns: minmax(0, 1fr);
 			grid-template-rows: minmax(0, 1fr) minmax(0, 0.72fr);
 		}
 	}
 
 	@media (max-width: 760px) {
+		.library-toolbar {
+			gap: 12px;
+		}
+
+		.workspace-header {
+			align-items: stretch;
+			flex-direction: column;
+		}
+
+		.workspace-actions {
+			width: 100%;
+		}
+
+		.workspace-actions .search-field {
+			min-width: 0;
+			flex: 1;
+		}
+
 		.scan-status-header {
 			align-items: stretch;
 			flex-direction: column;
@@ -1561,7 +1670,6 @@
 		}
 
 		.map-layout {
-			height: calc(100dvh - 350px);
 			grid-template-rows: minmax(0, 1fr) minmax(0, 0.8fr);
 		}
 
