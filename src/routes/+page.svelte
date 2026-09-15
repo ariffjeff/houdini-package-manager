@@ -44,6 +44,7 @@
 		runHoudiniPluginAction,
 		scanHoudiniWorkspace
 	} from '$lib/houdini/client';
+	import { Play, CloudDownload, Search } from '@lucide/svelte';
 
 	type ViewMode = 'map' | 'table';
 	type ScanStage = 'installs' | 'plugins' | 'git';
@@ -69,14 +70,14 @@
 	};
 
 	const scanStages: Array<{ stage: ScanStage; label: string }> = [
-		{ stage: 'installs', label: 'Houdini installs' },
-		{ stage: 'plugins', label: 'Plugin inventory' },
-		{ stage: 'git', label: 'Remote Git metadata' }
+		{ stage: 'installs', label: 'Houdini Installs' },
+		{ stage: 'plugins', label: 'Plugins' },
+		{ stage: 'git', label: 'Git Metadata' }
 	];
 	const scanStageLabels: Record<ScanStage, string> = {
-		installs: 'Houdini installs',
-		plugins: 'plugin inventory',
-		git: 'remote Git metadata'
+		installs: 'Houdini Installs',
+		plugins: 'Plugins',
+		git: 'Git Metadata'
 	};
 	const selectedNodeStorageKey = 'hpm:last-selected-node';
 
@@ -753,64 +754,70 @@
 			id="library"
 		>
 			<div class="library-toolbar">
-				<div class="scan-status-panel" aria-labelledby="scan-status-title">
-					<div class="scan-status-header">
-						<h2 id="scan-status-title">Discovery stages</h2>
-						<button
-							type="button"
-							class="rescan-button"
-							disabled={isScanActive}
-							onclick={() => void runGlobalScan()}>Rescan all</button
-						>
-					</div>
-					<div class="scan-status-grid">
+				<div class="flex flex-row gap-1.5">
+					<button
+						type="button"
+						class="rescan-button p-2"
+						disabled={isScanActive}
+						onclick={() => void runGlobalScan()}
+						data-tooltip="Run all discovery stages"
+					>
+						<Play />
+					</button>
+					<div class="flex gap-1.5">
 						{#each scanStages as scan (scan.stage)}
-							<article
-								class={['scan-card', `scan-card-state-${scanStatuses[scan.stage].state}`]}
-								aria-labelledby={`scan-${scan.stage}-title`}
-								aria-busy={scanStatuses[scan.stage].state === 'loading'}
+							<div
+								class={[
+									'scan-card',
+									`scan-card-state-${scanStatuses[scan.stage].state}`,
+									'flex',
+									'flex-row',
+									'gap-1.5'
+								]}
 							>
-								<div class="scan-card-heading">
-									<h3 id={`scan-${scan.stage}-title`}>{scan.label}</h3>
-									<span
-										class={[
-											'scan-state',
-											`scan-state-${scanStatuses[scan.stage].state}`,
-											scanStatuses[scan.stage].source === 'saved' ? 'scan-state-saved' : ''
-										]}
-										role="status"
-										aria-live="polite"
-										aria-label={`${scan.label}: ${scanStateLabel(scan.stage)}`}
-									>
-										{scanStateLabel(scan.stage)}
-									</span>
-								</div>
-								<p class="scan-card-meta">
-									{#if scanStatuses[scan.stage].scannedAt}
-										{@const stageScannedAt = scanStatuses[scan.stage].scannedAt}
-										<time datetime={stageScannedAt}>{formatScanTime(stageScannedAt)}</time>
-									{:else}
-										<span>Not yet scanned</span>
-									{/if}
-								</p>
-								{#if scanStatuses[scan.stage].source === 'saved'}
-									<p class="scan-card-source">Saved</p>
-								{/if}
-								{#if scanStatuses[scan.stage].error}
-									<p class="scan-card-error" aria-live="polite">
-										{scanStatuses[scan.stage].error}
+								<article
+									class="pt-1 pb-1 pl-2.5"
+									aria-labelledby={`scan-${scan.stage}-title`}
+									aria-busy={scanStatuses[scan.stage].state === 'loading'}
+								>
+									<div class="scan-card-heading">
+										<h3 id={`scan-${scan.stage}-title`}>{scan.label}</h3>
+										<span
+											class={[
+												'scan-state',
+												`scan-state-${scanStatuses[scan.stage].state}`,
+												scanStatuses[scan.stage].source === 'saved' ? 'scan-state-saved' : ''
+											]}
+											role="status"
+											aria-live="polite"
+											aria-label={`${scan.label}: ${scanStateLabel(scan.stage)}`}
+										>
+											{scanStateLabel(scan.stage)}
+										</span>
+									</div>
+									<p class="scan-card-meta">
+										{#if scanStatuses[scan.stage].scannedAt}
+											{@const stageScannedAt = scanStatuses[scan.stage].scannedAt}
+											<time datetime={stageScannedAt}>{formatScanTime(stageScannedAt)}</time>
+										{:else}
+											<span>Unscanned</span>
+										{/if}
 									</p>
-								{/if}
+								</article>
 								<button
 									type="button"
-									class="scan-action"
+									class="scan-action p-2"
 									aria-label={`${scan.stage === 'git' ? 'Sync' : 'Scan'} ${scan.label}`}
 									disabled={isScanActive}
 									onclick={() => void runStage(scan.stage)}
 								>
-									{scan.stage === 'git' ? 'Sync' : 'Scan'}
+									{#if scan.stage === 'git'}
+										<CloudDownload />
+									{:else}
+										<Search class="green" />
+									{/if}
 								</button>
-							</article>
+							</div>
 						{/each}
 					</div>
 				</div>
@@ -1092,8 +1099,7 @@
 	}
 
 	.library-toolbar {
-		display: grid;
-		grid-template-columns: minmax(0, 450px) auto;
+		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 16px;
@@ -1105,49 +1111,11 @@
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 	}
 
-	.scan-status-panel {
-		width: 100%;
-		min-width: 0;
-		padding-right: 2px;
-	}
-
-	.scan-status-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-		width: 100%;
-		margin-bottom: 6px;
-	}
-
-	.scan-status-header h2 {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: 9px;
-		font-weight: 600;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-	}
-
-	.scan-status-grid {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(108px, 1fr));
-		gap: 6px;
-		width: min(100%, 450px);
-	}
-
 	.scan-card {
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-		min-height: 104px;
-		gap: 3px;
-		padding: 7px 8px;
 		border: 1px solid var(--line);
 		border-radius: 5px;
 		background: rgba(255, 255, 255, 0.035);
 		box-shadow: inset 2px 0 0 rgba(135, 148, 143, 0.35);
-		overflow: hidden;
 		transition:
 			border-color 120ms ease,
 			background-color 120ms ease;
@@ -1177,7 +1145,7 @@
 
 	.scan-card h3 {
 		margin: 0;
-		font-size: 13px;
+		font-size: 15px;
 		font-weight: 600;
 	}
 
@@ -1195,8 +1163,8 @@
 	}
 
 	.scan-state-loading {
-		border-color: rgba(211, 155, 56, 0.45);
-		color: #d39b38;
+		border-color: rgba(224, 139, 27, 0.733);
+		color: #f1841e;
 	}
 
 	.scan-state-ready {
@@ -1205,8 +1173,8 @@
 	}
 
 	.scan-state-saved {
-		border-color: rgba(211, 155, 56, 0.45);
-		color: #d39b38;
+		border-color: rgba(56, 211, 69, 0.479);
+		color: #33c05d;
 	}
 
 	.scan-state-error {
@@ -1218,8 +1186,7 @@
 	.scan-card-source {
 		margin: 0;
 		color: var(--text-muted);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		line-height: 1.4;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1250,13 +1217,7 @@
 	}
 
 	.scan-action {
-		width: 100%;
-		margin-top: auto;
-		min-height: 23px;
-		padding: 3px 7px;
-		border: 1px solid var(--line-strong);
-		border-radius: 999px;
-		background: transparent;
+		background: rgba(57, 156, 132, 0.12);
 		color: var(--text);
 		cursor: pointer;
 		font-size: 10px;
@@ -1270,7 +1231,7 @@
 	.scan-action:hover,
 	.scan-action:focus-visible {
 		border-color: #399b82;
-		background: rgba(57, 155, 130, 0.12);
+		background: rgba(57, 155, 131, 0.288);
 		outline: none;
 	}
 
@@ -1343,7 +1304,6 @@
 		gap: 12px;
 		min-width: max-content;
 		padding-left: 16px;
-		border-left: 1px solid var(--line);
 	}
 
 	.workspace-actions {
@@ -1446,7 +1406,6 @@
 	}
 
 	.rescan-button {
-		padding: 5px 8px;
 		border: 1px solid var(--line-strong);
 		border-radius: 5px;
 		background: rgba(255, 255, 255, 0.045);
@@ -1617,7 +1576,6 @@
 
 	@media (max-width: 1100px) {
 		.library-toolbar {
-			grid-template-columns: minmax(0, 1fr);
 			gap: 10px;
 		}
 
@@ -1653,20 +1611,6 @@
 		.workspace-actions .search-field {
 			min-width: 0;
 			flex: 1;
-		}
-
-		.scan-status-header {
-			align-items: stretch;
-			flex-direction: column;
-		}
-
-		.scan-status-header .rescan-button {
-			width: 100%;
-			white-space: normal;
-		}
-
-		.scan-status-grid {
-			grid-template-columns: minmax(0, 1fr);
 		}
 
 		.map-layout {
