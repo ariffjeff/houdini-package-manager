@@ -774,10 +774,13 @@ describe('activation workspace', () => {
 				}
 			],
 			targets: [
-				...discoveryResponse.targets,
+				...discoveryResponse.targets.map((target) =>
+					target.pluginId === 'package:mops' ? { ...target, artifactVersion: 'v1.9.2e' } : target
+				),
 				{
 					...discoveryResponse.targets[0],
 					installId: secondInstallId,
+					artifactVersion: 'v1.10.0',
 					packagePath: 'C:/Users/test/Documents/houdini22.0/packages/MOPS.json'
 				}
 			]
@@ -793,8 +796,14 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText('Use HPM plugin folder', { exact: true }))
 			.toBeInTheDocument();
+		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
+
+		await page.getByRole('combobox', { name: 'Version' }).selectOptions('v1.9.2e');
+		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
+		await page.getByRole('combobox', { name: 'Version' }).selectOptions('v1.10.0');
 
 		await page.getByRole('checkbox', { name: /Houdini 21\.0/ }).click();
+		await expect.element(page.getByText('→', { exact: true })).toHaveLength(1);
 		await page.getByRole('radio', { name: /Use a custom folder/ }).click();
 		const destination = 'C:/Users/test/Plugins/MOPS';
 		await page.getByRole('textbox', { name: 'Custom plugin destination' }).fill(destination);

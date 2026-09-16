@@ -977,6 +977,7 @@
 			plugin={selectedPlugin}
 			versions={selectedPluginVersions}
 			installs={activationInstalls}
+			targets={activationTargets}
 			{remoteSourceOptions}
 			{hpmPluginDestination}
 			{installState}

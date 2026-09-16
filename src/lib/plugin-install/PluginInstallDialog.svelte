@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { X } from '@lucide/svelte';
+	import type { ActivationTarget } from '$lib/activation-map/types';
 	import type { HoudiniInstall, PluginRecord } from '$lib/houdini/types';
 	import type { InstallDialogOptions, InstallDialogRequest, InstallDialogState } from './types';
 
@@ -17,6 +18,7 @@
 		plugin,
 		versions,
 		installs,
+		targets,
 		remoteSourceOptions,
 		hpmPluginDestination,
 		installState,
@@ -28,6 +30,7 @@
 		plugin: Pick<PluginRecord, 'id' | 'name'>;
 		versions: string[];
 		installs: HoudiniInstall[];
+		targets: ActivationTarget[];
 		remoteSourceOptions: string[];
 		hpmPluginDestination: string;
 		installState: InstallDialogState;
@@ -106,6 +109,18 @@
 			: [];
 	}
 
+	function targetForInstall(installId: string) {
+		return targets.find(
+			(target: ActivationTarget) => target.pluginId === plugin.id && target.installId === installId
+		);
+	}
+
+	function currentVersionLabel(installId: string) {
+		const target = targetForInstall(installId);
+		if (!target) return 'Not installed';
+		return target.artifactVersion ?? 'Installed, version unknown';
+	}
+
 	function submitInstall() {
 		if (!canInstall) return;
 
@@ -146,7 +161,8 @@
 			<div>
 				<h2 id="install-dialog-title">Install {plugin.name}</h2>
 				<p id="install-dialog-description">
-					Choose where the remote checkout lives and which Houdini installs use it.
+					Choose a version, review each install's current version, and preview the change before
+					installing.
 				</p>
 			</div>
 			<button
@@ -189,7 +205,12 @@
 				</legend>
 				<div class="install-target-options">
 					{#each installs as install (install.id)}
-						<label class="install-target-option">
+						<label
+							class={[
+								'install-target-option',
+								draft.selectedInstallIds.includes(install.id) ? 'is-selected' : ''
+							]}
+						>
 							<input
 								type="checkbox"
 								checked={draft.selectedInstallIds.includes(install.id)}
@@ -203,6 +224,15 @@
 							<span>
 								<strong>{install.label}</strong>
 								<small>{install.platform} / {install.build}</small>
+								<span class="install-version-change">
+									<span class="install-version-current">{currentVersionLabel(install.id)}</span>
+									{#if draft.selectedInstallIds.includes(install.id)}
+										<span class="install-version-arrow" aria-hidden="true">→</span>
+										<span class="install-version-next">
+											{requestedVersion || 'Choose a version'}
+										</span>
+									{/if}
+								</span>
 							</span>
 						</label>
 					{/each}
@@ -521,6 +551,11 @@
 		background: rgba(255, 255, 255, 0.04);
 	}
 
+	.install-target-option.is-selected {
+		border-color: rgba(57, 155, 130, 0.5);
+		background: rgba(57, 155, 130, 0.08);
+	}
+
 	.install-target-option input,
 	.install-destination-option input,
 	.install-open-folder-option input {
@@ -548,6 +583,39 @@
 	.install-target-option small,
 	.install-destination-option small {
 		overflow-wrap: anywhere;
+	}
+
+	.install-version-change {
+		display: flex !important;
+		align-items: center;
+		flex-direction: row !important;
+		flex-wrap: wrap;
+		gap: 5px !important;
+		margin-top: 2px;
+	}
+
+	.install-version-current,
+	.install-version-next {
+		display: block !important;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.4;
+	}
+
+	.install-version-current {
+		color: var(--text-muted);
+	}
+
+	.install-version-arrow {
+		display: block !important;
+		color: #e4b75c;
+		font-size: 14px;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.install-version-next {
+		color: #55c4a5;
 	}
 
 	.install-destination-option,
