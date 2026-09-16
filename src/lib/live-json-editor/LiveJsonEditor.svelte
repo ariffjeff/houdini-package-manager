@@ -3,6 +3,10 @@
 	import { X } from '@lucide/svelte';
 	import { runHoudiniPluginAction } from '$lib/houdini/client';
 	import { knownIssueKinds } from '$lib/houdini/known-issues';
+	import {
+		applyPackageConfigFixes,
+		type PackageConfigFixPlan
+	} from '$lib/houdini/package-config-fixes';
 	import type {
 		HoudiniDiscoveryResponse,
 		HoudiniInstall,
@@ -57,47 +61,7 @@
 	let actionState = $state<ActionState>('idle');
 
 	let targetConfigPreview = $derived.by(() => {
-		const previewEntries: Array<[string, unknown]> = [];
-		let hpathWritten = false;
-		const hpath = effectiveHpath().trim();
-		const targetAlias = editor.applyPathAliasFix
-			? pathAliasTarget(editor.pathAliasResolution)
-			: null;
-
-		for (const [key, value] of Object.entries(editor.config)) {
-			const replacement = editor.applyPathAliasFix
-				? pathAliasReplacement(editor.pathAliasResolution)
-				: null;
-			const transformedValue = replacement
-				? rewriteJsonVariables(value, replacement, targetAlias!)
-				: value;
-			if (key === 'path' && editor.migrateLegacyPath) {
-				previewEntries.push(['hpath', hpath]);
-				hpathWritten = true;
-				continue;
-			}
-			if (key === 'hpath') {
-				if (targetAlias === 'HOUDINI_PATH') continue;
-				previewEntries.push(['hpath', hpath]);
-				hpathWritten = true;
-				continue;
-			}
-			if (key === 'HOUDINI_PATH' && targetAlias === 'hpath') continue;
-			const previewValue = targetAlias
-				? withoutJsonKey(transformedValue, targetAlias === 'hpath' ? 'HOUDINI_PATH' : 'hpath')
-				: transformedValue;
-			previewEntries.push([key, previewValue]);
-		}
-		if (
-			(editor.applySourcePathFix ||
-				editor.migrateLegacyPath ||
-				editor.config.hpath !== undefined) &&
-			targetAlias !== 'HOUDINI_PATH' &&
-			!hpathWritten
-		) {
-			previewEntries.push(['hpath', hpath]);
-		}
-		return JSON.stringify(Object.fromEntries(previewEntries), null, 2);
+		return JSON.stringify(applyPackageConfigFixes(editor.config, configFixPlan()), null, 2);
 	});
 	let targetConfigPreviewLines = $derived.by(() => {
 		const originalLines = new Set(JSON.stringify(editor.config, null, 2).split('\n'));
@@ -177,9 +141,35 @@
 		return resolution.endsWith('hpath') ? 'hpath' : 'HOUDINI_PATH';
 	}
 
-	function pathAliasReplacement(resolution: PathAliasResolution): 'hpath' | 'HOUDINI_PATH' | null {
-		if (!resolution?.startsWith('replace-')) return null;
-		return resolution === 'replace-hpath' ? 'HOUDINI_PATH' : 'hpath';
+	function configFixPlan(): PackageConfigFixPlan {
+		const targetAlias = editor.applyPathAliasFix
+			? pathAliasTarget(editor.pathAliasResolution)
+			: null;
+
+		return {
+			hpath: targetAlias === 'HOUDINI_PATH' ? undefined : effectiveHpath(),
+			writeHpath: shouldWriteHpath() ? undefined : false,
+			migrateLegacyPath: editor.migrateLegacyPath,
+			preservePathAliases: editor.pathAliasConflict ? !editor.applyPathAliasFix : undefined,
+			keepPathAlias:
+				editor.applyPathAliasFix && editor.pathAliasResolution?.startsWith('keep-')
+					? targetAlias!
+					: undefined,
+			replacePathAlias:
+				editor.applyPathAliasFix && editor.pathAliasResolution?.startsWith('replace-')
+					? targetAlias!
+					: undefined
+		};
+	}
+
+	function shouldWriteHpath(): boolean {
+		return (
+			editor.applySourcePathFix ||
+			editor.applyPathAliasFix ||
+			editor.migrateLegacyPath ||
+			editor.config.hpath !== undefined ||
+			editor.hpath.trim() !== configHpath(editor.config, target.sourcePaths?.[0] ?? '').trim()
+		);
 	}
 
 	function pathAliasConflictDescription(conflict: PackagePathAliasConflict): string {
@@ -193,32 +183,6 @@
 			return 'HOUDINI_PATH is referenced as a variable dependency. Keep it, or replace its references with hpath before removing it.';
 		}
 		return 'Neither alias is referenced as a variable dependency. Choose which alias to keep before saving.';
-	}
-
-	function rewriteJsonVariables(value: unknown, from: string, to: string): unknown {
-		if (typeof value === 'string') {
-			return value.replace(new RegExp(`\\$${from}(?![A-Za-z0-9_])`, 'g'), `$${to}`);
-		}
-		if (Array.isArray(value)) return value.map((entry) => rewriteJsonVariables(entry, from, to));
-		if (!isRecord(value)) return value;
-		return Object.fromEntries(
-			Object.entries(value).map(([key, entry]) => [key, rewriteJsonVariables(entry, from, to)])
-		);
-	}
-
-	function withoutJsonKey(value: unknown, key: string): unknown {
-		if (Array.isArray(value)) return value.map((entry) => withoutJsonKey(entry, key));
-		if (!isRecord(value)) return value;
-
-		return Object.fromEntries(
-			Object.entries(value)
-				.filter(([entryKey]) => entryKey !== key)
-				.map(([entryKey, entryValue]) => [entryKey, withoutJsonKey(entryValue, key)])
-		);
-	}
-
-	function isRecord(value: unknown): value is Record<string, unknown> {
-		return typeof value === 'object' && value !== null && !Array.isArray(value);
 	}
 
 	async function loadConfig() {
@@ -276,42 +240,16 @@
 
 		editor.state = 'saving';
 		editor.message = '';
+		const fixPlan = configFixPlan();
 		try {
 			const result = await runHoudiniPluginAction({
 				pluginId: plugin.id,
 				action: 'update-config',
 				installId: install.id,
-				hpath:
-					editor.applyPathAliasFix && pathAliasTarget(editor.pathAliasResolution) === 'HOUDINI_PATH'
-						? undefined
-						: effectiveHpath(),
-				migrateLegacyPath: editor.migrateLegacyPath,
-				preservePathAliases: editor.pathAliasConflict ? !editor.applyPathAliasFix : undefined,
-				keepPathAlias:
-					editor.applyPathAliasFix && editor.pathAliasResolution?.startsWith('keep-')
-						? pathAliasTarget(editor.pathAliasResolution)!
-						: undefined,
-				replacePathAlias:
-					editor.applyPathAliasFix && editor.pathAliasResolution?.startsWith('replace-')
-						? pathAliasTarget(editor.pathAliasResolution)!
-						: undefined
+				...fixPlan
 			});
 			if (result.discovery) onDiscovery(result.discovery);
-			const config = { ...editor.config };
-			if (editor.migrateLegacyPath) delete config.path;
-			if (
-				editor.applyPathAliasFix &&
-				pathAliasTarget(editor.pathAliasResolution) === 'HOUDINI_PATH'
-			) {
-				delete config.hpath;
-			} else if (
-				editor.applyPathAliasFix ||
-				editor.migrateLegacyPath ||
-				editor.config.hpath !== undefined
-			) {
-				config.hpath = effectiveHpath().trim();
-			}
-			editor.config = config;
+			editor.config = applyPackageConfigFixes(editor.config, fixPlan);
 			editor.hpath = effectiveHpath().trim();
 			editor.state = 'saved';
 			editor.message = result.message;

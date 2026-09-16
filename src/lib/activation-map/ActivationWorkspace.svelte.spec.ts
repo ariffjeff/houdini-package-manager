@@ -160,7 +160,11 @@ afterEach(() => {
 
 function stubDiscovery(
 	response: typeof discoveryResponse = discoveryResponse,
-	snapshotResponse: typeof discoveryResponse | null = null
+	snapshotResponse: typeof discoveryResponse | null = null,
+	config: Record<string, unknown> = {
+		path: 'C:/Users/test/Documents/HPM/plugins/mops',
+		enable: false
+	}
 ) {
 	scanRequests = [];
 	installRequests = [];
@@ -210,13 +214,7 @@ function stubDiscovery(
 									: request.action === 'update-config'
 										? 'Updated MOPS.json.'
 										: 'Plugin refreshed',
-						config:
-							request.action === 'get-config'
-								? {
-										path: 'C:/Users/test/Documents/HPM/plugins/mops',
-										enable: false
-									}
-								: undefined,
+						config: request.action === 'get-config' ? config : undefined,
 						discovery:
 							request.action === 'set-enabled' || request.action === 'update-config'
 								? {
@@ -291,6 +289,45 @@ function stubDiscovery(
 		})
 	);
 }
+
+it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => {
+	stubDiscovery(discoveryResponse, null, {
+		path: 'C:/Users/test/Documents/HPM/plugins/mops',
+		HOUDINI_PATH: 'C:/Users/test/Documents/houdini21.0/packages',
+		enable: false
+	});
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
+	await expect
+		.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/houdini21\.0\/packages"/))
+		.toBeInTheDocument();
+
+	await page.getByRole('checkbox', { name: /Remove deprecated path key/ }).click();
+	await expect.element(page.getByText(/"path":/)).not.toBeInTheDocument();
+	await expect.element(page.getByText(/"HOUDINI_PATH":/)).not.toBeInTheDocument();
+	await expect
+		.element(page.getByText(/"hpath": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
+		.toHaveClass(/is-changed/);
+
+	await page.getByRole('button', { name: 'Save and close', exact: true }).click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toEqual({
+			action: 'update-config',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test',
+			hpath: 'C:/Users/test/Documents/HPM/plugins/mops',
+			migrateLegacyPath: true
+		});
+});
 
 it('hides target-specific actions for a missing plugin target', async () => {
 	const missingTargetResponse = {

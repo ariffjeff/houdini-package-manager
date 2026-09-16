@@ -1,3 +1,5 @@
+import type { PackageConfigFixPlan } from './package-config-fixes';
+
 export type HoudiniPlatform = 'Windows' | 'Linux' | 'macOS' | 'Unknown';
 
 export type InstallHealth = 'ready' | 'warning' | 'error';
@@ -136,16 +138,11 @@ export type InstallPluginResponse = {
 export type HoudiniPluginAction =
 	| { action: 'open-config'; pluginId: string; installId: string }
 	| { action: 'get-config'; pluginId: string; installId: string }
-	| {
+	| ({
 			action: 'update-config';
 			pluginId: string;
 			installId: string;
-			hpath?: string;
-			migrateLegacyPath?: boolean;
-			preservePathAliases?: boolean;
-			keepPathAlias?: 'hpath' | 'HOUDINI_PATH';
-			replacePathAlias?: 'hpath' | 'HOUDINI_PATH';
-	  }
+	  } & PackageConfigFixPlan)
 	| { action: 'open-package-folder'; pluginId: string; installId: string }
 	| { action: 'open-source'; pluginId: string; sourcePath: string }
 	| { action: 'set-enabled'; pluginId: string; installId: string; enabled: boolean };
