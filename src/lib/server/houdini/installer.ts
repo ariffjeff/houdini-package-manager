@@ -397,7 +397,13 @@ async function writeManagedPackage(
 	}
 
 	delete packageValue.path;
-	packageValue.hpath = repositoryPath;
+	if (Object.prototype.hasOwnProperty.call(packageValue, 'HOUDINI_PATH')) {
+		delete packageValue.hpath;
+		packageValue.HOUDINI_PATH = repositoryPath;
+	} else {
+		delete packageValue.HOUDINI_PATH;
+		packageValue.hpath = repositoryPath;
+	}
 	packageValue.hpm = {
 		managed: true,
 		repository: plugin.repositoryUrl,

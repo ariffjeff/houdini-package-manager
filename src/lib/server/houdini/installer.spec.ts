@@ -498,4 +498,70 @@ describe('Houdini plugin actions', () => {
 		expect(JSON.parse(await readFile(houdini19Package, 'utf8')).enable).toBe(true);
 		expect(JSON.parse(await readFile(houdini20Package, 'utf8')).enable).toBe(false);
 	});
+
+	it('updates an existing HOUDINI_PATH alias instead of adding hpath', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-plugin-install-alias-'));
+		temporaryDirectories.push(root);
+		const packageDirectory = path.join(root, 'Documents', 'houdini21.0', 'packages');
+		const packagePath = path.join(packageDirectory, 'AJTools.json');
+		const destinationPath = path.join(root, 'custom', 'AJTools');
+		await mkdir(packageDirectory, { recursive: true });
+		await writeFile(
+			packagePath,
+			'{"HOUDINI_PATH":"C:/old/AJTools","enable":true,"custom":true}\n',
+			'utf8'
+		);
+
+		const pluginId = 'package:ajtools';
+		const installId = 'install:21.0';
+		const repositoryUrl = 'https://github.com/example/AJTools';
+		const discovery = {
+			installs: [
+				{
+					id: installId,
+					label: 'Houdini 21.0',
+					version: '21.0',
+					packageDirectory,
+					packageRoots: [{ path: packageDirectory, origin: 'user' as const }]
+				}
+			],
+			plugins: [
+				{
+					id: pluginId,
+					name: 'AJTools',
+					packageFile: 'AJTools.json',
+					repositoryUrl,
+					availableVersions: ['v1.0.0']
+				}
+			],
+			targets: [{ pluginId, installId, packagePath, packageFile: 'AJTools.json' }]
+		} as unknown as HoudiniDiscoveryResponse;
+		discoveryMocks.discoverHoudiniWorkspace
+			.mockResolvedValueOnce(discovery)
+			.mockResolvedValueOnce(discovery);
+		childProcessMocks.execFile.mockImplementation(
+			(
+				_command: string,
+				_args: string[],
+				_options: object,
+				callback: (error: null, result: { stdout: string; stderr: string }) => void
+			) => {
+				callback(null, { stdout: '', stderr: '' });
+			}
+		);
+
+		await installHoudiniPlugin({
+			pluginId,
+			version: 'v1.0.0',
+			installIds: [installId],
+			destinationPath
+		});
+
+		expect(JSON.parse(await readFile(packagePath, 'utf8'))).toEqual({
+			HOUDINI_PATH: path.normalize(destinationPath),
+			enable: true,
+			custom: true,
+			hpm: { managed: true, repository: repositoryUrl, version: 'v1.0.0' }
+		});
+	});
 });
