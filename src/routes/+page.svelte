@@ -798,7 +798,9 @@
 									<p class="scan-card-meta">
 										{#if scanStatuses[scan.stage].scannedAt}
 											{@const stageScannedAt = scanStatuses[scan.stage].scannedAt}
-											<time datetime={stageScannedAt}>{formatScanTime(stageScannedAt)}</time>
+											<time data-tooltip="Last scanned" datetime={stageScannedAt}
+												>{formatScanTime(stageScannedAt)}</time
+											>
 										{:else}
 											<span>Unscanned</span>
 										{/if}
