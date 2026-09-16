@@ -433,7 +433,7 @@
 	.install-dialog-fieldset {
 		min-width: 0;
 		margin: 0;
-		padding: 12px;
+		padding: 0 12px 12px 12px;
 		border: 1px solid var(--line);
 		border-radius: 5px;
 	}
@@ -491,10 +491,6 @@
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 11px;
 		line-height: 1.4;
-	}
-
-	.install-dialog-fieldset p {
-		margin: 8px 0 0;
 	}
 
 	.install-target-options {
