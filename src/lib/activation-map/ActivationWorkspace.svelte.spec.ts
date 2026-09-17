@@ -830,6 +830,12 @@ describe('activation workspace', () => {
 		render(Page);
 
 		await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('img', { name: 'Plugin version v1.9.2e' }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('img', { name: 'Plugin version v1.10.0' }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Install MOPS', exact: true }))

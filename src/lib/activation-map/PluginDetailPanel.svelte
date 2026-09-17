@@ -418,6 +418,10 @@
 						</div>
 						<div class="target-install-label">
 							<strong>{currentInstall.label}</strong>
+							<span class="target-plugin-version">
+								<Tag size={13} strokeWidth={2} aria-hidden="true" />
+								{target.artifactVersion ?? 'Version unresolved'}
+							</span>
 							<small
 								class="target-plugin-location"
 								title={sourcePaths.join('\n') || 'No plugin source configured'}
@@ -1177,6 +1181,53 @@
 		min-width: 0;
 		flex: 1 1 auto;
 		overflow: hidden;
+	}
+
+	.target-plugin-version {
+		display: inline-flex;
+		position: relative;
+		align-items: center;
+		gap: 5px;
+		margin-top: 7px;
+		padding: 4px 7px;
+		border: 1px solid rgba(211, 155, 56, 0.4);
+		border-radius: 4px;
+		background: rgba(211, 155, 56, 0.09);
+		color: #e2b95f;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.target-plugin-version::after {
+		position: absolute;
+		top: calc(100% + 6px);
+		left: 0;
+		z-index: 5;
+		padding: 6px 8px;
+		border: 1px solid rgba(211, 232, 225, 0.18);
+		border-radius: 4px;
+		background: #17221f;
+		box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		font-weight: 400;
+		line-height: 1.35;
+		pointer-events: none;
+		white-space: nowrap;
+		opacity: 0;
+		transform: translateY(-3px);
+		transition:
+			opacity 120ms ease,
+			transform 120ms ease;
+	}
+
+	.target-plugin-version:hover::after,
+	.target-plugin-version:focus-visible::after {
+		opacity: 1;
+		transform: translateY(0);
 	}
 
 	.target-actions {
