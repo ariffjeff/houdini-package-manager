@@ -64,11 +64,7 @@
 		return JSON.stringify(applyPackageConfigFixes(editor.config, configFixPlan()), null, 2);
 	});
 	let targetConfigPreviewLines = $derived.by(() => {
-		const originalLines = new Set(JSON.stringify(editor.config, null, 2).split('\n'));
-		return targetConfigPreview.split('\n').map((text) => ({
-			text,
-			changed: !originalLines.has(text)
-		}));
+		return diffPreviewLines(JSON.stringify(editor.config, null, 2), targetConfigPreview);
 	});
 
 	onMount(() => {
@@ -107,6 +103,64 @@
 		}
 
 		return [...new Set(candidates.filter(Boolean))];
+	}
+
+	type PreviewLine = {
+		text: string;
+		kind: 'unchanged' | 'added' | 'removed';
+		changed: boolean;
+	};
+
+	function diffPreviewLines(originalText: string, previewText: string): PreviewLine[] {
+		const originalLines = originalText.split('\n');
+		const previewLines = previewText.split('\n');
+		const commonLineCounts = Array.from({ length: originalLines.length + 1 }, () =>
+			Array<number>(previewLines.length + 1).fill(0)
+		);
+
+		for (let originalIndex = originalLines.length - 1; originalIndex >= 0; originalIndex -= 1) {
+			for (let previewIndex = previewLines.length - 1; previewIndex >= 0; previewIndex -= 1) {
+				commonLineCounts[originalIndex][previewIndex] =
+					originalLines[originalIndex] === previewLines[previewIndex]
+						? commonLineCounts[originalIndex + 1][previewIndex + 1] + 1
+						: Math.max(
+								commonLineCounts[originalIndex + 1][previewIndex],
+								commonLineCounts[originalIndex][previewIndex + 1]
+							);
+			}
+		}
+
+		const lines: PreviewLine[] = [];
+		let originalIndex = 0;
+		let previewIndex = 0;
+		while (originalIndex < originalLines.length || previewIndex < previewLines.length) {
+			if (
+				originalIndex < originalLines.length &&
+				previewIndex < previewLines.length &&
+				originalLines[originalIndex] === previewLines[previewIndex]
+			) {
+				lines.push({
+					text: previewLines[previewIndex],
+					kind: 'unchanged',
+					changed: false
+				});
+				originalIndex += 1;
+				previewIndex += 1;
+			} else if (
+				previewIndex < previewLines.length &&
+				(originalIndex === originalLines.length ||
+					commonLineCounts[originalIndex][previewIndex + 1] >=
+						commonLineCounts[originalIndex + 1][previewIndex])
+			) {
+				lines.push({ text: previewLines[previewIndex], kind: 'added', changed: true });
+				previewIndex += 1;
+			} else {
+				lines.push({ text: originalLines[originalIndex], kind: 'removed', changed: false });
+				originalIndex += 1;
+			}
+		}
+
+		return lines;
 	}
 
 	function configHpath(config: Record<string, unknown>, fallback = ''): string {
@@ -440,8 +494,12 @@
 					<code>{editor.packagePath}</code>
 				</div>
 				<pre>{#if editor.state === 'loading'}Loading config...{:else}{#each targetConfigPreviewLines as line (line)}<span
-								class={line.changed ? 'config-preview-line is-changed' : 'config-preview-line'}
-								>{line.text}</span
+								class={[
+									'config-preview-line',
+									line.changed ? 'is-changed' : '',
+									line.kind === 'removed' ? 'is-removed' : ''
+								]}
+								data-diff-kind={line.kind}>{line.text}</span
 							>{/each}{/if}</pre>
 			</div>
 			{#if editor.message}
@@ -783,6 +841,29 @@
 	.config-preview-line.is-changed {
 		background: rgba(74, 164, 132, 0.2);
 		box-shadow: inset 3px 0 #55b79d;
+	}
+
+	.config-preview-line.is-changed::before,
+	.config-preview-line.is-removed::before {
+		display: inline-block;
+		width: 1.4em;
+		font-weight: 700;
+	}
+
+	.config-preview-line.is-changed::before {
+		content: '+';
+		color: #77d1b4;
+	}
+
+	.config-preview-line.is-removed {
+		background: rgba(211, 79, 73, 0.2);
+		box-shadow: inset 3px 0 #e06c67;
+		color: #ffc1bc;
+	}
+
+	.config-preview-line.is-removed::before {
+		content: '-';
+		color: #ff9089;
 	}
 
 	.editor-actions {

@@ -311,8 +311,12 @@ it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => 
 		.toBeInTheDocument();
 
 	await page.getByRole('checkbox', { name: /Remove deprecated path key/ }).click();
-	await expect.element(page.getByText(/"path":/)).not.toBeInTheDocument();
-	await expect.element(page.getByText(/"HOUDINI_PATH":/)).not.toBeInTheDocument();
+	await expect
+		.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
+		.toHaveClass(/is-removed/);
+	await expect
+		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/houdini21\.0\/packages"/))
+		.toHaveClass(/is-removed/);
 	await expect
 		.element(page.getByText(/"hpath": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
 		.toHaveClass(/is-changed/);
