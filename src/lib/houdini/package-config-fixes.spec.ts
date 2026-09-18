@@ -54,4 +54,58 @@ describe('package config fixes', () => {
 			nested: { SOURCE: '$HOUDINI_PATH', KEEP: '$hpath_extra' }
 		});
 	});
+
+	it('edits the selected alias and rewrites references when switching aliases', () => {
+		const config = {
+			HOUDINI_PATH: 'C:/old/AJTools',
+			nested: {
+				SOURCE: '$HOUDINI_PATH/bin',
+				KEEP: '$HOUDINI_PATH_extra'
+			}
+		};
+
+		expect(
+			applyPackageConfigFixes(config, {
+				hpath: 'C:/new/AJTools',
+				pathAlias: 'HOUDINI_PATH'
+			})
+		).toEqual({
+			HOUDINI_PATH: 'C:/new/AJTools',
+			nested: {
+				SOURCE: '$HOUDINI_PATH/bin',
+				KEEP: '$HOUDINI_PATH_extra'
+			}
+		});
+
+		expect(
+			applyPackageConfigFixes(config, {
+				hpath: 'C:/new/AJTools',
+				pathAlias: 'hpath',
+				replacePathAlias: 'hpath'
+			})
+		).toEqual({
+			hpath: 'C:/new/AJTools',
+			nested: {
+				SOURCE: '$hpath/bin',
+				KEEP: '$HOUDINI_PATH_extra'
+			}
+		});
+	});
+
+	it('updates an existing nested alias instead of adding a duplicate root key', () => {
+		const config = {
+			hpath: 'C:/old/AJTools',
+			env: [{ HOUDINI_PATH: 'C:/houdini', OTHER: 'C:/other' }]
+		};
+
+		expect(
+			applyPackageConfigFixes(config, {
+				hpath: 'C:/new/AJTools',
+				pathAlias: 'HOUDINI_PATH',
+				replacePathAlias: 'HOUDINI_PATH'
+			})
+		).toEqual({
+			env: [{ HOUDINI_PATH: 'C:/new/AJTools', OTHER: 'C:/other' }]
+		});
+	});
 });

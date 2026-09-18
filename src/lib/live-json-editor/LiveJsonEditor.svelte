@@ -5,6 +5,7 @@
 	import { knownIssueKinds } from '$lib/houdini/known-issues';
 	import {
 		applyPackageConfigFixes,
+		type PackagePathAlias,
 		type PackageConfigFixPlan
 	} from '$lib/houdini/package-config-fixes';
 	import type {
@@ -23,6 +24,8 @@
 		packagePath: string;
 		config: Record<string, unknown>;
 		hpath: string;
+		pathAlias: PackagePathAlias;
+		originalPathAlias: PackagePathAlias;
 		sourcePathFixCandidates: string[];
 		applySourcePathFix: boolean;
 		sourcePathFixPath: string;
@@ -48,6 +51,8 @@
 		packagePath: '',
 		config: {},
 		hpath: '',
+		pathAlias: 'hpath',
+		originalPathAlias: 'hpath',
 		sourcePathFixCandidates: [],
 		applySourcePathFix: false,
 		sourcePathFixPath: '',
@@ -77,6 +82,8 @@
 			packagePath: currentTarget.packagePath ?? '',
 			config: {},
 			hpath: currentTarget.sourcePaths?.[0] ?? '',
+			pathAlias: 'hpath',
+			originalPathAlias: 'hpath',
 			sourcePathFixCandidates: sourcePathFixCandidates(currentTarget),
 			applySourcePathFix: false,
 			sourcePathFixPath: '',
@@ -163,16 +170,70 @@
 		return lines;
 	}
 
-	function configHpath(config: Record<string, unknown>, fallback = ''): string {
-		if (typeof config.hpath === 'string') return config.hpath;
-		if (Array.isArray(config.hpath)) {
-			return config.hpath.filter((value): value is string => typeof value === 'string').join('; ');
+	function configuredPathAlias(
+		config: Record<string, unknown>,
+		conflict: PackagePathAliasConflict | null | undefined
+	): PackagePathAlias {
+		if (config.path !== undefined) return 'hpath';
+		const hasHpath = hasPathAlias(config, 'hpath');
+		const hasHoudiniPath = hasPathAlias(config, 'HOUDINI_PATH');
+		if (hasHpath && hasHoudiniPath) {
+			if (conflict?.houdiniPathUsedAsVariable && !conflict.hpathUsedAsVariable) {
+				return 'HOUDINI_PATH';
+			}
+			return 'hpath';
 		}
+		if (hasHoudiniPath) return 'HOUDINI_PATH';
+		return 'hpath';
+	}
+
+	function configHpath(
+		config: Record<string, unknown>,
+		fallback = '',
+		preferredAlias: PackagePathAlias = 'hpath'
+	): string {
 		if (typeof config.path === 'string') return config.path;
 		if (Array.isArray(config.path)) {
 			return config.path.filter((value): value is string => typeof value === 'string').join('; ');
 		}
+		const aliases: PackagePathAlias[] =
+			preferredAlias === 'HOUDINI_PATH' ? ['HOUDINI_PATH', 'hpath'] : ['hpath', 'HOUDINI_PATH'];
+		for (const alias of aliases) {
+			const value = findPathAliasValue(config, alias);
+			if (typeof value === 'string') return value;
+			if (Array.isArray(value)) {
+				return value.filter((entry): entry is string => typeof entry === 'string').join('; ');
+			}
+		}
 		return fallback;
+	}
+
+	function hasPathAlias(value: unknown, alias: PackagePathAlias): boolean {
+		if (Array.isArray(value)) return value.some((entry) => hasPathAlias(entry, alias));
+		if (!value || typeof value !== 'object') return false;
+		const object = value as Record<string, unknown>;
+		return (
+			Object.prototype.hasOwnProperty.call(object, alias) ||
+			Object.values(object).some((entry) => hasPathAlias(entry, alias))
+		);
+	}
+
+	function findPathAliasValue(value: unknown, alias: PackagePathAlias): unknown {
+		if (Array.isArray(value)) {
+			for (const entry of value) {
+				const result = findPathAliasValue(entry, alias);
+				if (result !== undefined) return result;
+			}
+			return undefined;
+		}
+		if (!value || typeof value !== 'object') return undefined;
+		const object = value as Record<string, unknown>;
+		if (Object.prototype.hasOwnProperty.call(object, alias)) return object[alias];
+		for (const entry of Object.values(object)) {
+			const result = findPathAliasValue(entry, alias);
+			if (result !== undefined) return result;
+		}
+		return undefined;
 	}
 
 	function effectiveHpath(): string {
@@ -190,39 +251,68 @@
 		return null;
 	}
 
-	function pathAliasTarget(resolution: PathAliasResolution): 'hpath' | 'HOUDINI_PATH' | null {
+	function pathAliasTarget(resolution: PathAliasResolution): PackagePathAlias | null {
 		if (!resolution) return null;
 		return resolution.endsWith('hpath') ? 'hpath' : 'HOUDINI_PATH';
 	}
 
-	function configFixPlan(): PackageConfigFixPlan {
-		const targetAlias = editor.applyPathAliasFix
+	function selectedPathAlias(): PackagePathAlias | null {
+		return editor.applyPathAliasFix
 			? pathAliasTarget(editor.pathAliasResolution)
-			: null;
+			: editor.pathAlias;
+	}
+
+	function handlePathAliasChange(selectedAlias: PackagePathAlias) {
+		const currentHpath = editor.hpath;
+		editor.pathAlias = selectedAlias;
+		const selectedHpath = configHpath(editor.config, target.sourcePaths?.[0] ?? '', selectedAlias);
+		editor.hpath = hasPathAlias(editor.config, selectedAlias) ? selectedHpath : currentHpath;
+	}
+
+	function oppositePathAlias(alias: PackagePathAlias): PackagePathAlias {
+		return alias === 'hpath' ? 'HOUDINI_PATH' : 'hpath';
+	}
+
+	function configFixPlan(): PackageConfigFixPlan {
+		const targetAlias = selectedPathAlias();
+		const pathAlias = targetAlias ?? editor.pathAlias;
 
 		return {
-			hpath: targetAlias === 'HOUDINI_PATH' ? undefined : effectiveHpath(),
-			writeHpath: shouldWriteHpath() ? undefined : false,
+			hpath: effectiveHpath(),
+			pathAlias,
+			writeHpath: shouldWriteHpath(targetAlias) ? undefined : false,
 			migrateLegacyPath: editor.migrateLegacyPath,
-			preservePathAliases: editor.pathAliasConflict ? !editor.applyPathAliasFix : undefined,
+			preservePathAliases:
+				editor.pathAliasConflict &&
+				!editor.applyPathAliasFix &&
+				targetAlias === editor.originalPathAlias
+					? true
+					: undefined,
 			keepPathAlias:
 				editor.applyPathAliasFix && editor.pathAliasResolution?.startsWith('keep-')
 					? targetAlias!
 					: undefined,
 			replacePathAlias:
-				editor.applyPathAliasFix && editor.pathAliasResolution?.startsWith('replace-')
-					? targetAlias!
+				targetAlias &&
+				((editor.applyPathAliasFix && editor.pathAliasResolution?.startsWith('replace-')) ||
+					(targetAlias !== editor.originalPathAlias &&
+						hasPathAlias(editor.config, oppositePathAlias(targetAlias))))
+					? targetAlias
 					: undefined
 		};
 	}
 
-	function shouldWriteHpath(): boolean {
+	function shouldWriteHpath(targetAlias: PackagePathAlias | null): boolean {
 		return (
 			editor.applySourcePathFix ||
-			editor.applyPathAliasFix ||
 			editor.migrateLegacyPath ||
-			editor.config.hpath !== undefined ||
-			editor.hpath.trim() !== configHpath(editor.config, target.sourcePaths?.[0] ?? '').trim()
+			editor.hpath.trim() !==
+				configHpath(
+					editor.config,
+					target.sourcePaths?.[0] ?? '',
+					editor.originalPathAlias
+				).trim() ||
+			(targetAlias !== null && targetAlias !== editor.originalPathAlias)
 		);
 	}
 
@@ -247,8 +337,11 @@
 				installId: install.id
 			});
 			const config = result.config ?? {};
+			const pathAlias = configuredPathAlias(config, editor.pathAliasConflict);
 			editor.config = config;
-			editor.hpath = configHpath(config, target.sourcePaths?.[0] ?? '');
+			editor.pathAlias = pathAlias;
+			editor.originalPathAlias = pathAlias;
+			editor.hpath = configHpath(config, target.sourcePaths?.[0] ?? '', pathAlias);
 			editor.sourcePathFixPath = editor.sourcePathFixCandidates[0] ?? '';
 			editor.migrateLegacyPath = false;
 			editor.state = 'ready';
@@ -284,9 +377,7 @@
 	async function saveTargetConfig() {
 		if (
 			isScanActive ||
-			(!effectiveHpath().trim() &&
-				(!editor.applyPathAliasFix ||
-					pathAliasTarget(editor.pathAliasResolution) !== 'HOUDINI_PATH')) ||
+			!effectiveHpath().trim() ||
 			(editor.applyPathAliasFix && editor.pathAliasConflict && !editor.pathAliasResolution) ||
 			editor.state === 'saving'
 		)
@@ -473,18 +564,51 @@
 					{/if}
 				</div>
 			{/if}
+			<div class="config-path-alias-choice">
+				<div>
+					<strong>Path alias</strong>
+					<p>Choose which Houdini variable stores the local plugin source.</p>
+				</div>
+				<div class="config-alias-options" role="radiogroup" aria-label="Path alias">
+					<label>
+						<input
+							type="radio"
+							name={`source-path-alias-${install.id}`}
+							value="hpath"
+							bind:group={editor.pathAlias}
+							onchange={() => handlePathAliasChange('hpath')}
+							disabled={editor.state === 'loading' ||
+								editor.state === 'saving' ||
+								editor.applyPathAliasFix}
+						/>
+						<span><code>hpath</code></span>
+					</label>
+					<label>
+						<input
+							type="radio"
+							name={`source-path-alias-${install.id}`}
+							value="HOUDINI_PATH"
+							bind:group={editor.pathAlias}
+							onchange={() => handlePathAliasChange('HOUDINI_PATH')}
+							disabled={editor.state === 'loading' ||
+								editor.state === 'saving' ||
+								editor.applyPathAliasFix}
+						/>
+						<span><code>HOUDINI_PATH</code></span>
+					</label>
+				</div>
+			</div>
 			<label class="install-dialog-field">
-				<span><code>hpath</code> Local plugin source</span>
+				<span><code>{selectedPathAlias() ?? editor.pathAlias}</code> Local plugin source</span>
 				<input
 					class="config-source-input"
 					type="text"
-					aria-label="Local plugin source (hpath)"
+					aria-label={`Local plugin source (${selectedPathAlias() ?? editor.pathAlias})`}
 					bind:value={editor.hpath}
 					disabled={editor.state === 'loading' ||
 						editor.state === 'saving' ||
 						editor.applySourcePathFix ||
-						(editor.applyPathAliasFix &&
-							pathAliasTarget(editor.pathAliasResolution) === 'HOUDINI_PATH')}
+						(editor.applyPathAliasFix && !selectedPathAlias())}
 					placeholder={`C:\\Plugins\\${plugin.name}`}
 				/>
 			</label>
@@ -536,9 +660,7 @@
 				class="dialog-primary-button"
 				disabled={editor.state === 'loading' ||
 					editor.state === 'saving' ||
-					(!effectiveHpath().trim() &&
-						(!editor.applyPathAliasFix ||
-							pathAliasTarget(editor.pathAliasResolution) !== 'HOUDINI_PATH')) ||
+					!effectiveHpath().trim() ||
 					(editor.applyPathAliasFix && editor.pathAliasConflict && !editor.pathAliasResolution)}
 				onclick={() => void saveTargetConfig()}
 			>

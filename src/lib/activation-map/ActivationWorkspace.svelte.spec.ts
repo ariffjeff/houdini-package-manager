@@ -19,6 +19,10 @@ let pluginActionRequests: Array<{
 	hpath?: string;
 	migrateLegacyPath?: boolean;
 	keepPathAlias?: 'hpath' | 'HOUDINI_PATH';
+	pathAlias?: 'hpath' | 'HOUDINI_PATH';
+	writeHpath?: boolean;
+	preservePathAliases?: boolean;
+	replacePathAlias?: 'hpath' | 'HOUDINI_PATH';
 }> = [];
 let holdPluginAction = false;
 let releasePluginAction: (() => void) | null = null;
@@ -197,6 +201,10 @@ function stubDiscovery(
 					enabled?: boolean;
 					hpath?: string;
 					migrateLegacyPath?: boolean;
+					pathAlias?: 'hpath' | 'HOUDINI_PATH';
+					writeHpath?: boolean;
+					preservePathAliases?: boolean;
+					replacePathAlias?: 'hpath' | 'HOUDINI_PATH';
 				};
 				pluginActionRequests.push(request);
 				if (holdPluginAction) {
@@ -309,6 +317,7 @@ it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => 
 	await expect
 		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/houdini21\.0\/packages"/))
 		.toBeInTheDocument();
+	await expect.element(page.getByRole('radio', { name: 'hpath', exact: true })).toBeChecked();
 
 	await page.getByRole('checkbox', { name: /Remove deprecated path key/ }).click();
 	await expect
@@ -329,7 +338,90 @@ it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => 
 			pluginId: 'package:mops',
 			installId: 'install:houdini-21.0-455-test',
 			hpath: 'C:/Users/test/Documents/HPM/plugins/mops',
+			pathAlias: 'hpath',
 			migrateLegacyPath: true
+		});
+});
+
+it('edits and switches a HOUDINI_PATH source alias with reference rewriting', async () => {
+	stubDiscovery(discoveryResponse, null, {
+		HOUDINI_PATH: 'C:/Users/test/Documents/HPM/plugins/mops',
+		env: { CUSTOM_ROOT: '$HOUDINI_PATH/bin' },
+		enable: false
+	});
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
+	await expect
+		.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
+		.toBeInTheDocument();
+
+	const sourceInput = page.getByRole('textbox', { name: /Local plugin source/ });
+	await expect
+		.element(page.getByRole('radio', { name: 'HOUDINI_PATH', exact: true }))
+		.toBeChecked();
+	await sourceInput.fill('C:/Users/test/Plugins/MOPS');
+	await expect.element(sourceInput).toHaveValue('C:/Users/test/Plugins/MOPS');
+	await expect
+		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Plugins\/MOPS",/))
+		.toHaveClass(/is-changed/);
+	await expect.element(page.getByText(/"CUSTOM_ROOT": "\$HOUDINI_PATH\/bin"/)).toBeInTheDocument();
+
+	await page.getByRole('radio', { name: 'hpath', exact: true }).click();
+	await expect
+		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops",/))
+		.toHaveClass(/is-removed/);
+	await expect
+		.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
+		.toHaveClass(/is-changed/);
+	await expect.element(page.getByText(/"CUSTOM_ROOT": "\$hpath\/bin"/)).toHaveClass(/is-changed/);
+
+	await page.getByRole('button', { name: 'Save and close', exact: true }).click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toEqual({
+			action: 'update-config',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test',
+			hpath: 'C:/Users/test/Plugins/MOPS',
+			pathAlias: 'hpath',
+			migrateLegacyPath: false,
+			replacePathAlias: 'hpath'
+		});
+});
+
+it('uses the existing nested HOUDINI_PATH value when selecting that alias', async () => {
+	stubDiscovery(discoveryResponse, null, {
+		hpath: 'C:/Users/test/Plugins/MOPS',
+		env: [{ HOUDINI_PATH: 'C:/Users/test/Documents/houdini21.0/packages', OTHER: 'C:/other' }],
+		enable: false
+	});
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
+	await expect
+		.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
+		.toBeInTheDocument();
+
+	const sourceInput = page.getByRole('textbox', { name: /Local plugin source/ });
+	await expect.element(sourceInput).toHaveValue('C:/Users/test/Plugins/MOPS');
+	await page.getByRole('radio', { name: 'HOUDINI_PATH', exact: true }).click();
+	await expect.element(sourceInput).toHaveValue('C:/Users/test/Documents/houdini21.0/packages');
+	await sourceInput.fill('C:/Users/test/Plugins/MOPS');
+
+	await page.getByRole('button', { name: 'Save and close', exact: true }).click();
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toEqual({
+			action: 'update-config',
+			pluginId: 'package:mops',
+			installId: 'install:houdini-21.0-455-test',
+			hpath: 'C:/Users/test/Plugins/MOPS',
+			pathAlias: 'HOUDINI_PATH',
+			migrateLegacyPath: false,
+			replacePathAlias: 'HOUDINI_PATH'
 		});
 });
 
@@ -926,6 +1018,7 @@ describe('activation workspace', () => {
 				pluginId: 'package:mops',
 				installId: 'install:houdini-21.0-455-test',
 				hpath: 'C:/Users/test/Plugins/MOPS',
+				pathAlias: 'hpath',
 				migrateLegacyPath: true
 			});
 		await expect

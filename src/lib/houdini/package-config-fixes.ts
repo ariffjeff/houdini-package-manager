@@ -2,6 +2,7 @@ export type PackagePathAlias = 'hpath' | 'HOUDINI_PATH';
 
 export type PackageConfigFixPlan = {
 	hpath?: string;
+	pathAlias?: PackagePathAlias;
 	writeHpath?: boolean;
 	migrateLegacyPath?: boolean;
 	preservePathAliases?: boolean;
@@ -15,6 +16,7 @@ export function applyPackageConfigFixes(
 ): Record<string, unknown> {
 	const packageValue = cloneJsonRecord(config);
 	const shouldWriteHpath = plan.writeHpath !== false;
+	const targetAlias = plan.pathAlias ?? 'hpath';
 
 	if (plan.migrateLegacyPath !== false) delete packageValue.path;
 
@@ -22,13 +24,15 @@ export function applyPackageConfigFixes(
 		const replacedAlias = oppositePathAlias(plan.replacePathAlias);
 		rewritePackageVariableReferences(packageValue, replacedAlias, plan.replacePathAlias);
 		removePackageVariable(packageValue, replacedAlias);
+		if (shouldWriteHpath) setPathAlias(packageValue, plan.replacePathAlias, plan.hpath);
 	} else if (plan.preservePathAliases) {
-		if (shouldWriteHpath) setHpath(packageValue, plan.hpath);
-	} else if (plan.keepPathAlias === 'HOUDINI_PATH') {
-		removePackageVariable(packageValue, 'hpath');
+		if (shouldWriteHpath) setPathAlias(packageValue, targetAlias, plan.hpath);
+	} else if (plan.keepPathAlias) {
+		removePackageVariable(packageValue, oppositePathAlias(plan.keepPathAlias));
+		if (shouldWriteHpath) setPathAlias(packageValue, plan.keepPathAlias, plan.hpath);
 	} else if (shouldWriteHpath) {
-		removePackageVariable(packageValue, 'HOUDINI_PATH');
-		setHpath(packageValue, plan.hpath);
+		removePackageVariable(packageValue, oppositePathAlias(targetAlias));
+		setPathAlias(packageValue, targetAlias, plan.hpath);
 	}
 
 	return packageValue;
@@ -38,9 +42,31 @@ function oppositePathAlias(alias: PackagePathAlias): PackagePathAlias {
 	return alias === 'hpath' ? 'HOUDINI_PATH' : 'hpath';
 }
 
-function setHpath(packageValue: Record<string, unknown>, hpath: string | undefined): void {
-	if (typeof hpath === 'string') packageValue.hpath = hpath.trim();
-	else delete packageValue.hpath;
+function setPathAlias(
+	packageValue: Record<string, unknown>,
+	alias: PackagePathAlias,
+	hpath: string | undefined
+): void {
+	if (typeof hpath !== 'string') return;
+	const value = hpath.trim();
+	if (!setJsonKey(packageValue, alias, value)) packageValue[alias] = value;
+}
+
+function setJsonKey(value: unknown, key: string, replacement: string): boolean {
+	if (Array.isArray(value)) {
+		return value.reduce((found, entry) => setJsonKey(entry, key, replacement) || found, false);
+	}
+	if (!isRecord(value)) return false;
+
+	let found = false;
+	if (Object.prototype.hasOwnProperty.call(value, key)) {
+		value[key] = replacement;
+		found = true;
+	}
+	for (const entry of Object.values(value)) {
+		if (setJsonKey(entry, key, replacement)) found = true;
+	}
+	return found;
 }
 
 function removePackageVariable(packageValue: Record<string, unknown>, key: string): void {
