@@ -590,9 +590,9 @@ describe('Houdini plugin actions', () => {
 		});
 
 		expect(JSON.parse(await readFile(packagePath, 'utf8'))).toEqual({
-			HOUDINI_PATH: path.normalize(destinationPath),
 			enable: true,
 			custom: true,
+			env: [{ HOUDINI_PATH: path.normalize(destinationPath) }],
 			hpm: { managed: true, repository: repositoryUrl, version: 'v1.0.0' }
 		});
 	});

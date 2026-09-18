@@ -350,20 +350,27 @@ async function writeManagedPackage(
 		}
 	}
 
-	delete packageValue.path;
-	if (Object.prototype.hasOwnProperty.call(packageValue, 'HOUDINI_PATH')) {
-		delete packageValue.hpath;
-		packageValue.HOUDINI_PATH = repositoryPath;
-	} else {
-		delete packageValue.HOUDINI_PATH;
-		packageValue.hpath = repositoryPath;
-	}
+	const pathAlias = hasJsonKey(packageValue, 'HOUDINI_PATH') ? 'HOUDINI_PATH' : 'hpath';
+	packageValue = applyPackageConfigFixes(packageValue, {
+		hpath: repositoryPath,
+		pathAlias,
+		migrateLegacyPath: true
+	});
 	packageValue.hpm = {
 		managed: true,
 		repository: plugin.repositoryUrl,
 		version
 	};
 	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
+}
+
+function hasJsonKey(value: unknown, key: string): boolean {
+	if (Array.isArray(value)) return value.some((entry) => hasJsonKey(entry, key));
+	if (!isRecord(value)) return false;
+	return (
+		Object.prototype.hasOwnProperty.call(value, key) ||
+		Object.values(value).some((entry) => hasJsonKey(entry, key))
+	);
 }
 
 async function setPackageEnabled(packagePath: string, enabled: boolean): Promise<void> {

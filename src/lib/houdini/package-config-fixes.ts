@@ -47,26 +47,34 @@ function setPathAlias(
 	alias: PackagePathAlias,
 	hpath: string | undefined
 ): void {
-	if (typeof hpath !== 'string') return;
-	const value = hpath.trim();
-	if (!setJsonKey(packageValue, alias, value)) packageValue[alias] = value;
+	const value = typeof hpath === 'string' ? hpath.trim() : findJsonString(packageValue, alias);
+	if (!value) return;
+	removeJsonKey(packageValue, alias);
+	if (alias === 'HOUDINI_PATH') {
+		const env = Array.isArray(packageValue.env) ? packageValue.env.filter(isRecord) : [];
+		if (!env.length) env.push({});
+		env[0][alias] = value;
+		packageValue.env = env;
+	} else {
+		packageValue[alias] = value;
+	}
 }
 
-function setJsonKey(value: unknown, key: string, replacement: string): boolean {
+function findJsonString(value: unknown, key: string): string | undefined {
 	if (Array.isArray(value)) {
-		return value.reduce((found, entry) => setJsonKey(entry, key, replacement) || found, false);
+		for (const entry of value) {
+			const found = findJsonString(entry, key);
+			if (found !== undefined) return found;
+		}
+		return undefined;
 	}
-	if (!isRecord(value)) return false;
-
-	let found = false;
-	if (Object.prototype.hasOwnProperty.call(value, key)) {
-		value[key] = replacement;
-		found = true;
-	}
+	if (!isRecord(value)) return undefined;
+	if (typeof value[key] === 'string') return value[key];
 	for (const entry of Object.values(value)) {
-		if (setJsonKey(entry, key, replacement)) found = true;
+		const found = findJsonString(entry, key);
+		if (found !== undefined) return found;
 	}
-	return found;
+	return undefined;
 }
 
 function removePackageVariable(packageValue: Record<string, unknown>, key: string): void {

@@ -49,8 +49,7 @@ describe('package config fixes', () => {
 				replacePathAlias: 'HOUDINI_PATH'
 			})
 		).toEqual({
-			HOUDINI_PATH: 'C:/houdini',
-			env: [{ HOUDINI_PATH: 'C:/nested', OTHER: '$HOUDINI_PATH/bin' }],
+			env: [{ HOUDINI_PATH: 'C:/houdini', OTHER: '$HOUDINI_PATH/bin' }],
 			nested: { SOURCE: '$HOUDINI_PATH', KEEP: '$hpath_extra' }
 		});
 	});
@@ -70,7 +69,7 @@ describe('package config fixes', () => {
 				pathAlias: 'HOUDINI_PATH'
 			})
 		).toEqual({
-			HOUDINI_PATH: 'C:/new/AJTools',
+			env: [{ HOUDINI_PATH: 'C:/new/AJTools' }],
 			nested: {
 				SOURCE: '$HOUDINI_PATH/bin',
 				KEEP: '$HOUDINI_PATH_extra'
@@ -106,6 +105,32 @@ describe('package config fixes', () => {
 			})
 		).toEqual({
 			env: [{ HOUDINI_PATH: 'C:/new/AJTools', OTHER: 'C:/other' }]
+		});
+	});
+
+	it('normalizes aliases to their required config locations', () => {
+		expect(
+			applyPackageConfigFixes(
+				{
+					hpath: 'C:/old/AJTools',
+					env: [{ hpath: 'C:/nested', HOUDINI_PATH: 'C:/old/houdini' }],
+					nested: { HOUDINI_PATH: 'C:/other' }
+				},
+				{ hpath: 'C:/new/AJTools', pathAlias: 'hpath' }
+			)
+		).toEqual({ hpath: 'C:/new/AJTools', env: [{}], nested: {} });
+
+		expect(
+			applyPackageConfigFixes(
+				{
+					hpath: 'C:/old/AJTools',
+					env: [{ OTHER: 'C:/other' }],
+					HOUDINI_PATH: 'C:/old/houdini'
+				},
+				{ hpath: 'C:/new/houdini', pathAlias: 'HOUDINI_PATH' }
+			)
+		).toEqual({
+			env: [{ OTHER: 'C:/other', HOUDINI_PATH: 'C:/new/houdini' }]
 		});
 	});
 });
