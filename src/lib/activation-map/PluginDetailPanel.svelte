@@ -80,6 +80,26 @@
 	}
 </script>
 
+{#snippet rescanPluginConfigsButton(className = '')}
+	<button
+		type="button"
+		class={['node-action-button', 'icon-action-button', 'plugin-rescan-button', className]}
+		aria-label={pluginScanState === 'working'
+			? 'Rescanning plugin configs'
+			: 'Rescan plugin configs'}
+		data-tooltip={pluginScanState === 'working'
+			? 'Rescanning plugin configs'
+			: 'Rescan plugin configs'}
+		disabled={isScanActive || pluginScanState === 'working'}
+		onclick={(event) => {
+			stopActionPropagation(event);
+			void onRescanPluginConfigs();
+		}}
+	>
+		<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
+	</button>
+{/snippet}
+
 <aside class="detail-panel" aria-live="polite">
 	{#if plugin}
 		<div class="plugin-header">
@@ -89,23 +109,7 @@
 			{/if}
 		</div>
 		<div class="detail-meta">
-			<button
-				type="button"
-				class="detail-meta-item node-action-button icon-action-button plugin-rescan-button"
-				aria-label={pluginScanState === 'working'
-					? 'Rescanning plugin configs'
-					: 'Rescan plugin configs'}
-				data-tooltip={pluginScanState === 'working'
-					? 'Rescanning plugin configs'
-					: 'Rescan plugin configs'}
-				disabled={isScanActive || pluginScanState === 'working'}
-				onclick={(event) => {
-					stopActionPropagation(event);
-					void onRescanPluginConfigs();
-				}}
-			>
-				<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
-			</button>
+			{@render rescanPluginConfigsButton('detail-meta-item')}
 			{#if plugin.repositoryUrl}
 				<a
 					class="detail-meta-item detail-meta-link"
@@ -315,7 +319,10 @@
 					<h4 id="target-installs-title">Target installs</h4>
 					<p>Package status by Houdini version</p>
 				</div>
-				<strong class="panel-section-count">{pluginTargetGroups.length}</strong>
+				<div class="target-section-heading-actions">
+					{@render rescanPluginConfigsButton('target-rescan-button')}
+					<strong class="panel-section-count">{pluginTargetGroups.length}</strong>
+				</div>
 			</div>
 			<div class="target-list">
 				{#each pluginTargetGroups as group (group.representativeInstall.version)}
@@ -760,6 +767,12 @@
 		font-weight: 600;
 		line-height: 1;
 		text-align: left;
+	}
+
+	.target-section-heading-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 	}
 
 	.source-list .target-list,

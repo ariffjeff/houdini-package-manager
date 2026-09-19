@@ -445,7 +445,10 @@ it('hides target-specific actions for a missing plugin target', async () => {
 
 	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
 	await expect
-		.element(page.getByRole('button', { name: 'Rescan plugin configs', exact: true }))
+		.element(page.getByRole('button', { name: 'Rescan plugin configs', exact: true }).first())
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByRole('button', { name: 'Rescan plugin configs', exact: true }).nth(1))
 		.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('button', { name: 'Open packages folder for Houdini 21.0' }))
@@ -968,7 +971,7 @@ describe('activation workspace', () => {
 		render(Page);
 
 		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
-		await page.getByRole('button', { name: 'Rescan plugin configs' }).click();
+		await page.getByRole('button', { name: 'Rescan plugin configs' }).first().click();
 		await expect
 			.poll(() => scanRequests.at(-1))
 			.toEqual({
@@ -1082,7 +1085,7 @@ describe('activation workspace', () => {
 			})
 			.click();
 		await expect
-			.element(page.getByRole('button', { name: 'Rescan plugin configs', exact: true }))
+			.element(page.getByRole('button', { name: 'Rescan plugin configs', exact: true }).first())
 			.toBeInTheDocument();
 		releasePluginAction?.();
 		holdPluginAction = false;
