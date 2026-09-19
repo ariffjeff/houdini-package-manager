@@ -294,6 +294,9 @@
 										<Tag size={14} strokeWidth={1.8} aria-hidden="true" />
 									{/if}
 									<span>{version.label ?? version.value}</span>
+									{#if version.isLatest}
+										<span class="version-latest-marker">Latest</span>
+									{/if}
 								</button>
 							{/each}
 						</div>
@@ -651,6 +654,19 @@
 		font-size: 11px;
 		text-align: left;
 		cursor: pointer;
+	}
+
+	.version-latest-marker {
+		padding: 2px 5px;
+		border: 1px solid rgba(211, 155, 56, 0.4);
+		border-radius: 3px;
+		background: rgba(211, 155, 56, 0.1);
+		color: #e2b95f;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+		font-weight: 600;
+		line-height: 1;
+		text-transform: uppercase;
 	}
 
 	.version-select-option:hover,

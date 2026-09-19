@@ -16,6 +16,7 @@
 	} from '$lib/activation-map/model';
 	import {
 		availablePluginUpdates,
+		compareVersionLabels,
 		createPluginTargetGroups,
 		gitCommitOption,
 		isGitTagVersion,
@@ -200,13 +201,19 @@
 	let selectedPluginCommitOption = $derived(
 		selectedPlugin ? gitCommitOption(selectedPlugin) : null
 	);
-	let selectedPluginVersionOptions = $derived<InstallVersionOption[]>([
-		...(selectedPluginCommitOption ? [selectedPluginCommitOption] : []),
-		...selectedPluginVersions.map((version) => ({
-			value: version,
-			kind: isGitTagVersion(version) ? ('tag' as const) : ('commit' as const)
-		}))
-	]);
+	let selectedPluginVersionOptions = $derived<InstallVersionOption[]>(
+		[
+			...(selectedPluginCommitOption ? [selectedPluginCommitOption] : []),
+			...selectedPluginVersions.map<InstallVersionOption>((version) => ({
+				value: version,
+				kind: isGitTagVersion(version) ? ('tag' as const) : ('commit' as const)
+			}))
+		]
+			.sort((left, right) =>
+				compareVersionLabels(right.label ?? right.value, left.label ?? left.value)
+			)
+			.map((option, index) => ({ ...option, isLatest: index === 0 }))
+	);
 	let selectedPluginUpdates = $derived(
 		selectedPlugin ? availablePluginUpdates(selectedPlugin) : []
 	);

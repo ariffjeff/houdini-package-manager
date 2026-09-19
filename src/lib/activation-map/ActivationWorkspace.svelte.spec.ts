@@ -922,12 +922,18 @@ describe('activation workspace', () => {
 			.element(page.getByText('Use HPM plugin folder', { exact: true }))
 			.toBeInTheDocument();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
-		const commitOption = page.getByRole('option', { name: 'v1.10.0-9-gdc60096', exact: true });
+		const commitOption = page.getByRole('option', {
+			name: 'v1.10.0-9-gdc60096 Latest',
+			exact: true
+		});
 		await expect
 			.element(page.getByRole('checkbox', { name: 'Show non-tagged commits' }))
 			.not.toBeChecked();
 
 		await page.getByRole('combobox', { name: 'Version' }).click();
+		await expect
+			.element(page.getByRole('option', { name: 'v1.10.0 Latest', exact: true }))
+			.not.toBeInTheDocument();
 		await expect.element(commitOption).not.toBeInTheDocument();
 		await page.getByRole('option', { name: 'v1.9.2e', exact: true }).click();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);

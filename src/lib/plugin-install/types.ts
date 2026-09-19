@@ -6,6 +6,7 @@ export type InstallVersionOption = {
 	value: string;
 	label?: string;
 	kind: 'tag' | 'commit';
+	isLatest?: boolean;
 };
 
 export type InstallDialogOptions = {

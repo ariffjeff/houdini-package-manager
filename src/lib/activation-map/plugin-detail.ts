@@ -104,7 +104,7 @@ function gitDescribeTag(ref: string | undefined): string | null {
 	return cleanRef;
 }
 
-function compareVersionLabels(left: string, right: string): number {
+export function compareVersionLabels(left: string, right: string): number {
 	const leftTokens = left.match(/\d+|\D+/g) ?? [left];
 	const rightTokens = right.match(/\d+|\D+/g) ?? [right];
 
