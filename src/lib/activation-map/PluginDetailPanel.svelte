@@ -82,7 +82,6 @@
 
 <aside class="detail-panel" aria-live="polite">
 	{#if plugin}
-		<p class="section-kicker">Plugin metadata</p>
 		<div class="plugin-header">
 			<h3>{plugin.name}</h3>
 			{#if plugin.author}
