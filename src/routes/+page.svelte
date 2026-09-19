@@ -17,6 +17,7 @@
 	import {
 		availablePluginUpdates,
 		createPluginTargetGroups,
+		gitCommitOption,
 		isGitTagVersion,
 		type PluginDetailAction,
 		type PluginDetailActionState
@@ -196,12 +197,16 @@
 		selectedNode?.data.kind === 'official' ? activationPlugins.filter(isOfficialPlugin) : []
 	);
 	let selectedPluginVersions = $derived(selectedPlugin?.availableVersions ?? []);
-	let selectedPluginVersionOptions = $derived<InstallVersionOption[]>(
-		selectedPluginVersions.map((version) => ({
-			value: version,
-			kind: isGitTagVersion(version) ? 'tag' : 'commit'
-		}))
+	let selectedPluginCommitOption = $derived(
+		selectedPlugin ? gitCommitOption(selectedPlugin) : null
 	);
+	let selectedPluginVersionOptions = $derived<InstallVersionOption[]>([
+		...(selectedPluginCommitOption ? [selectedPluginCommitOption] : []),
+		...selectedPluginVersions.map((version) => ({
+			value: version,
+			kind: isGitTagVersion(version) ? ('tag' as const) : ('commit' as const)
+		}))
+	]);
 	let selectedPluginUpdates = $derived(
 		selectedPlugin ? availablePluginUpdates(selectedPlugin) : []
 	);

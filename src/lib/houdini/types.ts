@@ -35,6 +35,7 @@ export type PluginSource = {
 	version: string | null;
 	versionSource: PluginVersionSource;
 	gitRef?: string | null;
+	gitCommit?: string | null;
 	gitTag?: string | null;
 	gitBranch?: string | null;
 	repositoryUrl?: string | null;
@@ -56,6 +57,7 @@ export type PluginRecord = {
 	valid: boolean;
 	versionSource?: PluginVersionSource;
 	gitRef?: string | null;
+	gitCommit?: string | null;
 	gitTag?: string | null;
 	gitBranch?: string | null;
 	repositoryUrl?: string | null;

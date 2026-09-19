@@ -67,6 +67,7 @@ const discoveryResponse = {
 			valid: true,
 			versionSource: 'git',
 			gitRef: 'v1.10.0',
+			gitCommit: 'abc1234',
 			repositoryUrl: 'https://github.com/toadstorm/MOPS',
 			availableVersions: ['v1.10.0', 'v1.9.2e'],
 			installedVersions: ['v1.10.0'],
@@ -876,6 +877,15 @@ describe('activation workspace', () => {
 		const secondInstallId = 'install:houdini-22.0-100-test';
 		const multiInstallResponse = {
 			...discoveryResponse,
+			plugins: discoveryResponse.plugins.map((plugin) =>
+				plugin.id === 'package:mops'
+					? {
+							...plugin,
+							gitRef: 'v1.10.0-9-gdc60096',
+							gitCommit: 'dc60096'
+						}
+					: plugin
+			),
 			installs: [
 				...discoveryResponse.installs,
 				{
@@ -912,10 +922,22 @@ describe('activation workspace', () => {
 			.element(page.getByText('Use HPM plugin folder', { exact: true }))
 			.toBeInTheDocument();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
+		const commitOption = page.getByRole('option', { name: 'v1.10.0-9-gdc60096', exact: true });
+		await expect
+			.element(page.getByRole('checkbox', { name: 'Show non-tagged commits' }))
+			.not.toBeChecked();
 
 		await page.getByRole('combobox', { name: 'Version' }).click();
+		await expect.element(commitOption).not.toBeInTheDocument();
 		await page.getByRole('option', { name: 'v1.9.2e', exact: true }).click();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
+		await page.getByRole('checkbox', { name: 'Show non-tagged commits' }).click();
+		await page.getByRole('combobox', { name: 'Version' }).click();
+		await expect.element(commitOption).toBeInTheDocument();
+		await commitOption.click();
+		await expect
+			.element(page.getByRole('combobox', { name: /v1\.10\.0-9-gdc60096/ }))
+			.toBeInTheDocument();
 		await page.getByRole('combobox', { name: 'Version' }).click();
 		await page.getByRole('option', { name: 'v1.10.0', exact: true }).click();
 

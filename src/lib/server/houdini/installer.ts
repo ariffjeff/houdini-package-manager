@@ -29,8 +29,11 @@ export async function installHoudiniPlugin(
 	if (!plugin.repositoryUrl) {
 		throw new Error(`${plugin.name} does not have a discoverable Git repository.`);
 	}
-	if (!(plugin.availableVersions ?? []).includes(request.version)) {
-		throw new Error(`${request.version} is not an available Git tag for ${plugin.name}.`);
+	if (
+		!(plugin.availableVersions ?? []).includes(request.version) &&
+		plugin.gitCommit !== request.version
+	) {
+		throw new Error(`${request.version} is not an available Git version for ${plugin.name}.`);
 	}
 
 	const installs = selectInstalls(current.installs, request);

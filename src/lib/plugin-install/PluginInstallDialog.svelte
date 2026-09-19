@@ -57,10 +57,20 @@
 		openInstalledConfig: false
 	});
 	let versionMenuOpen = $state(false);
+	let showNonTaggedCommits = $state(false);
 
-	let requestedVersion = $derived(draft.version || versions[0]?.value || '');
+	let visibleVersions = $derived(
+		showNonTaggedCommits
+			? versions
+			: versions.filter((version: InstallVersionOption) => version.kind === 'tag')
+	);
+	let requestedVersion = $derived(
+		visibleVersions.some((version: InstallVersionOption) => version.value === draft.version)
+			? draft.version
+			: (visibleVersions[0]?.value ?? '')
+	);
 	let selectedVersion = $derived(
-		versions.find((version: InstallVersionOption) => version.value === requestedVersion)
+		visibleVersions.find((version: InstallVersionOption) => version.value === requestedVersion)
 	);
 	let selectedInstallCount = $derived(
 		installs.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
@@ -77,7 +87,7 @@
 	let canInstall = $derived(
 		installState !== 'working' &&
 			Boolean(requestedVersion) &&
-			versions.some((version: InstallVersionOption) => version.value === requestedVersion) &&
+			visibleVersions.some((version: InstallVersionOption) => version.value === requestedVersion) &&
 			selectedInstallCount > 0 &&
 			Boolean(requestedDestination)
 	);
@@ -87,13 +97,26 @@
 	function resetDraft() {
 		const existingSource = remoteSourceOptions[0];
 		draft = {
-			version: versions[0]?.value ?? '',
+			version: visibleVersions[0]?.value ?? '',
 			selectedInstallIds: installs.map((install: HoudiniInstall) => install.id),
 			destinationChoice: existingSource ?? 'custom',
 			customDestination: existingSource ?? '',
 			openInstalledFolder: false,
 			openInstalledConfig: false
 		};
+	}
+
+	function toggleNonTaggedCommits(checked: boolean) {
+		showNonTaggedCommits = checked;
+		versionMenuOpen = false;
+		if (
+			!checked &&
+			versions.find((version: InstallVersionOption) => version.value === draft.version)?.kind ===
+				'commit'
+		) {
+			draft.version =
+				versions.find((version: InstallVersionOption) => version.kind === 'tag')?.value ?? '';
+		}
 	}
 
 	function selectVersion(version: string) {
@@ -121,7 +144,7 @@
 	function handleVersionOptionKeydown(event: KeyboardEvent, index: number, value: string) {
 		if (event.key === 'ArrowDown') {
 			event.preventDefault();
-			focusVersionOption(Math.min(index + 1, versions.length - 1));
+			focusVersionOption(Math.min(index + 1, visibleVersions.length - 1));
 		} else if (event.key === 'ArrowUp') {
 			event.preventDefault();
 			focusVersionOption(Math.max(index - 1, 0));
@@ -130,7 +153,7 @@
 			focusVersionOption(0);
 		} else if (event.key === 'End') {
 			event.preventDefault();
-			focusVersionOption(versions.length - 1);
+			focusVersionOption(visibleVersions.length - 1);
 		} else if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
 			selectVersion(value);
@@ -230,7 +253,7 @@
 			</button>
 		</div>
 		<div class="install-dialog-content">
-			<label class="install-dialog-field">
+			<div class="install-dialog-field">
 				<span id="install-version-label">Version</span>
 				<div class="version-select">
 					<button
@@ -250,13 +273,13 @@
 							{#if selectedVersion?.kind === 'tag'}
 								<Tag size={14} strokeWidth={1.8} aria-hidden="true" />
 							{/if}
-							{selectedVersion?.value || 'Choose a version'}
+							{selectedVersion?.label ?? selectedVersion?.value ?? 'Choose a version'}
 						</span>
 						<ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" />
 					</button>
 					{#if versionMenuOpen}
 						<div id="install-version-options" class="version-select-menu" role="listbox">
-							{#each versions as version, index (version.value)}
+							{#each visibleVersions as version, index (version.value)}
 								<button
 									type="button"
 									class="version-select-option"
@@ -270,13 +293,26 @@
 									{#if version.kind === 'tag'}
 										<Tag size={14} strokeWidth={1.8} aria-hidden="true" />
 									{/if}
-									<span>{version.value}</span>
+									<span>{version.label ?? version.value}</span>
 								</button>
 							{/each}
 						</div>
 					{/if}
+					<label class="install-version-toggle">
+						<input
+							type="checkbox"
+							checked={showNonTaggedCommits}
+							disabled={installState === 'working'}
+							onchange={(event) =>
+								toggleNonTaggedCommits((event.currentTarget as HTMLInputElement).checked)}
+						/>
+						<span>
+							<strong>Show non-tagged commits</strong>
+							<small>Include Git commits that do not have a release tag.</small>
+						</span>
+					</label>
 				</div>
-			</label>
+			</div>
 
 			<fieldset class="install-dialog-fieldset">
 				<legend class="install-fieldset-heading">
@@ -622,6 +658,39 @@
 	.version-select-option.is-selected {
 		background: rgba(57, 155, 130, 0.14);
 		outline: none;
+	}
+
+	.install-version-toggle {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		margin-top: 8px;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.install-version-toggle input {
+		accent-color: #399b82;
+		flex: 0 0 auto;
+		margin: 2px 0 0;
+	}
+
+	.install-version-toggle span {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+
+	.install-version-toggle strong {
+		color: var(--text);
+		font-size: 11px;
+		font-weight: 600;
+	}
+
+	.install-version-toggle small {
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		line-height: 1.4;
 	}
 
 	.install-dialog-fieldset {

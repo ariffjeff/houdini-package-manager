@@ -84,6 +84,16 @@ export function isGitTagVersion(version: string): boolean {
 	return !/^[0-9a-f]{7,40}$/i.test(cleanVersion) && !/^.+-\d+-g[0-9a-f]+$/i.test(cleanVersion);
 }
 
+export function gitCommitOption(plugin: Pick<PluginRecord, 'gitRef' | 'gitCommit'>) {
+	if (!plugin.gitCommit || !plugin.gitRef || isGitTagVersion(plugin.gitRef)) return null;
+
+	return {
+		value: plugin.gitCommit,
+		label: plugin.gitRef,
+		kind: 'commit' as const
+	};
+}
+
 function gitDescribeTag(ref: string | undefined): string | null {
 	if (!ref) return null;
 
