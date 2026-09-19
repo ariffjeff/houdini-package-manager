@@ -51,7 +51,10 @@ export function applyPackageConfigFixes(
 	const shouldWriteHpath = plan.writeHpath !== false;
 	const targetAlias = plan.pathAlias ?? 'hpath';
 
-	if (plan.migrateLegacyPath !== false) delete packageValue.path;
+	if (plan.migrateLegacyPath !== false) {
+		rewritePackageVariableReferences(packageValue, 'path', targetAlias);
+		delete packageValue.path;
+	}
 
 	if (plan.replacePathAlias) {
 		const replacedAlias = oppositePathAlias(plan.replacePathAlias);
@@ -121,7 +124,7 @@ function removePackageVariable(packageValue: Record<string, unknown>, key: strin
 
 function rewritePackageVariableReferences(
 	packageValue: Record<string, unknown>,
-	from: PackagePathAlias,
+	from: string,
 	to: PackagePathAlias
 ): void {
 	const reference = new RegExp(`\\$${from}(?![A-Za-z0-9_])`, 'g');

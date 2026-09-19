@@ -22,6 +22,7 @@ describe('package config fixes', () => {
 			path: 'C:/legacy/AJTools',
 			HOUDINI_PATH: 'C:/houdini',
 			version: '2.0.0',
+			env: [{ SOURCE: '$path/bin', KEEP: '$path_extra' }],
 			enable: false
 		};
 
@@ -30,11 +31,16 @@ describe('package config fixes', () => {
 				hpath: 'C:/new/AJTools',
 				migrateLegacyPath: true
 			})
-		).toEqual({ hpath: 'C:/new/AJTools', enable: false });
+		).toEqual({
+			hpath: 'C:/new/AJTools',
+			env: [{ SOURCE: '$hpath/bin', KEEP: '$path_extra' }],
+			enable: false
+		});
 		expect(config).toEqual({
 			path: 'C:/legacy/AJTools',
 			HOUDINI_PATH: 'C:/houdini',
 			version: '2.0.0',
+			env: [{ SOURCE: '$path/bin', KEEP: '$path_extra' }],
 			enable: false
 		});
 	});
