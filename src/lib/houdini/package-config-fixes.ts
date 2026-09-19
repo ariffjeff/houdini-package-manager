@@ -1,5 +1,10 @@
 export type PackagePathAlias = 'hpath' | 'HOUDINI_PATH';
 
+export type PackagePathAliasLocationIssue = {
+	hpath: boolean;
+	houdiniPath: boolean;
+};
+
 export type PackageConfigFixPlan = {
 	hpath?: string;
 	pathAlias?: PackagePathAlias;
@@ -9,6 +14,33 @@ export type PackageConfigFixPlan = {
 	keepPathAlias?: PackagePathAlias;
 	replacePathAlias?: PackagePathAlias;
 };
+
+export function findPathAliasLocationIssue(
+	value: Record<string, unknown>
+): PackagePathAliasLocationIssue | null {
+	const issue = { hpath: false, houdiniPath: false };
+
+	function visit(entry: unknown, isRoot = false, isEnvObject = false): void {
+		if (Array.isArray(entry)) {
+			for (const child of entry) visit(child, false, isEnvObject);
+			return;
+		}
+		if (!isRecord(entry)) return;
+
+		for (const [key, child] of Object.entries(entry)) {
+			if (key === 'hpath' && !isRoot) issue.hpath = true;
+			if (key === 'HOUDINI_PATH' && !isEnvObject) issue.houdiniPath = true;
+			if (key === 'env' && Array.isArray(child)) {
+				for (const envEntry of child) visit(envEntry, false, true);
+			} else {
+				visit(child);
+			}
+		}
+	}
+
+	visit(value, true);
+	return issue.hpath || issue.houdiniPath ? issue : null;
+}
 
 export function applyPackageConfigFixes(
 	config: Record<string, unknown>,

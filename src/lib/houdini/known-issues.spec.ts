@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	isTargetIssue,
 	knownIssueKinds,
+	pathAliasLocationMessage,
 	pathAliasConflictMessage,
 	targetIssueMessages,
 	targetIssueSummary
@@ -33,6 +34,21 @@ describe('known issue catalog', () => {
 				houdiniPathUsedAsVariable: false
 			})
 		).toContain('neither alias is used as a variable dependency');
+	});
+
+	it('describes invalid path alias locations', () => {
+		const context = {
+			pathAliasLocationIssue: { hpath: true, houdiniPath: false }
+		};
+
+		expect(knownIssueKinds(context)).toContain('invalid-path-alias-location');
+		expect(pathAliasLocationMessage(context.pathAliasLocationIssue)).toContain(
+			'hpath is in an invalid JSON location'
+		);
+		expect(targetIssueSummary(context)).toBe('Invalid path alias location');
+		expect(targetIssueMessages(context)).toEqual([
+			'hpath is in an invalid JSON location; hpath must be top-level and HOUDINI_PATH must be inside an object in env[].'
+		]);
 	});
 
 	it('classifies removed sources and status fallbacks without display-text parsing', () => {

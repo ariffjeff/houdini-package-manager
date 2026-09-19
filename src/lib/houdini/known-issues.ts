@@ -1,4 +1,8 @@
-import type { KnownIssueKind, PackagePathAliasConflict } from './types';
+import type {
+	KnownIssueKind,
+	PackagePathAliasConflict,
+	PackagePathAliasLocationIssue
+} from './types';
 
 type IssueStatus = 'enabled' | 'disabled' | 'warning' | 'incompatible' | 'missing';
 
@@ -15,6 +19,7 @@ export type KnownIssueContext = {
 	existingPaths?: string[];
 	usesLegacyPath?: boolean;
 	pathAliasConflict?: PackagePathAliasConflict | null;
+	pathAliasLocationIssue?: PackagePathAliasLocationIssue | null;
 };
 
 export type TargetIssue = Pick<
@@ -26,6 +31,7 @@ export type TargetIssue = Pick<
 	| 'issueKinds'
 	| 'usesLegacyPath'
 	| 'pathAliasConflict'
+	| 'pathAliasLocationIssue'
 >;
 
 export type KnownIssueDefinition = {
@@ -58,6 +64,13 @@ export function pathAliasConflictMessage(conflict: PackagePathAliasConflict): st
 		return 'Package config defines both hpath and HOUDINI_PATH; hpath is not used as a variable dependency, so remove hpath and keep HOUDINI_PATH.';
 	}
 	return 'Package config defines both hpath and HOUDINI_PATH; neither alias is used as a variable dependency, so choose which alias to keep.';
+}
+
+export function pathAliasLocationMessage(issue: PackagePathAliasLocationIssue): string {
+	const aliases = [issue.hpath ? 'hpath' : '', issue.houdiniPath ? 'HOUDINI_PATH' : ''].filter(
+		Boolean
+	);
+	return `${aliases.join(' and ')} ${aliases.length === 1 ? 'is' : 'are'} in an invalid JSON location; hpath must be top-level and HOUDINI_PATH must be inside an object in env[].`;
 }
 
 export const knownIssueDefinitions: KnownIssueDefinition[] = [
@@ -107,6 +120,17 @@ export const knownIssueDefinitions: KnownIssueDefinition[] = [
 			hasKind(context, 'duplicate-path-aliases') || Boolean(context.pathAliasConflict),
 		message: (context) =>
 			context.pathAliasConflict ? pathAliasConflictMessage(context.pathAliasConflict) : null
+	},
+	{
+		kind: 'invalid-path-alias-location',
+		summary: 'Invalid path alias location',
+		category: 'config',
+		appliesTo: (context) =>
+			hasKind(context, 'invalid-path-alias-location') || Boolean(context.pathAliasLocationIssue),
+		message: (context) =>
+			context.pathAliasLocationIssue
+				? pathAliasLocationMessage(context.pathAliasLocationIssue)
+				: null
 	},
 	{
 		kind: 'invalid-package-json',
@@ -191,6 +215,7 @@ export function targetIssueSummary(target: TargetIssue): string {
 	if (kinds.includes('invalid-package-json')) return 'Invalid package JSON';
 	if (kinds.includes('incompatible')) return 'Plugin is incompatible';
 	if (kinds.includes('duplicate-path-aliases')) return 'Duplicate path aliases';
+	if (kinds.includes('invalid-path-alias-location')) return 'Invalid path alias location';
 	if (kinds.includes('deprecated-path')) return 'Deprecated path key';
 	if (kinds.includes('removed-hpm-source')) return 'Plugin source not found';
 	return 'Package config needs review';

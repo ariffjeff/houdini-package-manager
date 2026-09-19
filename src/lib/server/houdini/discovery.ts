@@ -16,11 +16,13 @@ import type {
 	InstallHealth,
 	PackageOrigin,
 	PackagePathAliasConflict,
+	PackagePathAliasLocationIssue,
 	PluginRecord,
 	PluginSource,
 	PluginVersionSource
 } from '../../houdini/types.js';
 import { packageConfigIssueKinds, packageConfigIssueMessages } from '../../houdini/known-issues.js';
+import { findPathAliasLocationIssue } from '../../houdini/package-config-fixes.js';
 
 const execFileAsync = promisify(execFile);
 const isWindows = process.platform === 'win32';
@@ -39,6 +41,7 @@ type PackageConfig = {
 	stalePaths: string[];
 	usesLegacyPath: boolean;
 	pathAliasConflict: PackagePathAliasConflict | null;
+	pathAliasLocationIssue: PackagePathAliasLocationIssue | null;
 	issueKinds: KnownIssueKind[];
 	sources: PluginSource[];
 	error?: string;
@@ -639,6 +642,7 @@ function buildDiscoveryResponse(
 				sourcePaths: packageConfig?.paths ?? [],
 				usesLegacyPath: packageConfig?.usesLegacyPath ?? false,
 				pathAliasConflict: packageConfig?.pathAliasConflict ?? undefined,
+				pathAliasLocationIssue: packageConfig?.pathAliasLocationIssue ?? undefined,
 				issueKinds: packageConfig?.issueKinds ?? [],
 				origin: packageConfig?.origin ?? null,
 				issues,
@@ -811,6 +815,7 @@ async function readPackageConfigs(
 			}
 
 			const declaredVersion = parsed ? declaredPackageVersion(parsed.version) : null;
+			const pathAliasLocationIssue = parsed ? findPathAliasLocationIssue(parsed) : null;
 			const inspectedSources = await inspectGitSources(
 				parsed ? resolvePackagePaths(parsed, variables, directory) : [],
 				gitCache,
@@ -883,6 +888,7 @@ async function readPackageConfigs(
 				stalePaths,
 				usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
 				pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null,
+				pathAliasLocationIssue,
 				issueKinds: packageConfigIssueKinds({
 					valid: !error,
 					error,
@@ -890,7 +896,8 @@ async function readPackageConfigs(
 					missingPaths,
 					existingPaths,
 					usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
-					pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null
+					pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null,
+					pathAliasLocationIssue
 				}),
 				sources: visibleSources,
 				error
@@ -918,6 +925,10 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		left.pathAliasConflict,
 		right.pathAliasConflict
 	);
+	const pathAliasLocationIssue = mergePathAliasLocationIssues(
+		left.pathAliasLocationIssue,
+		right.pathAliasLocationIssue
+	);
 	const issueKinds = packageConfigIssueKinds({
 		valid: left.valid && right.valid,
 		error,
@@ -925,7 +936,8 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		missingPaths,
 		existingPaths,
 		usesLegacyPath: left.usesLegacyPath || right.usesLegacyPath,
-		pathAliasConflict
+		pathAliasConflict,
+		pathAliasLocationIssue
 	});
 
 	return {
@@ -945,6 +957,7 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		stalePaths,
 		usesLegacyPath: left.usesLegacyPath || right.usesLegacyPath,
 		pathAliasConflict,
+		pathAliasLocationIssue,
 		issueKinds,
 		sources,
 		error
@@ -1126,6 +1139,7 @@ export function resolvePackageTargetStatus(
 				stalePaths?: string[];
 				usesLegacyPath?: boolean;
 				pathAliasConflict?: PackagePathAliasConflict | null;
+				pathAliasLocationIssue?: PackagePathAliasLocationIssue | null;
 		  }
 		| undefined
 ): HoudiniDiscoveryResponse['targets'][number]['status'] {
@@ -1137,6 +1151,7 @@ export function resolvePackageTargetStatus(
 	if (packageConfig.stalePaths?.length) return 'warning';
 	if (packageConfig.usesLegacyPath) return 'warning';
 	if (packageConfig.pathAliasConflict) return 'warning';
+	if (packageConfig.pathAliasLocationIssue) return 'warning';
 	return packageConfig.enabled ? 'enabled' : 'disabled';
 }
 
@@ -1163,6 +1178,19 @@ function mergePathAliasConflicts(
 		hpathUsedAsVariable: left.hpathUsedAsVariable || right.hpathUsedAsVariable,
 		houdiniPathUsedAsVariable: left.houdiniPathUsedAsVariable || right.houdiniPathUsedAsVariable
 	};
+}
+
+function mergePathAliasLocationIssues(
+	left: PackagePathAliasLocationIssue | null,
+	right: PackagePathAliasLocationIssue | null
+): PackagePathAliasLocationIssue | null {
+	if (!left) return right;
+	if (!right) return left;
+	const merged = {
+		hpath: left.hpath || right.hpath,
+		houdiniPath: left.houdiniPath || right.houdiniPath
+	};
+	return merged.hpath || merged.houdiniPath ? merged : null;
 }
 
 function hasJsonKey(value: unknown, key: string): boolean {

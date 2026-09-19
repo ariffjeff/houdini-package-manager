@@ -12,6 +12,7 @@
 		HoudiniDiscoveryResponse,
 		HoudiniInstall,
 		PackagePathAliasConflict,
+		PackagePathAliasLocationIssue,
 		PluginRecord
 	} from '$lib/houdini/types';
 	import type { ActivationTarget } from '$lib/activation-map/types';
@@ -30,8 +31,10 @@
 		applySourcePathFix: boolean;
 		sourcePathFixPath: string;
 		applyPathAliasFix: boolean;
+		applyPathAliasLocationFix: boolean;
 		migrateLegacyPath: boolean;
 		pathAliasConflict: PackagePathAliasConflict | null;
+		pathAliasLocationIssue: PackagePathAliasLocationIssue | null;
 		pathAliasResolution: PathAliasResolution;
 		state: EditorState;
 		message: string;
@@ -57,8 +60,10 @@
 		applySourcePathFix: false,
 		sourcePathFixPath: '',
 		applyPathAliasFix: false,
+		applyPathAliasLocationFix: false,
 		migrateLegacyPath: false,
 		pathAliasConflict: null,
+		pathAliasLocationIssue: null,
 		pathAliasResolution: null,
 		state: 'loading',
 		message: ''
@@ -88,8 +93,10 @@
 			applySourcePathFix: false,
 			sourcePathFixPath: '',
 			applyPathAliasFix: false,
+			applyPathAliasLocationFix: Boolean(currentTarget.pathAliasLocationIssue),
 			migrateLegacyPath: currentTarget.usesLegacyPath ?? false,
 			pathAliasConflict: currentTarget.pathAliasConflict ?? null,
+			pathAliasLocationIssue: currentTarget.pathAliasLocationIssue ?? null,
 			pathAliasResolution: recommendedPathResolution(currentTarget.pathAliasConflict),
 			state: 'loading',
 			message: ''
@@ -306,6 +313,7 @@
 		return (
 			editor.applySourcePathFix ||
 			editor.migrateLegacyPath ||
+			editor.applyPathAliasLocationFix ||
 			editor.hpath.trim() !==
 				configHpath(
 					editor.config,
@@ -435,7 +443,7 @@
 			</button>
 		</div>
 		<div class="target-config-content">
-			{#if editor.sourcePathFixCandidates.length || editor.pathAliasConflict || editor.config.path !== undefined}
+			{#if editor.sourcePathFixCandidates.length || editor.pathAliasConflict || editor.pathAliasLocationIssue || editor.config.path !== undefined}
 				<div class="config-fixes-section" aria-labelledby="config-fixes-title">
 					<div class="config-fixes-heading">
 						<div>
@@ -443,6 +451,23 @@
 							<p>Choose which detected fixes to apply when saving.</p>
 						</div>
 					</div>
+					{#if editor.pathAliasLocationIssue}
+						<div class="config-fix-option">
+							<label class="config-fix-toggle">
+								<input
+									type="checkbox"
+									bind:checked={editor.applyPathAliasLocationFix}
+									disabled={editor.state === 'loading' || editor.state === 'saving'}
+								/>
+								<span>Normalize path alias locations</span>
+							</label>
+							<p class="config-fix-description">
+								Move <code>hpath</code> to the JSON root and <code>HOUDINI_PATH</code> into an
+								object in
+								<code>env[]</code>.
+							</p>
+						</div>
+					{/if}
 					{#if editor.sourcePathFixCandidates.length}
 						<div class="config-fix-option">
 							<label class="config-fix-toggle">

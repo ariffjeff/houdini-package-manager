@@ -1,4 +1,6 @@
-import type { PackageConfigFixPlan } from './package-config-fixes';
+import type { PackageConfigFixPlan, PackagePathAliasLocationIssue } from './package-config-fixes';
+
+export type { PackagePathAliasLocationIssue } from './package-config-fixes';
 
 export type HoudiniPlatform = 'Windows' | 'Linux' | 'macOS' | 'Unknown';
 
@@ -17,6 +19,7 @@ export type KnownIssueKind =
 	| 'missing-source'
 	| 'deprecated-path'
 	| 'duplicate-path-aliases'
+	| 'invalid-path-alias-location'
 	| 'invalid-package-json'
 	| 'warning'
 	| 'incompatible';
@@ -109,6 +112,7 @@ export type HoudiniDiscoveryResponse = {
 		sourcePaths?: string[];
 		usesLegacyPath?: boolean;
 		pathAliasConflict?: PackagePathAliasConflict;
+		pathAliasLocationIssue?: PackagePathAliasLocationIssue;
 		issueKinds?: KnownIssueKind[];
 		origin: PackageOrigin | null;
 		note: string;

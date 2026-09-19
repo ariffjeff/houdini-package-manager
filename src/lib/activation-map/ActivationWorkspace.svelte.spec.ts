@@ -364,7 +364,7 @@ it('edits and switches a HOUDINI_PATH source alias with reference rewriting', as
 	await sourceInput.fill('C:/Users/test/Plugins/MOPS');
 	await expect.element(sourceInput).toHaveValue('C:/Users/test/Plugins/MOPS');
 	await expect
-		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Plugins\/MOPS",/))
+		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Plugins\/MOPS",?/))
 		.toHaveClass(/is-changed/);
 	await expect.element(page.getByText(/"CUSTOM_ROOT": "\$HOUDINI_PATH\/bin"/)).toBeInTheDocument();
 

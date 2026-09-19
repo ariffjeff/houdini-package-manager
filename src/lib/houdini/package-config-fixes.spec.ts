@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { applyPackageConfigFixes } from './package-config-fixes';
+import { applyPackageConfigFixes, findPathAliasLocationIssue } from './package-config-fixes';
 
 describe('package config fixes', () => {
+	it('detects aliases outside their canonical JSON locations', () => {
+		expect(
+			findPathAliasLocationIssue({
+				hpath: 'C:/plugins',
+				env: [{ HOUDINI_PATH: 'C:/houdini' }]
+			})
+		).toBeNull();
+		expect(
+			findPathAliasLocationIssue({
+				env: [{ hpath: 'C:/plugins' }],
+				HOUDINI_PATH: 'C:/houdini'
+			})
+		).toEqual({ hpath: true, houdiniPath: true });
+	});
+
 	it('shows the exact result of migrating path when HOUDINI_PATH is also present', () => {
 		const config = {
 			path: 'C:/legacy/AJTools',
