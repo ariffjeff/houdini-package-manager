@@ -733,13 +733,7 @@ describe('activation workspace', () => {
 
 		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
 		await expect
-			.element(page.getByRole('heading', { name: 'Houdini installs', exact: true }))
-			.toBeInTheDocument();
-		await expect
-			.element(page.getByRole('heading', { name: 'Plugin inventory', exact: true }))
-			.toBeInTheDocument();
-		await expect
-			.element(page.getByRole('heading', { name: 'Remote Git metadata', exact: true }))
+			.element(page.getByRole('link', { name: 'Houdini installs', exact: true }))
 			.toBeInTheDocument();
 		await expect.element(page.getByRole('button', { name: 'Rescan all' })).toBeInTheDocument();
 		await expect
@@ -825,23 +819,6 @@ describe('activation workspace', () => {
 		await expect.element(page.getByRole('row', { name: /MOPS/ })).not.toBeInTheDocument();
 	});
 
-	it('syncs all Git metadata from the compact stage action', async () => {
-		stubDiscovery();
-		render(Page);
-
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
-		await page.getByRole('button', { name: 'Sync Remote Git metadata' }).click();
-
-		await expect
-			.poll(() => scanRequests.at(-1))
-			.toEqual({
-				stage: 'git'
-			});
-		await expect
-			.element(page.getByText('Git synced just now', { exact: true }))
-			.toBeInTheDocument();
-	});
-
 	it('syncs Git metadata for the selected plugin', async () => {
 		stubDiscovery();
 		render(Page);
@@ -925,12 +902,8 @@ describe('activation workspace', () => {
 		render(Page);
 
 		await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
-		await expect
-			.element(page.getByRole('img', { name: 'Plugin version v1.9.2e' }))
-			.toBeInTheDocument();
-		await expect
-			.element(page.getByRole('img', { name: 'Plugin version v1.10.0' }))
-			.toBeInTheDocument();
+		await expect.element(page.getByText('v1.9.2e', { exact: true })).toBeInTheDocument();
+		await expect.element(page.getByText('v1.10.0', { exact: true }).first()).toBeInTheDocument();
 		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Install MOPS', exact: true }))

@@ -758,6 +758,7 @@
 					<button
 						type="button"
 						class="rescan-button p-2"
+						aria-label="Rescan all"
 						disabled={isScanActive}
 						onclick={() => void runGlobalScan()}
 						data-tooltip="Run all discovery stages"
