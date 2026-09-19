@@ -1,9 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { X } from '@lucide/svelte';
+	import { ChevronDown, Tag, X } from '@lucide/svelte';
 	import type { ActivationTarget } from '$lib/activation-map/types';
 	import type { HoudiniInstall, PluginRecord } from '$lib/houdini/types';
-	import type { InstallDialogOptions, InstallDialogRequest, InstallDialogState } from './types';
+	import type {
+		InstallDialogOptions,
+		InstallDialogRequest,
+		InstallDialogState,
+		InstallVersionOption
+	} from './types';
 
 	type InstallDraft = {
 		version: string;
@@ -28,7 +33,7 @@
 		onInstall
 	} = $props<{
 		plugin: Pick<PluginRecord, 'id' | 'name'>;
-		versions: string[];
+		versions: InstallVersionOption[];
 		installs: HoudiniInstall[];
 		targets: ActivationTarget[];
 		remoteSourceOptions: string[];
@@ -51,8 +56,12 @@
 		openInstalledFolder: false,
 		openInstalledConfig: false
 	});
+	let versionMenuOpen = $state(false);
 
-	let requestedVersion = $derived(draft.version || versions[0] || '');
+	let requestedVersion = $derived(draft.version || versions[0]?.value || '');
+	let selectedVersion = $derived(
+		versions.find((version: InstallVersionOption) => version.value === requestedVersion)
+	);
 	let selectedInstallCount = $derived(
 		installs.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
 			.length
@@ -68,7 +77,7 @@
 	let canInstall = $derived(
 		installState !== 'working' &&
 			Boolean(requestedVersion) &&
-			versions.includes(requestedVersion) &&
+			versions.some((version: InstallVersionOption) => version.value === requestedVersion) &&
 			selectedInstallCount > 0 &&
 			Boolean(requestedDestination)
 	);
@@ -78,13 +87,58 @@
 	function resetDraft() {
 		const existingSource = remoteSourceOptions[0];
 		draft = {
-			version: versions[0] ?? '',
+			version: versions[0]?.value ?? '',
 			selectedInstallIds: installs.map((install: HoudiniInstall) => install.id),
 			destinationChoice: existingSource ?? 'custom',
 			customDestination: existingSource ?? '',
 			openInstalledFolder: false,
 			openInstalledConfig: false
 		};
+	}
+
+	function selectVersion(version: string) {
+		draft.version = version;
+		versionMenuOpen = false;
+	}
+
+	function focusVersionOption(index: number) {
+		const option = document.querySelector<HTMLElement>(
+			`[data-version-option="${CSS.escape(String(index))}"]`
+		);
+		option?.focus();
+	}
+
+	function handleVersionTriggerKeydown(event: KeyboardEvent) {
+		if (installState === 'working') return;
+		if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			versionMenuOpen = true;
+			return;
+		}
+		if (event.key === 'Escape') versionMenuOpen = false;
+	}
+
+	function handleVersionOptionKeydown(event: KeyboardEvent, index: number, value: string) {
+		if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			focusVersionOption(Math.min(index + 1, versions.length - 1));
+		} else if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			focusVersionOption(Math.max(index - 1, 0));
+		} else if (event.key === 'Home') {
+			event.preventDefault();
+			focusVersionOption(0);
+		} else if (event.key === 'End') {
+			event.preventDefault();
+			focusVersionOption(versions.length - 1);
+		} else if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			selectVersion(value);
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			versionMenuOpen = false;
+			document.getElementById('install-version-trigger')?.focus();
+		}
 	}
 
 	function closeDialog() {
@@ -177,12 +231,51 @@
 		</div>
 		<div class="install-dialog-content">
 			<label class="install-dialog-field">
-				<span>Version</span>
-				<select bind:value={draft.version} disabled={installState === 'working'}>
-					{#each versions as version (version)}
-						<option value={version}>{version}</option>
-					{/each}
-				</select>
+				<span id="install-version-label">Version</span>
+				<div class="version-select">
+					<button
+						id="install-version-trigger"
+						type="button"
+						class="version-select-trigger"
+						role="combobox"
+						aria-labelledby="install-version-label install-version-value"
+						aria-controls="install-version-options"
+						aria-expanded={versionMenuOpen}
+						aria-haspopup="listbox"
+						disabled={installState === 'working'}
+						onclick={() => (versionMenuOpen = !versionMenuOpen)}
+						onkeydown={handleVersionTriggerKeydown}
+					>
+						<span id="install-version-value" class="version-select-value">
+							{#if selectedVersion?.kind === 'tag'}
+								<Tag size={14} strokeWidth={1.8} aria-hidden="true" />
+							{/if}
+							{selectedVersion?.value || 'Choose a version'}
+						</span>
+						<ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" />
+					</button>
+					{#if versionMenuOpen}
+						<div id="install-version-options" class="version-select-menu" role="listbox">
+							{#each versions as version, index (version.value)}
+								<button
+									type="button"
+									class="version-select-option"
+									class:is-selected={version.value === requestedVersion}
+									role="option"
+									aria-selected={version.value === requestedVersion}
+									data-version-option={index}
+									onclick={() => selectVersion(version.value)}
+									onkeydown={(event) => handleVersionOptionKeydown(event, index, version.value)}
+								>
+									{#if version.kind === 'tag'}
+										<Tag size={14} strokeWidth={1.8} aria-hidden="true" />
+									{/if}
+									<span>{version.value}</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
 			</label>
 
 			<fieldset class="install-dialog-fieldset">
@@ -448,7 +541,6 @@
 		text-transform: uppercase;
 	}
 
-	.install-dialog-field select,
 	.install-destination-input {
 		width: 100%;
 		min-width: 0;
@@ -458,6 +550,79 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		font-size: 11px;
+	}
+
+	.version-select {
+		position: relative;
+	}
+
+	.version-select-trigger {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		padding: 9px 10px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
+		font: inherit;
+		font-size: 11px;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.version-select-trigger:hover:not(:disabled),
+	.version-select-trigger:focus-visible {
+		border-color: var(--line-strong);
+		outline: none;
+	}
+
+	.version-select-trigger:disabled {
+		cursor: wait;
+		opacity: 0.6;
+	}
+
+	.version-select-value,
+	.version-select-option {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+	}
+
+	.version-select-menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		right: 0;
+		left: 0;
+		z-index: 4;
+		max-height: 220px;
+		overflow-y: auto;
+		padding: 4px;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		box-shadow: 0 14px 32px rgba(0, 0, 0, 0.34);
+	}
+
+	.version-select-option {
+		width: 100%;
+		padding: 8px 9px;
+		border: 0;
+		background: transparent;
+		color: var(--text);
+		font: inherit;
+		font-size: 11px;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.version-select-option:hover,
+	.version-select-option:focus-visible,
+	.version-select-option.is-selected {
+		background: rgba(57, 155, 130, 0.14);
+		outline: none;
 	}
 
 	.install-dialog-fieldset {

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { availablePluginUpdates } from './plugin-detail';
+import { availablePluginUpdates, isGitTagVersion } from './plugin-detail';
+
+describe('isGitTagVersion', () => {
+	it('distinguishes tags from commit descriptions and hashes', () => {
+		expect(isGitTagVersion('v1.2')).toBe(true);
+		expect(isGitTagVersion('v1.2-9-gdc60096')).toBe(false);
+		expect(isGitTagVersion('v1.2-9-gdc60096-dirty')).toBe(false);
+		expect(isGitTagVersion('dc60096')).toBe(false);
+	});
+});
 
 describe('availablePluginUpdates', () => {
 	it('does not report the base tag for an untagged commit ahead of it', () => {

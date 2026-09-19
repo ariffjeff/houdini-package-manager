@@ -79,6 +79,11 @@ export function availablePluginUpdates(
 	return availableVersions.filter((version) => !installedVersions.has(version));
 }
 
+export function isGitTagVersion(version: string): boolean {
+	const cleanVersion = version.replace(/-dirty$/, '');
+	return !/^[0-9a-f]{7,40}$/i.test(cleanVersion) && !/^.+-\d+-g[0-9a-f]+$/i.test(cleanVersion);
+}
+
 function gitDescribeTag(ref: string | undefined): string | null {
 	if (!ref) return null;
 

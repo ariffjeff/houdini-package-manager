@@ -913,9 +913,11 @@ describe('activation workspace', () => {
 			.toBeInTheDocument();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
 
-		await page.getByRole('combobox', { name: 'Version' }).selectOptions('v1.9.2e');
+		await page.getByRole('combobox', { name: 'Version' }).click();
+		await page.getByRole('option', { name: 'v1.9.2e', exact: true }).click();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
-		await page.getByRole('combobox', { name: 'Version' }).selectOptions('v1.10.0');
+		await page.getByRole('combobox', { name: 'Version' }).click();
+		await page.getByRole('option', { name: 'v1.10.0', exact: true }).click();
 
 		await page.getByRole('checkbox', { name: /Houdini 21\.0/ }).click();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(1);

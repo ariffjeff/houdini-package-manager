@@ -17,6 +17,7 @@
 	import {
 		availablePluginUpdates,
 		createPluginTargetGroups,
+		isGitTagVersion,
 		type PluginDetailAction,
 		type PluginDetailActionState
 	} from '$lib/activation-map/plugin-detail';
@@ -37,7 +38,11 @@
 	} from '$lib/activation-map/types';
 	import { targetIssueMessages, targetIssueSummary } from '$lib/houdini/known-issues';
 	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
-	import type { InstallDialogOptions, InstallDialogRequest } from '$lib/plugin-install/types';
+	import type {
+		InstallDialogOptions,
+		InstallDialogRequest,
+		InstallVersionOption
+	} from '$lib/plugin-install/types';
 	import logo from '$lib/assets/hpm.svg';
 	import {
 		fetchHoudiniDiscoverySnapshot,
@@ -191,6 +196,12 @@
 		selectedNode?.data.kind === 'official' ? activationPlugins.filter(isOfficialPlugin) : []
 	);
 	let selectedPluginVersions = $derived(selectedPlugin?.availableVersions ?? []);
+	let selectedPluginVersionOptions = $derived<InstallVersionOption[]>(
+		selectedPluginVersions.map((version) => ({
+			value: version,
+			kind: isGitTagVersion(version) ? 'tag' : 'commit'
+		}))
+	);
 	let selectedPluginUpdates = $derived(
 		selectedPlugin ? availablePluginUpdates(selectedPlugin) : []
 	);
@@ -981,7 +992,7 @@
 	{#if installDialogOpen && selectedPlugin}
 		<PluginInstallDialog
 			plugin={selectedPlugin}
-			versions={selectedPluginVersions}
+			versions={selectedPluginVersionOptions}
 			installs={activationInstalls}
 			targets={activationTargets}
 			{remoteSourceOptions}
