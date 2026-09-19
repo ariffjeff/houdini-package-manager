@@ -597,7 +597,6 @@
 		right: 0;
 		left: 0;
 		z-index: 4;
-		max-height: 220px;
 		overflow-y: auto;
 		padding: 4px;
 		border: 1px solid var(--line-strong);
