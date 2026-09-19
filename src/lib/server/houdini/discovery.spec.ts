@@ -288,7 +288,7 @@ UNSET_VALUE := '<not defined>'
 		expect(merged.stalePaths).toEqual([missingPath]);
 	});
 
-	it('prefers explicit package versions over Git metadata', () => {
+	it('uses Git metadata instead of unsupported package versions', () => {
 		const git = {
 			ref: 'v1.10.0',
 			tag: null,
@@ -300,13 +300,13 @@ UNSET_VALUE := '<not defined>'
 			availableVersions: ['v1.10.0']
 		};
 
-		expect(resolvePluginVersion('MOPS.json', null, git)).toEqual({
+		expect(resolvePluginVersion('MOPS.json', git)).toEqual({
 			version: 'v1.10.0',
 			source: 'git'
 		});
-		expect(resolvePluginVersion('MOPS.json', '2.0.0', git)).toEqual({
+		expect(resolvePluginVersion('MOPS-2.0.0.json', null)).toEqual({
 			version: '2.0.0',
-			source: 'package'
+			source: 'filename'
 		});
 	});
 

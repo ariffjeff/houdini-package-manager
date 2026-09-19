@@ -814,18 +814,13 @@ async function readPackageConfigs(
 				error = `Invalid package JSON: ${caught instanceof Error ? caught.message : String(caught)}`;
 			}
 
-			const declaredVersion = parsed ? declaredPackageVersion(parsed.version) : null;
 			const pathAliasLocationIssue = parsed ? findPathAliasLocationIssue(parsed) : null;
 			const inspectedSources = await inspectGitSources(
 				parsed ? resolvePackagePaths(parsed, variables, directory) : [],
 				gitCache,
 				options.syncRemoteGit ?? true
 			);
-			const sourceRecords = inspectedSources.map(({ source }) =>
-				declaredVersion && source.exists && !source.version
-					? { ...source, version: declaredVersion, versionSource: 'package' as const }
-					: source
-			);
+			const sourceRecords = inspectedSources.map(({ source }) => source);
 			const stalePaths = inspectedSources
 				.filter(({ source }) => !source.exists && isManagedHpmPath(source.path, parsed))
 				.map(({ source }) => source.path);
@@ -838,7 +833,7 @@ async function readPackageConfigs(
 			const missingPaths = visibleSources
 				.filter((source) => !source.exists)
 				.map((source) => source.path);
-			const versionInfo = resolvePluginVersion(entry.name, declaredVersion, git);
+			const versionInfo = resolvePluginVersion(entry.name, git);
 			const installedVersions = uniqueStrings(
 				sourceRecords
 					.filter((source) => source.exists && source.version)
@@ -1479,18 +1474,10 @@ function formatPackageName(fileName: string): string {
 		.replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
-function declaredPackageVersion(value: unknown): string | null {
-	if (typeof value !== 'string' && typeof value !== 'number') return null;
-	const version = String(value).trim();
-	return version && version.toLowerCase() !== 'unversioned' ? version : null;
-}
-
 export function resolvePluginVersion(
 	fileName: string,
-	declaredVersion: string | null,
 	git: GitMetadata | null
 ): { version: string; source: PluginVersionSource } {
-	if (declaredVersion) return { version: declaredVersion, source: 'package' };
 	if (git) return { version: git.ref, source: 'git' };
 
 	const filenameVersion = packageVersion(fileName);

@@ -47,6 +47,7 @@ export function applyPackageConfigFixes(
 	plan: PackageConfigFixPlan
 ): Record<string, unknown> {
 	const packageValue = cloneJsonRecord(config);
+	delete packageValue.version;
 	const shouldWriteHpath = plan.writeHpath !== false;
 	const targetAlias = plan.pathAlias ?? 'hpath';
 

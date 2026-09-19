@@ -21,6 +21,7 @@ describe('package config fixes', () => {
 		const config = {
 			path: 'C:/legacy/AJTools',
 			HOUDINI_PATH: 'C:/houdini',
+			version: '2.0.0',
 			enable: false
 		};
 
@@ -33,6 +34,7 @@ describe('package config fixes', () => {
 		expect(config).toEqual({
 			path: 'C:/legacy/AJTools',
 			HOUDINI_PATH: 'C:/houdini',
+			version: '2.0.0',
 			enable: false
 		});
 	});

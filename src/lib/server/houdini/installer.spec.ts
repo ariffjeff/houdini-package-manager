@@ -371,6 +371,11 @@ describe('Houdini plugin actions', () => {
 				mkdir(directory, { recursive: true })
 			)
 		);
+		await writeFile(
+			path.join(packageDirectories[0], 'AJTools.json'),
+			JSON.stringify({ version: '2.0.0' }),
+			'utf8'
+		);
 
 		const installs = ['19.5', '20.0', '21.0'].map((version, index) => ({
 			id: `install:${version}`,
@@ -445,6 +450,7 @@ describe('Houdini plugin actions', () => {
 				hpath: path.normalize(destinationPath),
 				hpm: { managed: true, repository: repositoryUrl, version: 'v1.0.0' }
 			});
+			expect(packageValue.version).toBeUndefined();
 			expect(packageValue.path).toBeUndefined();
 			expect(packageValue.enable).toBeUndefined();
 		}
