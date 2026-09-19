@@ -37,6 +37,7 @@
 		pluginTargetGroups,
 		pluginGitSource,
 		pluginVersions,
+		pluginUpdates,
 		activationPlugins,
 		isScanActive,
 		pluginScanState,
@@ -59,6 +60,7 @@
 		pluginTargetGroups: PluginTargetGroup[];
 		pluginGitSource?: PluginSource;
 		pluginVersions: string[];
+		pluginUpdates: string[];
 		activationPlugins: PluginRecord[];
 		isScanActive: boolean;
 		pluginScanState: PluginDetailActionState;
@@ -278,13 +280,13 @@
 							</a>
 						{/if}
 						{#if pluginVersions.length}
-							{#if !plugin.installedVersions?.includes(pluginVersions[0])}
+							{#if pluginUpdates.length}
 								<span class="new-version-note">
 									New:
-									{#if pluginGitSource?.availableVersions?.includes(pluginVersions[0])}
+									{#if pluginGitSource?.availableVersions?.includes(pluginUpdates[0])}
 										<Tag size={13} strokeWidth={2} aria-hidden="true" />
 									{/if}
-									<span>{pluginVersions[0]}</span>
+									<span>{pluginUpdates[0]}</span>
 								</span>
 							{/if}
 							<button

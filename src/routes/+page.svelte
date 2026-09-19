@@ -15,6 +15,7 @@
 		OFFICIAL_NODE_ID
 	} from '$lib/activation-map/model';
 	import {
+		availablePluginUpdates,
 		createPluginTargetGroups,
 		type PluginDetailAction,
 		type PluginDetailActionState
@@ -190,6 +191,9 @@
 		selectedNode?.data.kind === 'official' ? activationPlugins.filter(isOfficialPlugin) : []
 	);
 	let selectedPluginVersions = $derived(selectedPlugin?.availableVersions ?? []);
+	let selectedPluginUpdates = $derived(
+		selectedPlugin ? availablePluginUpdates(selectedPlugin) : []
+	);
 	let remoteSourceOptions = $derived.by(() => {
 		const sourcePaths = (selectedPlugin?.sources ?? [])
 			.filter((source) => source.exists)
@@ -929,6 +933,7 @@
 							(source) => source.exists && source.versionSource === 'git'
 						)}
 						pluginVersions={selectedPluginVersions}
+						pluginUpdates={selectedPluginUpdates}
 						{activationPlugins}
 						{isScanActive}
 						{pluginScanState}

@@ -64,6 +64,55 @@ export function installedVersionLabel(plugin: PluginRecord): string {
 	return 'No version';
 }
 
+export function availablePluginUpdates(
+	plugin: Pick<PluginRecord, 'availableVersions' | 'installedVersions' | 'gitRef' | 'version'>
+): string[] {
+	const availableVersions = plugin.availableVersions ?? [];
+	if (!availableVersions.length) return [];
+
+	const currentTag = gitDescribeTag(plugin.gitRef ?? plugin.version);
+	if (currentTag) {
+		return availableVersions.filter((version) => compareVersionLabels(version, currentTag) > 0);
+	}
+
+	const installedVersions = new Set(plugin.installedVersions ?? []);
+	return availableVersions.filter((version) => !installedVersions.has(version));
+}
+
+function gitDescribeTag(ref: string | undefined): string | null {
+	if (!ref) return null;
+
+	const cleanRef = ref.replace(/-dirty$/, '');
+	const describedTag = cleanRef.match(/^(.+)-(\d+)-g[0-9a-f]+$/i)?.[1];
+	if (describedTag) return describedTag;
+	if (/^[0-9a-f]{7,40}$/i.test(cleanRef) || cleanRef === 'git') return null;
+	return cleanRef;
+}
+
+function compareVersionLabels(left: string, right: string): number {
+	const leftTokens = left.match(/\d+|\D+/g) ?? [left];
+	const rightTokens = right.match(/\d+|\D+/g) ?? [right];
+
+	for (let index = 0; index < Math.max(leftTokens.length, rightTokens.length); index += 1) {
+		const leftToken = leftTokens[index];
+		const rightToken = rightTokens[index];
+		if (leftToken === undefined) return -1;
+		if (rightToken === undefined) return 1;
+
+		const leftNumber = /^\d+$/.test(leftToken) ? Number(leftToken) : null;
+		const rightNumber = /^\d+$/.test(rightToken) ? Number(rightToken) : null;
+		if (leftNumber !== null && rightNumber !== null) {
+			if (leftNumber !== rightNumber) return leftNumber - rightNumber;
+			continue;
+		}
+
+		const comparison = leftToken.localeCompare(rightToken);
+		if (comparison) return comparison;
+	}
+
+	return 0;
+}
+
 export function sourceTargets(
 	plugin: PluginRecord | undefined,
 	groups: PluginTargetGroup[],
