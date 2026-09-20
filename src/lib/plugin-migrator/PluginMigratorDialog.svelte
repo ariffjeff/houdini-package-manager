@@ -23,9 +23,14 @@
 	let selectedPluginIds = $state<string[]>([]);
 	let pluginQuery = $state('');
 	let activeSourceInstallId = $derived(sourceInstallId || installs[0]?.id || '');
+	let migratablePlugins = $derived(
+		plugins.filter(
+			(plugin: PluginRecord) => plugin.origin !== 'install' && plugin.origin !== 'site'
+		)
+	);
 
 	let sourcePlugins = $derived(
-		plugins.filter((plugin: PluginRecord) =>
+		migratablePlugins.filter((plugin: PluginRecord) =>
 			targets.some(
 				(target: ActivationTarget) =>
 					target.pluginId === plugin.id &&
@@ -40,12 +45,12 @@
 	let visiblePlugins = $derived.by(() => {
 		const query = pluginQuery.trim().toLowerCase();
 		return query
-			? plugins.filter((plugin: PluginRecord) =>
+			? migratablePlugins.filter((plugin: PluginRecord) =>
 					[plugin.name, plugin.id, plugin.packageFile].some((value) =>
 						value.toLowerCase().includes(query)
 					)
 				)
-			: plugins;
+			: migratablePlugins;
 	});
 	let allAvailableSelected = $derived(
 		sourcePlugins.length > 0 &&

@@ -223,7 +223,7 @@ function stubDiscovery(
 					JSON.stringify({
 						message:
 							request.action === 'migrate-configs'
-								? 'Copied 3 plugin configs to 2 Houdini installs.'
+								? 'Copied 2 plugin configs to 2 Houdini installs.'
 								: request.action === 'set-enabled'
 									? `MOPS ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`
 									: request.action === 'get-config'
@@ -347,6 +347,7 @@ it('opens the Plugin Migrator and copies all available plugins to selected insta
 	await page.getByRole('button', { name: 'Open Plugin Migrator' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Plugin Migrator' });
 	await expect.element(dialog).toBeInTheDocument();
+	await expect.element(dialog.getByText('Apex', { exact: true })).not.toBeInTheDocument();
 	await expect
 		.element(dialog.getByRole('combobox', { name: 'Source Houdini install' }))
 		.toHaveValue('install:houdini-21.0-455-test');
@@ -361,10 +362,10 @@ it('opens the Plugin Migrator and copies all available plugins to selected insta
 			action: 'migrate-configs',
 			sourceInstallId: 'install:houdini-21.0-455-test',
 			destinationInstallIds: ['install:houdini-20.0-500-test', 'install:houdini-21.5-600-test'],
-			pluginIds: ['package:mops', 'package:qlib', 'package:apex']
+			pluginIds: ['package:mops', 'package:qlib']
 		});
 	await expect
-		.element(dialog.getByText('Copied 3 plugin configs to 2 Houdini installs.', { exact: true }))
+		.element(dialog.getByText('Copied 2 plugin configs to 2 Houdini installs.', { exact: true }))
 		.toBeInTheDocument();
 });
 
