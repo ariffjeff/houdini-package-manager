@@ -1,7 +1,7 @@
 <script lang="ts">
 	import {
 		Check,
-		CloudSync,
+		CloudDownload,
 		Cog,
 		FileCog,
 		FolderCode,
@@ -261,7 +261,7 @@
 									void onSyncGit();
 								}}
 							>
-								<CloudSync
+								<CloudDownload
 									class="detail-meta-icon"
 									size={22}
 									strokeWidth={1.8}
