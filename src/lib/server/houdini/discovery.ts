@@ -1124,7 +1124,11 @@ export function resolvePackagePaths(
 	variables: Record<string, string>,
 	packageDirectory: string
 ): string[] {
-	const packageVariables = { ...variables, ...packageEnvironment(value.env) };
+	const packageVariables = {
+		...variables,
+		...packageEnvironment(value.env),
+		HOUDINI_PACKAGE_PATH: packageDirectory
+	};
 	const rawPaths = [
 		...stringValues(value.path),
 		...stringValues(value.hpath),

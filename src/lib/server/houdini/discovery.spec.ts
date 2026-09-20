@@ -204,6 +204,13 @@ CUSTOM_HOUDINI_VAR := 'custom'
 				packageDirectory
 			)
 		).toEqual([pluginDirectory, toolsDirectory]);
+		expect(
+			resolvePackagePaths(
+				{ env: [{ HOUDINI_PATH: '$HOUDINI_PACKAGE_PATH/../tools' }] },
+				{},
+				packageDirectory
+			)
+		).toEqual([path.join(packageDirectory, '..', 'tools')]);
 	});
 
 	it('detects hpath and HOUDINI_PATH alias dependencies in package JSON', () => {
