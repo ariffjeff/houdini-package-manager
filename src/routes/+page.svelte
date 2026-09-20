@@ -9,6 +9,7 @@
 	import type { TargetIssueDetails } from '$lib/activation-map/target-issue-dialog';
 	import LiveJsonEditor from '$lib/live-json-editor/LiveJsonEditor.svelte';
 	import PluginInstallDialog from '$lib/plugin-install/PluginInstallDialog.svelte';
+	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
 	import {
 		createActivationGraph,
 		isOfficialPlugin,
@@ -39,7 +40,7 @@
 		PluginRecord
 	} from '$lib/activation-map/types';
 	import { targetIssueMessages, targetIssueSummary } from '$lib/houdini/known-issues';
-	import type { HoudiniDiscoveryResponse } from '$lib/houdini/types';
+	import type { HoudiniDiscoveryResponse, HoudiniPluginMigrationRequest } from '$lib/houdini/types';
 	import type {
 		InstallDialogOptions,
 		InstallDialogRequest,
@@ -52,7 +53,7 @@
 		runHoudiniPluginAction,
 		scanHoudiniWorkspace
 	} from '$lib/houdini/client';
-	import { Play, CloudDownload, Search } from '@lucide/svelte';
+	import { Play, CloudDownload, Search, ArrowRightLeft } from '@lucide/svelte';
 
 	type ViewMode = 'map' | 'table';
 	type ScanStage = 'installs' | 'plugins' | 'git';
@@ -113,6 +114,9 @@
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
 	let installController: AbortController | null = null;
+	let pluginMigratorOpen = $state(false);
+	let migrationState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
+	let migrationMessage = $state('');
 	let gitSyncState = $state<PluginDetailActionState>('idle');
 	let gitSyncMessage = $state('');
 	let pluginScanState = $state<PluginDetailActionState>('idle');
@@ -486,12 +490,44 @@
 		installDialogOpen = false;
 	}
 
+	function openPluginMigrator() {
+		if (isScanActive || !activationInstalls.length || !activationPlugins.length) return;
+		migrationState = 'idle';
+		migrationMessage = '';
+		pluginMigratorOpen = true;
+	}
+
+	function closePluginMigrator() {
+		if (migrationState === 'working') return;
+		pluginMigratorOpen = false;
+	}
+
 	function handleWindowKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape') return;
+		if (pluginMigratorOpen && migrationState !== 'working') {
+			closePluginMigrator();
+			return;
+		}
 		if (issuesDialogOpen) closeIssuesDialog();
 		if (targetIssueDetails) closeTargetIssueDetails();
 		if (liveJsonEditorContext) closeTargetConfigDialog();
 		if (installDialogOpen && installState !== 'working') closeInstallDialog();
+	}
+
+	async function migratePlugins(request: HoudiniPluginMigrationRequest) {
+		if (migrationState === 'working') return;
+
+		migrationState = 'working';
+		migrationMessage = '';
+		try {
+			const result = await runHoudiniPluginAction(request);
+			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
+			migrationState = 'success';
+			migrationMessage = result.message;
+		} catch (error) {
+			migrationState = 'error';
+			migrationMessage = getErrorMessage(error);
+		}
 	}
 
 	async function rescanSelectedPluginConfigs() {
@@ -890,6 +926,18 @@
 							<span class="search-icon">/</span>
 							<input bind:value={searchQuery} type="search" placeholder="Filter library" />
 						</label>
+						<button
+							type="button"
+							class="rescan-button p-2"
+							aria-label="Open Plugin Migrator"
+							aria-haspopup="dialog"
+							aria-expanded={pluginMigratorOpen}
+							disabled={isScanActive || !activationInstalls.length || !activationPlugins.length}
+							onclick={openPluginMigrator}
+							data-tooltip="Plugin Migrator"
+						>
+							<ArrowRightLeft />
+						</button>
 					</div>
 				</div>
 			</div>
@@ -1014,6 +1062,17 @@
 			onClose={closeInstallDialog}
 			onCancel={cancelInstall}
 			onInstall={(request, options) => void installSelectedPlugin(request, options)}
+		/>
+	{/if}
+	{#if pluginMigratorOpen}
+		<PluginMigratorDialog
+			plugins={activationPlugins}
+			installs={activationInstalls}
+			targets={activationTargets}
+			{migrationState}
+			message={migrationMessage}
+			onClose={closePluginMigrator}
+			onMigrate={(request) => void migratePlugins(request)}
 		/>
 	{/if}
 	{#if issuesDialogOpen}

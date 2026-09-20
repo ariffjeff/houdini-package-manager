@@ -12,8 +12,11 @@ let installRequests: Array<{
 }> = [];
 let pluginActionRequests: Array<{
 	action: string;
-	pluginId: string;
+	pluginId?: string;
 	installId?: string;
+	sourceInstallId?: string;
+	destinationInstallIds?: string[];
+	pluginIds?: string[];
 	sourcePath?: string;
 	enabled?: boolean;
 	hpath?: string;
@@ -196,8 +199,11 @@ function stubDiscovery(
 			if (requestPath === '/__hpm/houdini/plugin-action') {
 				const request = JSON.parse(String(init?.body)) as {
 					action: string;
-					pluginId: string;
+					pluginId?: string;
 					installId?: string;
+					sourceInstallId?: string;
+					destinationInstallIds?: string[];
+					pluginIds?: string[];
 					sourcePath?: string;
 					enabled?: boolean;
 					hpath?: string;
@@ -216,16 +222,20 @@ function stubDiscovery(
 				return new Response(
 					JSON.stringify({
 						message:
-							request.action === 'set-enabled'
-								? `MOPS ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`
-								: request.action === 'get-config'
-									? 'Loaded MOPS.json.'
-									: request.action === 'update-config'
-										? 'Updated MOPS.json.'
-										: 'Plugin refreshed',
+							request.action === 'migrate-configs'
+								? 'Copied 3 plugin configs to 2 Houdini installs.'
+								: request.action === 'set-enabled'
+									? `MOPS ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`
+									: request.action === 'get-config'
+										? 'Loaded MOPS.json.'
+										: request.action === 'update-config'
+											? 'Updated MOPS.json.'
+											: 'Plugin refreshed',
 						config: request.action === 'get-config' ? config : undefined,
 						discovery:
-							request.action === 'set-enabled' || request.action === 'update-config'
+							request.action === 'migrate-configs' ||
+							request.action === 'set-enabled' ||
+							request.action === 'update-config'
 								? {
 										...response,
 										targets: response.targets.map((target) =>
@@ -298,6 +308,65 @@ function stubDiscovery(
 		})
 	);
 }
+
+it('opens the Plugin Migrator and copies all available plugins to selected installs', async () => {
+	const migrationResponse = {
+		...discoveryResponse,
+		installs: [
+			discoveryResponse.installs[0],
+			{
+				...discoveryResponse.installs[0],
+				id: 'install:houdini-20.0-500-test',
+				label: 'Houdini 20.0',
+				version: '20.0',
+				userPreferences: 'C:/Users/test/Documents/houdini20.0',
+				packageDirectory: 'C:/Users/test/Documents/houdini20.0/packages',
+				packageRoots: [
+					{ path: 'C:/Users/test/Documents/houdini20.0/packages', origin: 'user' as const }
+				],
+				packageFiles: []
+			},
+			{
+				...discoveryResponse.installs[0],
+				id: 'install:houdini-21.5-600-test',
+				label: 'Houdini 21.5',
+				version: '21.5',
+				userPreferences: 'C:/Users/test/Documents/houdini21.5',
+				packageDirectory: 'C:/Users/test/Documents/houdini21.5/packages',
+				packageRoots: [
+					{ path: 'C:/Users/test/Documents/houdini21.5/packages', origin: 'user' as const }
+				],
+				packageFiles: []
+			}
+		]
+	} as typeof discoveryResponse;
+	stubDiscovery(migrationResponse);
+	render(Page);
+
+	await expect.element(page.getByText('3 installs scanned')).toBeInTheDocument();
+	await page.getByRole('button', { name: 'Open Plugin Migrator' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Plugin Migrator' });
+	await expect.element(dialog).toBeInTheDocument();
+	await expect
+		.element(dialog.getByRole('combobox', { name: 'Source Houdini install' }))
+		.toHaveValue('install:houdini-21.0-455-test');
+
+	await dialog.getByRole('button', { name: 'All', exact: true }).click();
+	await dialog.getByRole('button', { name: 'Select all available', exact: true }).click();
+	await dialog.getByRole('button', { name: 'Copy plugin configs', exact: true }).click();
+
+	await expect
+		.poll(() => pluginActionRequests.at(-1))
+		.toEqual({
+			action: 'migrate-configs',
+			sourceInstallId: 'install:houdini-21.0-455-test',
+			destinationInstallIds: ['install:houdini-20.0-500-test', 'install:houdini-21.5-600-test'],
+			pluginIds: ['package:mops', 'package:qlib', 'package:apex']
+		});
+	await expect
+		.element(dialog.getByText('Copied 3 plugin configs to 2 Houdini installs.', { exact: true }))
+		.toBeInTheDocument();
+});
 
 it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => {
 	stubDiscovery(discoveryResponse, null, {

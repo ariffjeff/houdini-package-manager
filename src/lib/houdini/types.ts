@@ -143,7 +143,15 @@ export type InstallPluginResponse = {
 	discovery: HoudiniDiscoveryResponse;
 };
 
+export type HoudiniPluginMigrationRequest = {
+	action: 'migrate-configs';
+	sourceInstallId: string;
+	destinationInstallIds: string[];
+	pluginIds: string[];
+};
+
 export type HoudiniPluginAction =
+	| HoudiniPluginMigrationRequest
 	| { action: 'open-config'; pluginId: string; installId: string }
 	| { action: 'get-config'; pluginId: string; installId: string }
 	| ({

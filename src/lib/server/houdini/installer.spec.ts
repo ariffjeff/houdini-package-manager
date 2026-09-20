@@ -537,6 +537,73 @@ describe('Houdini plugin actions', () => {
 		expect(JSON.parse(await readFile(houdini20Package, 'utf8')).enable).toBe(false);
 	});
 
+	it('copies selected package configs from one install to multiple destinations', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-plugin-migration-'));
+		temporaryDirectories.push(root);
+		const packageDirectories = ['20.0', '21.0', '21.5'].map((version) =>
+			path.join(root, 'Documents', `houdini${version}`, 'packages')
+		);
+		await Promise.all(packageDirectories.map((directory) => mkdir(directory, { recursive: true })));
+		const sourcePackage = path.join(packageDirectories[0], 'MOPS.json');
+		await writeFile(
+			sourcePackage,
+			'{"hpath":"C:/plugins/MOPS","enable":false,"custom":{"keep":true}}\n',
+			'utf8'
+		);
+
+		const sourceInstallId = 'install:20.0';
+		const destinationInstallIds = ['install:21.0', 'install:21.5'];
+		const pluginId = 'package:mops';
+		const installs = ['20.0', '21.0', '21.5'].map((version, index) => ({
+			id: `install:${version}`,
+			label: `Houdini ${version}`,
+			version,
+			packageDirectory: packageDirectories[index],
+			packageRoots: [{ path: packageDirectories[index], origin: 'user' as const }]
+		}));
+		const discovery = {
+			installs,
+			plugins: [{ id: pluginId, name: 'MOPS', packageFile: 'MOPS.json' }],
+			targets: [
+				{
+					pluginId,
+					installId: sourceInstallId,
+					packagePath: sourcePackage,
+					packageFile: 'MOPS.json'
+				}
+			]
+		} as unknown as HoudiniDiscoveryResponse;
+		discoveryMocks.scanHoudiniWorkspace
+			.mockResolvedValueOnce(discovery)
+			.mockResolvedValueOnce(discovery);
+
+		const result = await runHoudiniPluginAction({
+			action: 'migrate-configs',
+			sourceInstallId,
+			destinationInstallIds,
+			pluginIds: [pluginId]
+		});
+
+		expect(result.message).toBe('Copied 1 plugin config to 2 Houdini installs.');
+		for (const destinationDirectory of packageDirectories.slice(1)) {
+			expect(
+				JSON.parse(await readFile(path.join(destinationDirectory, 'MOPS.json'), 'utf8'))
+			).toEqual({
+				hpath: 'C:/plugins/MOPS',
+				enable: false,
+				custom: { keep: true }
+			});
+		}
+		expect(discoveryMocks.scanHoudiniWorkspace).toHaveBeenNthCalledWith(1, {
+			stage: 'plugins',
+			pluginIds: [pluginId]
+		});
+		expect(discoveryMocks.scanHoudiniWorkspace).toHaveBeenNthCalledWith(2, {
+			stage: 'plugins',
+			pluginIds: [pluginId]
+		});
+	});
+
 	it('updates an existing HOUDINI_PATH alias instead of adding hpath', async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-plugin-install-alias-'));
 		temporaryDirectories.push(root);
