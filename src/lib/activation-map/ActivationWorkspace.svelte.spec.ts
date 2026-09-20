@@ -322,7 +322,7 @@ it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => 
 		.element(page.getByRole('combobox', { name: 'Local plugin source alias' }))
 		.toHaveValue('hpath');
 
-	await page.getByRole('checkbox', { name: /Remove deprecated path key/ }).click();
+	await page.getByText(/The deprecated path key will be removed and replaced with/).click();
 	await expect
 		.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
 		.toHaveClass(/is-removed/);

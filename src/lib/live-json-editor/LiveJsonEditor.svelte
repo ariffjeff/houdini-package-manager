@@ -247,6 +247,14 @@
 		return editor.applySourcePathFix ? editor.sourcePathFixPath : editor.hpath;
 	}
 
+	function toggleFixCard(event: MouseEvent | KeyboardEvent, toggle: () => void): void {
+		if (editor.state === 'loading' || editor.state === 'saving') return;
+		if (event.target instanceof HTMLElement && event.target.closest('input, label, select')) return;
+		if (event instanceof KeyboardEvent && event.key !== 'Enter' && event.key !== ' ') return;
+		if (event instanceof KeyboardEvent) event.preventDefault();
+		toggle();
+	}
+
 	function recommendedPathResolution(
 		conflict: PackagePathAliasConflict | null | undefined
 	): PathAliasResolution {
@@ -452,7 +460,22 @@
 						</div>
 					</div>
 					{#if editor.pathAliasLocationIssue}
-						<div class="config-fix-option">
+						<div
+							class="config-fix-option"
+							role="button"
+							tabindex="0"
+							aria-pressed={editor.applyPathAliasLocationFix}
+							onclick={(event) =>
+								toggleFixCard(
+									event,
+									() => (editor.applyPathAliasLocationFix = !editor.applyPathAliasLocationFix)
+								)}
+							onkeydown={(event) =>
+								toggleFixCard(
+									event,
+									() => (editor.applyPathAliasLocationFix = !editor.applyPathAliasLocationFix)
+								)}
+						>
 							<label class="config-fix-toggle">
 								<input
 									type="checkbox"
@@ -469,7 +492,22 @@
 						</div>
 					{/if}
 					{#if editor.sourcePathFixCandidates.length}
-						<div class="config-fix-option">
+						<div
+							class="config-fix-option"
+							role="button"
+							tabindex="0"
+							aria-pressed={editor.applySourcePathFix}
+							onclick={(event) =>
+								toggleFixCard(
+									event,
+									() => (editor.applySourcePathFix = !editor.applySourcePathFix)
+								)}
+							onkeydown={(event) =>
+								toggleFixCard(
+									event,
+									() => (editor.applySourcePathFix = !editor.applySourcePathFix)
+								)}
+						>
 							<label class="config-fix-toggle">
 								<input
 									type="checkbox"
@@ -501,7 +539,16 @@
 						</div>
 					{/if}
 					{#if editor.pathAliasConflict}
-						<div class="config-fix-option">
+						<div
+							class="config-fix-option"
+							role="button"
+							tabindex="0"
+							aria-pressed={editor.applyPathAliasFix}
+							onclick={(event) =>
+								toggleFixCard(event, () => (editor.applyPathAliasFix = !editor.applyPathAliasFix))}
+							onkeydown={(event) =>
+								toggleFixCard(event, () => (editor.applyPathAliasFix = !editor.applyPathAliasFix))}
+						>
 							<label class="config-fix-toggle">
 								<input
 									type="checkbox"
@@ -572,7 +619,16 @@
 						</div>
 					{/if}
 					{#if editor.config.path !== undefined}
-						<div class="config-fix-option">
+						<div
+							class="config-fix-option"
+							role="button"
+							tabindex="0"
+							aria-pressed={editor.migrateLegacyPath}
+							onclick={(event) =>
+								toggleFixCard(event, () => (editor.migrateLegacyPath = !editor.migrateLegacyPath))}
+							onkeydown={(event) =>
+								toggleFixCard(event, () => (editor.migrateLegacyPath = !editor.migrateLegacyPath))}
+						>
 							<label class="config-fix-toggle">
 								<input
 									type="checkbox"
@@ -830,10 +886,17 @@
 	.config-fix-option {
 		display: grid;
 		gap: 8px;
+		cursor: pointer;
 		padding: 10px;
 		border: 1px solid rgba(211, 155, 56, 0.25);
 		border-radius: 4px;
 		background: rgba(0, 0, 0, 0.12);
+	}
+
+	.config-fix-option:hover,
+	.config-fix-option:focus-visible {
+		border-color: rgba(57, 155, 130, 0.55);
+		outline: none;
 	}
 
 	.config-fix-toggle {
