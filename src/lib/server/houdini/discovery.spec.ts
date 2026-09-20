@@ -12,6 +12,7 @@ import {
 	findUndefinedVariableReferences,
 	hconfigKnownVariableNames,
 	findPathAliasConflict,
+	formatPackageName,
 	githubAccountFromRepositoryUrl,
 	isManagedHpmPath,
 	mergePluginRecords,
@@ -160,6 +161,12 @@ CUSTOM_HOUDINI_VAR := 'custom'
 		);
 		expect(githubAccountFromRepositoryUrl('https://github.com/Aeoll/Aelib')).toBe('Aeoll');
 		expect(githubAccountFromRepositoryUrl('https://gitlab.com/example/Aelib')).toBeNull();
+	});
+
+	it('preserves package config filenames without their extensions', () => {
+		expect(formatPackageName('my_plugin.json')).toBe('my_plugin');
+		expect(formatPackageName('my-plugin.json')).toBe('my-plugin');
+		expect(formatPackageName('myPlugin.json')).toBe('myPlugin');
 	});
 
 	it('resolves package paths from variables and array-valued package environments', () => {

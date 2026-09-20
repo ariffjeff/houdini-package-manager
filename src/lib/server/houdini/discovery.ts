@@ -1517,11 +1517,8 @@ function packageId(fileName: string): string {
 		.replace(/[^a-z0-9]+/g, '-')}`;
 }
 
-function formatPackageName(fileName: string): string {
-	return path
-		.basename(fileName, path.extname(fileName))
-		.replace(/[_-]+/g, ' ')
-		.replace(/([a-z])([A-Z])/g, '$1 $2');
+export function formatPackageName(fileName: string): string {
+	return path.basename(fileName, path.extname(fileName));
 }
 
 export function resolvePluginVersion(
