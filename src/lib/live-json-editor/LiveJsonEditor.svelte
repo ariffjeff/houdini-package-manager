@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { X } from '@lucide/svelte';
+	import { TriangleAlert, X } from '@lucide/svelte';
 	import { runHoudiniPluginAction } from '$lib/houdini/client';
 	import { knownIssueKinds } from '$lib/houdini/known-issues';
 	import {
@@ -35,6 +35,7 @@
 		migrateLegacyPath: boolean;
 		pathAliasConflict: PackagePathAliasConflict | null;
 		pathAliasLocationIssue: PackagePathAliasLocationIssue | null;
+		undefinedVariableReferences: string[];
 		pathAliasResolution: PathAliasResolution;
 		state: EditorState;
 		message: string;
@@ -64,6 +65,7 @@
 		migrateLegacyPath: false,
 		pathAliasConflict: null,
 		pathAliasLocationIssue: null,
+		undefinedVariableReferences: [],
 		pathAliasResolution: null,
 		state: 'loading',
 		message: ''
@@ -97,6 +99,7 @@
 			migrateLegacyPath: currentTarget.usesLegacyPath ?? false,
 			pathAliasConflict: currentTarget.pathAliasConflict ?? null,
 			pathAliasLocationIssue: currentTarget.pathAliasLocationIssue ?? null,
+			undefinedVariableReferences: currentTarget.undefinedVariableReferences ?? [],
 			pathAliasResolution: recommendedPathResolution(currentTarget.pathAliasConflict),
 			state: 'loading',
 			message: ''
@@ -451,6 +454,25 @@
 			</button>
 		</div>
 		<div class="target-config-content">
+			{#if editor.undefinedVariableReferences.length}
+				<section class="config-warnings" aria-labelledby="config-warnings-title">
+					<div class="config-warnings-heading">
+						<TriangleAlert size={17} strokeWidth={1.9} aria-hidden="true" />
+						<div>
+							<h3 id="config-warnings-title">Warnings</h3>
+							<p>
+								These variable references have no matching key in the config and cannot be safely
+								fixed automatically.
+							</p>
+						</div>
+					</div>
+					<ul>
+						{#each editor.undefinedVariableReferences as reference (reference)}
+							<li>Replace or define <code>{`$${reference}`}</code> before saving.</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
 			{#if editor.sourcePathFixCandidates.length || editor.pathAliasConflict || editor.pathAliasLocationIssue || editor.config.path !== undefined}
 				<div class="config-fixes-section" aria-labelledby="config-fixes-title">
 					<div class="config-fixes-heading">
@@ -868,6 +890,45 @@
 		border: 1px solid rgba(211, 155, 56, 0.38);
 		border-radius: 5px;
 		background: rgba(211, 155, 56, 0.06);
+	}
+
+	.config-warnings {
+		display: grid;
+		gap: 8px;
+		padding: 12px;
+		border: 1px solid rgba(223, 109, 88, 0.42);
+		border-radius: 5px;
+		background: rgba(223, 109, 88, 0.08);
+	}
+
+	.config-warnings-heading {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		color: #f0a18f;
+	}
+
+	.config-warnings-heading h3 {
+		margin: 0;
+		font-size: 12px;
+	}
+
+	.config-warnings-heading p,
+	.config-warnings ul {
+		margin: 4px 0 0;
+		color: var(--text-muted);
+		font-size: 11px;
+		line-height: 1.45;
+	}
+
+	.config-warnings ul {
+		padding-left: 24px;
+	}
+
+	.config-warnings code {
+		color: #f0c875;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 0.95em;
 	}
 
 	.config-fixes-heading strong {

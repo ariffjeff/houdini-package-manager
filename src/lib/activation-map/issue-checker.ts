@@ -74,6 +74,12 @@ export function createIssueItems(
 				...new Set([...(existingTarget.issueKinds ?? []), ...(target.issueKinds ?? [])])
 			],
 			usesLegacyPath: existingTarget.usesLegacyPath || target.usesLegacyPath,
+			undefinedVariableReferences: [
+				...new Set([
+					...(existingTarget.undefinedVariableReferences ?? []),
+					...(target.undefinedVariableReferences ?? [])
+				])
+			],
 			pathAliasConflict: mergeIssuePathAliasConflicts(
 				existingTarget.pathAliasConflict,
 				target.pathAliasConflict

@@ -51,6 +51,20 @@ describe('known issue catalog', () => {
 		]);
 	});
 
+	it('describes undefined variable references as non-autofixable warnings', () => {
+		const target = {
+			status: 'warning' as const,
+			packagePath: 'C:/packages/MOPS.json',
+			undefinedVariableReferences: ['MISSING']
+		};
+
+		expect(knownIssueKinds(target)).toContain('undefined-variable-reference');
+		expect(targetIssueSummary(target)).toBe('Undefined variable reference');
+		expect(targetIssueMessages(target)).toEqual([
+			'Package config references undefined variable key: $MISSING. Add the missing key or replace the reference; no reliable autofix is available.'
+		]);
+	});
+
 	it('classifies removed sources and status fallbacks without display-text parsing', () => {
 		const removedSourceTarget = {
 			status: 'warning' as const,

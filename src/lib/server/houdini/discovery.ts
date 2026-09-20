@@ -42,6 +42,7 @@ type PackageConfig = {
 	usesLegacyPath: boolean;
 	pathAliasConflict: PackagePathAliasConflict | null;
 	pathAliasLocationIssue: PackagePathAliasLocationIssue | null;
+	undefinedVariableReferences: string[];
 	issueKinds: KnownIssueKind[];
 	sources: PluginSource[];
 	error?: string;
@@ -643,6 +644,7 @@ function buildDiscoveryResponse(
 				usesLegacyPath: packageConfig?.usesLegacyPath ?? false,
 				pathAliasConflict: packageConfig?.pathAliasConflict ?? undefined,
 				pathAliasLocationIssue: packageConfig?.pathAliasLocationIssue ?? undefined,
+				undefinedVariableReferences: packageConfig?.undefinedVariableReferences ?? [],
 				issueKinds: packageConfig?.issueKinds ?? [],
 				origin: packageConfig?.origin ?? null,
 				issues,
@@ -815,6 +817,9 @@ async function readPackageConfigs(
 			}
 
 			const pathAliasLocationIssue = parsed ? findPathAliasLocationIssue(parsed) : null;
+			const undefinedVariableReferences = parsed
+				? findUndefinedVariableReferences(parsed, variables)
+				: [];
 			const inspectedSources = await inspectGitSources(
 				parsed ? resolvePackagePaths(parsed, variables, directory) : [],
 				gitCache,
@@ -885,6 +890,7 @@ async function readPackageConfigs(
 				usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
 				pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null,
 				pathAliasLocationIssue,
+				undefinedVariableReferences,
 				issueKinds: packageConfigIssueKinds({
 					valid: !error,
 					error,
@@ -893,7 +899,8 @@ async function readPackageConfigs(
 					existingPaths,
 					usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
 					pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null,
-					pathAliasLocationIssue
+					pathAliasLocationIssue,
+					undefinedVariableReferences
 				}),
 				sources: visibleSources,
 				error
@@ -925,6 +932,10 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		left.pathAliasLocationIssue,
 		right.pathAliasLocationIssue
 	);
+	const undefinedVariableReferences = uniqueStrings([
+		...(left.undefinedVariableReferences ?? []),
+		...(right.undefinedVariableReferences ?? [])
+	]);
 	const issueKinds = packageConfigIssueKinds({
 		valid: left.valid && right.valid,
 		error,
@@ -933,7 +944,8 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		existingPaths,
 		usesLegacyPath: left.usesLegacyPath || right.usesLegacyPath,
 		pathAliasConflict,
-		pathAliasLocationIssue
+		pathAliasLocationIssue,
+		undefinedVariableReferences
 	});
 
 	return {
@@ -954,6 +966,7 @@ function mergePackageConfigs(left: PackageConfig, right: PackageConfig): Package
 		usesLegacyPath: left.usesLegacyPath || right.usesLegacyPath,
 		pathAliasConflict,
 		pathAliasLocationIssue,
+		undefinedVariableReferences,
 		issueKinds,
 		sources,
 		error
@@ -1138,6 +1151,7 @@ export function resolvePackageTargetStatus(
 				usesLegacyPath?: boolean;
 				pathAliasConflict?: PackagePathAliasConflict | null;
 				pathAliasLocationIssue?: PackagePathAliasLocationIssue | null;
+				undefinedVariableReferences?: string[];
 		  }
 		| undefined
 ): HoudiniDiscoveryResponse['targets'][number]['status'] {
@@ -1150,7 +1164,20 @@ export function resolvePackageTargetStatus(
 	if (packageConfig.usesLegacyPath) return 'warning';
 	if (packageConfig.pathAliasConflict) return 'warning';
 	if (packageConfig.pathAliasLocationIssue) return 'warning';
+	if (packageConfig.undefinedVariableReferences?.length) return 'warning';
 	return packageConfig.enabled ? 'enabled' : 'disabled';
+}
+
+export function findUndefinedVariableReferences(
+	value: Record<string, unknown>,
+	variables: Record<string, string>
+): string[] {
+	const references = new Set<string>();
+	collectVariableReferences(value, references);
+	return [...references]
+		.filter((reference) => !Object.prototype.hasOwnProperty.call(variables, reference))
+		.filter((reference) => !hasJsonKey(value, reference))
+		.sort((left, right) => left.localeCompare(right));
 }
 
 export function findPathAliasConflict(

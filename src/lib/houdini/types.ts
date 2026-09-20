@@ -20,6 +20,7 @@ export type KnownIssueKind =
 	| 'deprecated-path'
 	| 'duplicate-path-aliases'
 	| 'invalid-path-alias-location'
+	| 'undefined-variable-reference'
 	| 'invalid-package-json'
 	| 'warning'
 	| 'incompatible';
@@ -115,6 +116,7 @@ export type HoudiniDiscoveryResponse = {
 		usesLegacyPath?: boolean;
 		pathAliasConflict?: PackagePathAliasConflict;
 		pathAliasLocationIssue?: PackagePathAliasLocationIssue;
+		undefinedVariableReferences?: string[];
 		issueKinds?: KnownIssueKind[];
 		origin: PackageOrigin | null;
 		note: string;

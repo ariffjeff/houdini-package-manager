@@ -20,6 +20,7 @@ export type KnownIssueContext = {
 	usesLegacyPath?: boolean;
 	pathAliasConflict?: PackagePathAliasConflict | null;
 	pathAliasLocationIssue?: PackagePathAliasLocationIssue | null;
+	undefinedVariableReferences?: string[];
 };
 
 export type TargetIssue = Pick<
@@ -32,6 +33,7 @@ export type TargetIssue = Pick<
 	| 'usesLegacyPath'
 	| 'pathAliasConflict'
 	| 'pathAliasLocationIssue'
+	| 'undefinedVariableReferences'
 >;
 
 export type KnownIssueDefinition = {
@@ -71,6 +73,10 @@ export function pathAliasLocationMessage(issue: PackagePathAliasLocationIssue): 
 		Boolean
 	);
 	return `${aliases.join(' and ')} ${aliases.length === 1 ? 'is' : 'are'} in an invalid JSON location; hpath must be top-level and HOUDINI_PATH must be inside an object in env[].`;
+}
+
+export function undefinedVariableReferenceMessage(references: string[]): string {
+	return `Package config references undefined variable key${references.length === 1 ? '' : 's'}: ${references.map((reference) => `$${reference}`).join(', ')}. Add the missing key or replace the reference; no reliable autofix is available.`;
 }
 
 export const knownIssueDefinitions: KnownIssueDefinition[] = [
@@ -131,6 +137,20 @@ export const knownIssueDefinitions: KnownIssueDefinition[] = [
 			context.pathAliasLocationIssue
 				? pathAliasLocationMessage(context.pathAliasLocationIssue)
 				: null
+	},
+	{
+		kind: 'undefined-variable-reference',
+		summary: 'Undefined variable reference',
+		category: 'config',
+		appliesTo: (context) =>
+			hasKind(context, 'undefined-variable-reference') ||
+			Boolean(context.undefinedVariableReferences?.length),
+		message: (context) => {
+			const references = context.undefinedVariableReferences ?? [];
+			return references.length
+				? undefinedVariableReferenceMessage(references)
+				: 'Package config references an undefined variable key.';
+		}
 	},
 	{
 		kind: 'invalid-package-json',
@@ -194,6 +214,8 @@ export function targetIssueMessages(target: TargetIssue): string[] {
 	const messages = new Set(target.issues ?? []);
 	if (messages.size) {
 		if (target.pathAliasConflict) messages.add(pathAliasConflictMessage(target.pathAliasConflict));
+		if (target.undefinedVariableReferences?.length)
+			messages.add(undefinedVariableReferenceMessage(target.undefinedVariableReferences));
 		if (target.usesLegacyPath)
 			messages.add('Package config uses deprecated path; replace it with hpath.');
 		return [...messages];
@@ -216,6 +238,7 @@ export function targetIssueSummary(target: TargetIssue): string {
 	if (kinds.includes('incompatible')) return 'Plugin is incompatible';
 	if (kinds.includes('duplicate-path-aliases')) return 'Duplicate path aliases';
 	if (kinds.includes('invalid-path-alias-location')) return 'Invalid path alias location';
+	if (kinds.includes('undefined-variable-reference')) return 'Undefined variable reference';
 	if (kinds.includes('deprecated-path')) return 'Deprecated path key';
 	if (kinds.includes('removed-hpm-source')) return 'Plugin source not found';
 	return 'Package config needs review';

@@ -32,6 +32,7 @@ export type ActivationTarget = {
 	usesLegacyPath?: boolean;
 	pathAliasConflict?: PackagePathAliasConflict;
 	pathAliasLocationIssue?: PackagePathAliasLocationIssue;
+	undefinedVariableReferences?: string[];
 	issueKinds?: KnownIssueKind[];
 	origin: PackageOrigin | null;
 	note: string;

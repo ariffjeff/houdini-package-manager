@@ -973,6 +973,45 @@ describe('activation workspace', () => {
 			.toBeInTheDocument();
 	});
 
+	it('shows undefined variable warnings in the target row and live editor', async () => {
+		const undefinedReferenceResponse = {
+			...discoveryResponse,
+			targets: discoveryResponse.targets.map((target) =>
+				target.pluginId === 'package:mops'
+					? {
+							...target,
+							status: 'warning' as const,
+							undefinedVariableReferences: ['MISSING']
+						}
+					: target
+			)
+		} as typeof discoveryResponse;
+		stubDiscovery(undefinedReferenceResponse, null, {
+			path: 'C:/Users/test/Documents/HPM/plugins/mops',
+			config: '$MISSING'
+		});
+		render(Page);
+
+		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByText('Undefined variable reference: $MISSING', { exact: true }))
+			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
+		await page
+			.getByRole('dialog', { name: 'Undefined variable reference' })
+			.getByRole('button', { name: 'Live JSON Editor', exact: true })
+			.click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('heading', { name: 'Warnings', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText('Replace or define $MISSING before saving.', { exact: true }))
+			.toBeInTheDocument();
+	});
+
 	it('refreshes and toggles the selected plugin config', async () => {
 		stubDiscovery();
 		render(Page);

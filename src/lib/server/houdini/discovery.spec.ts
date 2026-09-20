@@ -8,6 +8,7 @@ import {
 	parseHconfigOutput,
 	parseInstallIdentity,
 	findMissingPackagePaths,
+	findUndefinedVariableReferences,
 	findPathAliasConflict,
 	githubAccountFromRepositoryUrl,
 	isManagedHpmPath,
@@ -168,6 +169,19 @@ UNSET_VALUE := '<not defined>'
 		).toEqual({ hpathUsedAsVariable: false, houdiniPathUsedAsVariable: false });
 
 		expect(findPathAliasConflict({ hpath: 'C:/plugins' })).toBeNull();
+	});
+
+	it('detects variable references without matching Houdini or package keys', () => {
+		expect(
+			findUndefinedVariableReferences(
+				{
+					hpath: '$PLUGIN_ROOT',
+					env: [{ PLUGIN_ROOT: 'C:/plugins' }],
+					config: '$MISSING/$HFS/$PLUGIN_ROOT'
+				},
+				{ HFS: 'C:/houdini' }
+			)
+		).toEqual(['MISSING']);
 	});
 
 	it('reports deleted plugin paths without treating the package config as active', async () => {
