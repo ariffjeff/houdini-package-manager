@@ -53,7 +53,11 @@ export function applyPackageConfigFixes(
 
 	if (plan.migrateLegacyPath !== false) {
 		rewritePackageVariableReferences(packageValue, 'path', targetAlias);
-		delete packageValue.path;
+		if (targetAlias === 'hpath' && Object.prototype.hasOwnProperty.call(packageValue, 'path')) {
+			replaceRootJsonKey(packageValue, 'path', 'hpath');
+		} else {
+			delete packageValue.path;
+		}
 	}
 
 	if (plan.replacePathAlias) {
@@ -85,15 +89,27 @@ function setPathAlias(
 ): void {
 	const value = typeof hpath === 'string' ? hpath.trim() : findJsonString(packageValue, alias);
 	if (!value) return;
-	removeJsonKey(packageValue, alias);
 	if (alias === 'HOUDINI_PATH') {
+		removeJsonKey(packageValue, alias);
 		const env = Array.isArray(packageValue.env) ? packageValue.env.filter(isRecord) : [];
 		if (!env.length) env.push({});
 		env[0][alias] = value;
 		packageValue.env = env;
 	} else {
+		removeNestedJsonKey(packageValue, alias);
 		packageValue[alias] = value;
 	}
+}
+
+function replaceRootJsonKey(packageValue: Record<string, unknown>, from: string, to: string): void {
+	const entries = Object.entries(packageValue).map(
+		([key, value]) => [key === from ? to : key, value] as const
+	);
+	const filteredEntries = entries.filter(
+		([key], index) => key !== to || entries.findIndex(([entryKey]) => entryKey === to) === index
+	);
+	for (const key of Object.keys(packageValue)) delete packageValue[key];
+	Object.assign(packageValue, Object.fromEntries(filteredEntries));
 }
 
 function findJsonString(value: unknown, key: string): string | undefined {
@@ -156,6 +172,23 @@ function removeJsonKey(value: unknown, key: string): void {
 
 	delete value[key];
 	for (const entry of Object.values(value)) removeJsonKey(entry, key);
+}
+
+function removeNestedJsonKey(value: unknown, key: string): void {
+	removeNestedJsonKeyAtDepth(value, key, true);
+}
+
+function removeNestedJsonKeyAtDepth(value: unknown, key: string, isRoot: boolean): void {
+	if (Array.isArray(value)) {
+		for (const entry of value) removeNestedJsonKeyAtDepth(entry, key, false);
+		return;
+	}
+	if (!isRecord(value)) return;
+
+	for (const [entryKey, entry] of Object.entries(value)) {
+		if (entryKey === key && !isRoot) delete value[entryKey];
+		else removeNestedJsonKeyAtDepth(entry, key, false);
+	}
 }
 
 function cloneJsonRecord(value: Record<string, unknown>): Record<string, unknown> {

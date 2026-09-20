@@ -36,6 +36,14 @@ describe('package config fixes', () => {
 			env: [{ SOURCE: '$hpath/bin', KEEP: '$path_extra' }],
 			enable: false
 		});
+		expect(
+			Object.keys(
+				applyPackageConfigFixes(
+					{ enable: false, path: 'C:/legacy/AJTools', custom: true },
+					{ hpath: 'C:/new/AJTools', migrateLegacyPath: true }
+				)
+			)
+		).toEqual(['enable', 'hpath', 'custom']);
 		expect(config).toEqual({
 			path: 'C:/legacy/AJTools',
 			HOUDINI_PATH: 'C:/houdini',
