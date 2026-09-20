@@ -29,6 +29,10 @@ const isWindows = process.platform === 'win32';
 const pathDelimiter = isWindows ? ';' : ':';
 const hconfigName = isWindows ? 'hconfig.exe' : 'hconfig';
 
+// Known environment variable names used by the Houdini configuration system.
+// There is no need to add variables here that are already automatically extracted from hconfig output.
+export const hconfigKnownVariableNames = ['HOUDINI_PACKAGE_PATH'] as const;
+
 type PackageConfig = {
 	plugin: PluginRecord;
 	enabled: boolean;
@@ -60,6 +64,7 @@ type ScanInstallOptions = {
 type PackageScanOptions = {
 	pluginIds?: Set<string>;
 	syncRemoteGit?: boolean;
+	hconfigVariableNames?: readonly string[];
 };
 
 type DiscoveryCache = {
@@ -111,7 +116,6 @@ export type GitMetadata = {
 
 export function parseHconfigOutput(output: string): Record<string, string> {
 	const variables: Record<string, string> = {};
-
 	for (const line of output.split(/\r?\n/)) {
 		const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:=\s*(.*?)\s*$/);
 		if (!match) continue;
@@ -129,6 +133,17 @@ export function parseHconfigOutput(output: string): Record<string, string> {
 	}
 
 	return variables;
+}
+
+export function parseHconfigVariableNames(output: string): string[] {
+	const names = new Set<string>();
+
+	for (const line of output.split(/\r?\n/)) {
+		const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:=/);
+		if (match) names.add(match[1]);
+	}
+
+	return [...names];
 }
 
 export function parseInstallIdentity(root: string): InstallIdentity {
@@ -725,6 +740,7 @@ async function scanInstall(
 	const hconfig = path.join(root, 'bin', hconfigName);
 	const diagnostics: string[] = [];
 	let variables: Record<string, string>;
+	let hconfigVariableNames: string[];
 	let health: InstallHealth = 'ready';
 
 	try {
@@ -737,10 +753,13 @@ async function scanInstall(
 			windowsHide: true
 		});
 		variables = parseHconfigOutput(result.stdout);
+		hconfigVariableNames = parseHconfigVariableNames(result.stdout);
 		if (result.stderr.trim()) diagnostics.push(result.stderr.trim());
 	} catch (error) {
 		const commandError = error as Error & { stderr?: string; stdout?: string };
-		variables = parseHconfigOutput(commandError.stdout ?? '');
+		const output = commandError.stdout ?? '';
+		variables = parseHconfigOutput(output);
+		hconfigVariableNames = parseHconfigVariableNames(output);
 		diagnostics.push(commandError.stderr?.trim() || commandError.message);
 		health = 'error';
 	}
@@ -750,7 +769,9 @@ async function scanInstall(
 	const packageDirectories = packageRoots(root, userPreferences, identity.version, variables);
 	const packages = options.skipPackages
 		? new Map<string, PackageConfig>()
-		: await readPackageConfigs(packageDirectories, identity.version, variables, gitCache);
+		: await readPackageConfigs(packageDirectories, identity.version, variables, gitCache, {
+				hconfigVariableNames: [...hconfigVariableNames, ...hconfigKnownVariableNames]
+			});
 	if (packages.size && [...packages.values()].some((packageConfig) => !packageConfig.valid)) {
 		health = health === 'error' ? health : 'warning';
 		diagnostics.push('One or more package JSON files could not be parsed.');
@@ -818,7 +839,7 @@ async function readPackageConfigs(
 
 			const pathAliasLocationIssue = parsed ? findPathAliasLocationIssue(parsed) : null;
 			const undefinedVariableReferences = parsed
-				? findUndefinedVariableReferences(parsed, variables)
+				? findUndefinedVariableReferences(parsed, variables, options.hconfigVariableNames)
 				: [];
 			const inspectedSources = await inspectGitSources(
 				parsed ? resolvePackagePaths(parsed, variables, directory) : [],
@@ -1170,12 +1191,14 @@ export function resolvePackageTargetStatus(
 
 export function findUndefinedVariableReferences(
 	value: Record<string, unknown>,
-	variables: Record<string, string>
+	variables: Record<string, string>,
+	recognizedVariableNames: readonly string[] = hconfigKnownVariableNames
 ): string[] {
 	const references = new Set<string>();
 	collectVariableReferences(value, references);
+	const recognizedVariables = new Set([...Object.keys(variables), ...recognizedVariableNames]);
 	return [...references]
-		.filter((reference) => !Object.prototype.hasOwnProperty.call(variables, reference))
+		.filter((reference) => !recognizedVariables.has(reference))
 		.filter((reference) => !hasJsonKey(value, reference))
 		.sort((left, right) => left.localeCompare(right));
 }

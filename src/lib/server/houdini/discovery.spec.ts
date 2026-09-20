@@ -6,9 +6,11 @@ import {
 	normalizeRepositoryUrl,
 	packageRoots,
 	parseHconfigOutput,
+	parseHconfigVariableNames,
 	parseInstallIdentity,
 	findMissingPackagePaths,
 	findUndefinedVariableReferences,
+	hconfigKnownVariableNames,
 	findPathAliasConflict,
 	githubAccountFromRepositoryUrl,
 	isManagedHpmPath,
@@ -51,6 +53,41 @@ UNSET_VALUE := '<not defined>'
 			HOUDINI_USER_PREF_DIR: 'C:/Users/test/Documents/houdini21.0',
 			HOUDINI_PATH: 'C:/Users/test/Documents/houdini21.0/packages;C:/Program Files/Houdini'
 		});
+	});
+
+	it('keeps hconfig-recognized names separate from defined values', () => {
+		const output = `
+HFS := 'C:/houdini'
+HOUDINI_PACKAGE_PATH := '<not defined>'
+CUSTOM_HOUDINI_VAR := 'custom'
+`;
+
+		expect(parseHconfigOutput(output)).toEqual({
+			HFS: 'C:/houdini',
+			CUSTOM_HOUDINI_VAR: 'custom'
+		});
+		expect(parseHconfigVariableNames(output)).toEqual([
+			'HFS',
+			'HOUDINI_PACKAGE_PATH',
+			'CUSTOM_HOUDINI_VAR'
+		]);
+		expect(
+			findUndefinedVariableReferences(
+				{ config: '$HFS/$HOUDINI_PACKAGE_PATH/$CUSTOM_HOUDINI_VAR/$MISSING' },
+				parseHconfigOutput(output),
+				parseHconfigVariableNames(output)
+			)
+		).toEqual(['MISSING']);
+	});
+
+	it('recognizes the package discovery variable when hconfig omits it', () => {
+		expect(
+			findUndefinedVariableReferences(
+				{ config: '$HOUDINI_PACKAGE_PATH/$MISSING' },
+				{},
+				hconfigKnownVariableNames
+			)
+		).toEqual(['MISSING']);
 	});
 
 	it('derives the Houdini version and build from installation roots', () => {
@@ -181,6 +218,14 @@ UNSET_VALUE := '<not defined>'
 				},
 				{ HFS: 'C:/houdini' }
 			)
+		).toEqual(['MISSING']);
+	});
+
+	it('accepts additional hconfig-recognized variable names', () => {
+		expect(
+			findUndefinedVariableReferences({ config: '$CUSTOM_HOUDINI_VAR/$MISSING' }, {}, [
+				'CUSTOM_HOUDINI_VAR'
+			])
 		).toEqual(['MISSING']);
 	});
 
