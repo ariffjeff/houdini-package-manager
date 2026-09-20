@@ -360,8 +360,8 @@ it('edits and switches a HOUDINI_PATH source alias with reference rewriting', as
 
 	const sourceInput = page.getByRole('textbox', { name: /Local plugin source/ });
 	await expect
-		.element(page.getByRole('radio', { name: 'HOUDINI_PATH', exact: true }))
-		.toBeChecked();
+		.element(page.getByRole('combobox', { name: 'Local plugin source alias' }))
+		.toHaveValue('HOUDINI_PATH');
 	await sourceInput.fill('C:/Users/test/Plugins/MOPS');
 	await expect.element(sourceInput).toHaveValue('C:/Users/test/Plugins/MOPS');
 	await expect
@@ -369,7 +369,7 @@ it('edits and switches a HOUDINI_PATH source alias with reference rewriting', as
 		.toHaveClass(/is-changed/);
 	await expect.element(page.getByText(/"CUSTOM_ROOT": "\$HOUDINI_PATH\/bin"/)).toBeInTheDocument();
 
-	await page.getByRole('radio', { name: 'hpath', exact: true }).click();
+	await page.getByRole('combobox', { name: 'Local plugin source alias' }).selectOptions('hpath');
 	await expect
 		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops",/))
 		.toHaveClass(/is-removed/);
@@ -408,7 +408,9 @@ it('uses the existing nested HOUDINI_PATH value when selecting that alias', asyn
 
 	const sourceInput = page.getByRole('textbox', { name: /Local plugin source/ });
 	await expect.element(sourceInput).toHaveValue('C:/Users/test/Plugins/MOPS');
-	await page.getByRole('radio', { name: 'HOUDINI_PATH', exact: true }).click();
+	await page
+		.getByRole('combobox', { name: 'Local plugin source alias' })
+		.selectOptions('HOUDINI_PATH');
 	await expect.element(sourceInput).toHaveValue('C:/Users/test/Documents/houdini21.0/packages');
 	await sourceInput.fill('C:/Users/test/Plugins/MOPS');
 

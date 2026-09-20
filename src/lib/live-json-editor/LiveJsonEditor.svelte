@@ -589,42 +589,24 @@
 					{/if}
 				</div>
 			{/if}
-			<div class="config-path-alias-choice">
-				<div>
-					<strong>Path alias</strong>
-					<p>Choose which Houdini variable stores the local plugin source.</p>
-				</div>
-				<div class="config-alias-options" role="radiogroup" aria-label="Path alias">
-					<label>
-						<input
-							type="radio"
-							name={`source-path-alias-${install.id}`}
-							value="hpath"
-							bind:group={editor.pathAlias}
-							onchange={() => handlePathAliasChange('hpath')}
-							disabled={editor.state === 'loading' ||
-								editor.state === 'saving' ||
-								editor.applyPathAliasFix}
-						/>
-						<span><code>hpath</code></span>
-					</label>
-					<label>
-						<input
-							type="radio"
-							name={`source-path-alias-${install.id}`}
-							value="HOUDINI_PATH"
-							bind:group={editor.pathAlias}
-							onchange={() => handlePathAliasChange('HOUDINI_PATH')}
-							disabled={editor.state === 'loading' ||
-								editor.state === 'saving' ||
-								editor.applyPathAliasFix}
-						/>
-						<span><code>HOUDINI_PATH</code></span>
-					</label>
-				</div>
-			</div>
 			<label class="install-dialog-field">
-				<span><code>{selectedPathAlias() ?? editor.pathAlias}</code> Local plugin source</span>
+				<span>
+					<select
+						aria-label="Local plugin source alias"
+						value={editor.pathAlias}
+						onchange={(event) =>
+							handlePathAliasChange(
+								(event.currentTarget as HTMLSelectElement).value as PackagePathAlias
+							)}
+						disabled={editor.state === 'loading' ||
+							editor.state === 'saving' ||
+							editor.applyPathAliasFix}
+					>
+						<option value="hpath">hpath</option>
+						<option value="HOUDINI_PATH">HOUDINI_PATH</option>
+					</select>
+					Local plugin source
+				</span>
 				<input
 					class="config-source-input"
 					type="text"
@@ -793,9 +775,17 @@
 	.install-dialog-field > span {
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 8px;
+		font-size: 11px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
+	}
+
+	.install-dialog-field select {
+		background: rgba(0, 0, 0, 0.35);
+		border-radius: 4px;
+		padding: 6px;
+		padding-right: 8px;
+		cursor: pointer;
 	}
 
 	.config-source-input {
