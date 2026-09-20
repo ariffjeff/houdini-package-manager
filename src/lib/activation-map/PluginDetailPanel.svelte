@@ -426,8 +426,25 @@
 						</div>
 						<div class="target-install-label">
 							<strong>{currentInstall.label}</strong>
-							<span class="target-plugin-version">
-								<Tag size={13} strokeWidth={2} aria-hidden="true" />
+							<span
+								class="target-plugin-version"
+								role="img"
+								aria-label={pluginGitSource?.gitTag
+									? 'Tagged version'
+									: pluginGitSource?.gitRef
+										? 'Untagged commit version'
+										: 'Unresolved version'}
+								data-version-kind={pluginGitSource?.gitTag
+									? 'tag'
+									: pluginGitSource?.gitRef
+										? 'commit'
+										: 'unknown'}
+							>
+								{#if pluginGitSource?.gitTag}
+									<Tag size={13} strokeWidth={2} aria-hidden="true" />
+								{:else if pluginGitSource?.gitRef}
+									<GitBranch size={13} strokeWidth={2} aria-hidden="true" />
+								{/if}
 								{target.artifactVersion ?? 'Version unresolved'}
 							</span>
 							<small

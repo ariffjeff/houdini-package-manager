@@ -886,7 +886,12 @@ describe('activation workspace', () => {
 					? {
 							...plugin,
 							gitRef: 'v1.10.0-9-gdc60096',
-							gitCommit: 'dc60096'
+							gitCommit: 'dc60096',
+							sources: plugin.sources?.map((source) => ({
+								...source,
+								gitRef: 'v1.10.0-9-gdc60096',
+								gitTag: null
+							}))
 						}
 					: plugin
 			),
@@ -918,6 +923,9 @@ describe('activation workspace', () => {
 		await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
 		await expect.element(page.getByText('v1.9.2e', { exact: true })).toBeInTheDocument();
 		await expect.element(page.getByText('v1.10.0', { exact: true }).first()).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('img', { name: 'Untagged commit version' }))
+			.toHaveLength(2);
 		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Install MOPS', exact: true }))
