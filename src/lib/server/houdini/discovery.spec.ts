@@ -20,6 +20,7 @@ import {
 	resolvePackagePaths,
 	resolveAvailableGitTags,
 	resolvePackageTargetStatus,
+	shouldWarnForLegacyPath,
 	resolvePluginVersion,
 	loadHoudiniDiscoverySnapshot,
 	scanHoudiniWorkspace
@@ -167,6 +168,15 @@ CUSTOM_HOUDINI_VAR := 'custom'
 		expect(formatPackageName('my_plugin.json')).toBe('my_plugin');
 		expect(formatPackageName('my-plugin.json')).toBe('my-plugin');
 		expect(formatPackageName('myPlugin.json')).toBe('myPlugin');
+	});
+
+	it('only warns about the legacy path keyword after Houdini 19.5', () => {
+		const packageValue = { path: 'C:/plugin' };
+
+		expect(shouldWarnForLegacyPath('19.0', packageValue)).toBe(false);
+		expect(shouldWarnForLegacyPath('19.5', packageValue)).toBe(false);
+		expect(shouldWarnForLegacyPath('20.0', packageValue)).toBe(true);
+		expect(shouldWarnForLegacyPath('21.0', { hpath: 'C:/plugin' })).toBe(false);
 	});
 
 	it('resolves package paths from variables and array-valued package environments', () => {

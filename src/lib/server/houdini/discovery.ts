@@ -908,7 +908,7 @@ async function readPackageConfigs(
 				existingPaths,
 				missingPaths,
 				stalePaths,
-				usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
+				usesLegacyPath: parsed ? shouldWarnForLegacyPath(version, parsed) : false,
 				pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null,
 				pathAliasLocationIssue,
 				undefinedVariableReferences,
@@ -918,7 +918,7 @@ async function readPackageConfigs(
 					stalePaths,
 					missingPaths,
 					existingPaths,
-					usesLegacyPath: parsed ? Object.prototype.hasOwnProperty.call(parsed, 'path') : false,
+					usesLegacyPath: parsed ? shouldWarnForLegacyPath(version, parsed) : false,
 					pathAliasConflict: parsed ? findPathAliasConflict(parsed) : null,
 					pathAliasLocationIssue,
 					undefinedVariableReferences
@@ -1296,6 +1296,17 @@ function stringValues(value: unknown): string[] {
 		return value.filter((entry): entry is string => typeof entry === 'string');
 	if (isRecord(value)) return stringValues(value.value);
 	return [];
+}
+
+export function shouldWarnForLegacyPath(version: string, value: Record<string, unknown>): boolean {
+	const [major, minor] = version.split('.').map(Number);
+	if (!hasPathKeyword(value)) return false;
+	if (!Number.isFinite(major) || !Number.isFinite(minor)) return true;
+	return major > 19 || (major === 19 && minor > 5);
+}
+
+function hasPathKeyword(value: Record<string, unknown>): boolean {
+	return Object.prototype.hasOwnProperty.call(value, 'path');
 }
 
 function expandPackagePath(value: string, variables: Record<string, string>): string {
