@@ -59,7 +59,7 @@ export function createActivationGraph(
 					kind: 'plugin' as const,
 					eyebrow: plugin.origin === 'user' ? 'User package' : 'Package config',
 					label: plugin.name,
-					meta: `${versionLabel}${sourceLabel} / ${plugin.origin}`,
+					meta: versionLabel,
 					status: attention ? ('warning' as const) : ('enabled' as const),
 					statusLabel: installs.length
 						? `${activeCount} / ${installs.length} installs`

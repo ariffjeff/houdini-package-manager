@@ -89,6 +89,9 @@ describe('activation graph model', () => {
 			label: 'Official Houdini packages',
 			pluginIds: ['package:apex', 'package:kinefx']
 		});
+		expect(graph.nodes.find((node) => node.id === 'plugin:package:custom')?.data.meta).toBe(
+			'Unversioned'
+		);
 		expect(graph.edges).toHaveLength(2);
 		const officialEdge = graph.edges.find((edge) => edge.source === OFFICIAL_NODE_ID);
 		expect(officialEdge).toBeDefined();
