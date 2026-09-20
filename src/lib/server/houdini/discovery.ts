@@ -1310,7 +1310,7 @@ function expandPackagePath(value: string, variables: Record<string, string>): st
 		expanded = next;
 	}
 
-	return expanded.replace(/[;]+$/, '').replace(/[/\\]+$/, '');
+	return expanded.replace(/(?:;&|;)+$/, '').replace(/[/\\]+$/, '');
 }
 
 function splitHoudiniPath(value: string | undefined, variables: Record<string, string>): string[] {
