@@ -676,6 +676,14 @@
 		line-height: 1;
 	}
 
+	.detail-meta .plugin-rescan-button {
+		color: var(--text-muted);
+	}
+
+	.plugin-rescan-button :global(svg) {
+		color: inherit;
+	}
+
 	.detail-meta .version-control-meta {
 		width: auto;
 		min-width: 36px;
