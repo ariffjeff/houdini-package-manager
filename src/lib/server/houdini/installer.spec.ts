@@ -537,7 +537,7 @@ describe('Houdini plugin actions', () => {
 		expect(JSON.parse(await readFile(houdini20Package, 'utf8')).enable).toBe(false);
 	});
 
-	it('copies selected package configs from one install to multiple destinations', async () => {
+	it('copies selected package configs from multiple sources to one destination', async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-plugin-migration-'));
 		temporaryDirectories.push(root);
 		const packageDirectories = ['20.0', '21.0', '21.5'].map((version) =>
@@ -552,7 +552,7 @@ describe('Houdini plugin actions', () => {
 		);
 
 		const sourceInstallId = 'install:20.0';
-		const destinationInstallIds = ['install:21.0', 'install:21.5'];
+		const destinationInstallId = 'install:21.0';
 		const pluginId = 'package:mops';
 		const installs = ['20.0', '21.0', '21.5'].map((version, index) => ({
 			id: `install:${version}`,
@@ -579,21 +579,18 @@ describe('Houdini plugin actions', () => {
 
 		const result = await runHoudiniPluginAction({
 			action: 'migrate-configs',
-			sourceInstallId,
-			destinationInstallIds,
-			pluginIds: [pluginId]
+			destinationInstallId,
+			sources: [{ pluginId, sourceInstallId }]
 		});
 
-		expect(result.message).toBe('Copied 1 plugin config to 2 Houdini installs.');
-		for (const destinationDirectory of packageDirectories.slice(1)) {
-			expect(
-				JSON.parse(await readFile(path.join(destinationDirectory, 'MOPS.json'), 'utf8'))
-			).toEqual({
-				hpath: 'C:/plugins/MOPS',
-				enable: false,
-				custom: { keep: true }
-			});
-		}
+		expect(result.message).toBe('Copied 1 plugin config to Houdini 21.0.');
+		expect(
+			JSON.parse(await readFile(path.join(packageDirectories[1], 'MOPS.json'), 'utf8'))
+		).toEqual({
+			hpath: 'C:/plugins/MOPS',
+			enable: false,
+			custom: { keep: true }
+		});
 		expect(discoveryMocks.scanHoudiniWorkspace).toHaveBeenNthCalledWith(1, {
 			stage: 'plugins',
 			pluginIds: [pluginId]

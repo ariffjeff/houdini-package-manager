@@ -206,31 +206,32 @@ async function migratePluginConfigs(
 	request: HoudiniPluginMigrationRequest
 ): Promise<HoudiniPluginActionResponse> {
 	validatePluginMigrationRequest(request);
-	const current = await scanHoudiniWorkspace({ stage: 'plugins', pluginIds: request.pluginIds });
-	const sourceInstall = current.installs.find((install) => install.id === request.sourceInstallId);
-	if (!sourceInstall) throw new Error('The source Houdini install was not found.');
+	const pluginIds = request.sources.map(({ pluginId }) => pluginId);
+	const current = await scanHoudiniWorkspace({ stage: 'plugins', pluginIds });
+	const destinationInstall = current.installs.find(
+		(install) => install.id === request.destinationInstallId
+	);
+	if (!destinationInstall) throw new Error('The destination Houdini install was not found.');
 
-	const destinationInstalls = selectMigrationDestinations(current.installs, request);
-	const selectedPlugins = request.pluginIds.map((pluginId) => {
+	const selectedPlugins = request.sources.map(({ pluginId }) => {
 		const plugin = current.plugins.find((candidate) => candidate.id === pluginId);
 		if (!plugin) throw new Error(`Plugin ${pluginId} was not found in the discovery scan.`);
 		return plugin;
 	});
 
 	let copiedPlugins = 0;
-	for (const plugin of selectedPlugins) {
+	for (const [index, plugin] of selectedPlugins.entries()) {
+		const sourceInstallId = request.sources[index].sourceInstallId;
 		const sourceTarget = current.targets.find(
-			(target) => target.pluginId === plugin.id && target.installId === sourceInstall.id
+			(target) => target.pluginId === plugin.id && target.installId === sourceInstallId
 		);
 		if (!sourceTarget?.packagePath) continue;
 
 		const packageValue = await readPackageValue(sourceTarget.packagePath);
 		const packageFile = safePackageFile(sourceTarget.packageFile || plugin.packageFile);
-		for (const destinationInstall of destinationInstalls) {
-			const packageDirectory = await writableUserPackageDirectory(destinationInstall);
-			await mkdir(packageDirectory, { recursive: true });
-			await writePackageValue(path.join(packageDirectory, packageFile), packageValue);
-		}
+		const packageDirectory = await writableUserPackageDirectory(destinationInstall);
+		await mkdir(packageDirectory, { recursive: true });
+		await writePackageValue(path.join(packageDirectory, packageFile), packageValue);
 		copiedPlugins += 1;
 	}
 
@@ -240,55 +241,37 @@ async function migratePluginConfigs(
 
 	const discovery = await scanHoudiniWorkspace({
 		stage: 'plugins',
-		pluginIds: request.pluginIds
+		pluginIds
 	});
 	return {
-		message: `Copied ${copiedPlugins} plugin config${copiedPlugins === 1 ? '' : 's'} to ${destinationInstalls.length} Houdini install${destinationInstalls.length === 1 ? '' : 's'}.`,
+		message: `Copied ${copiedPlugins} plugin config${copiedPlugins === 1 ? '' : 's'} to ${destinationInstall.label}.`,
 		discovery
 	};
 }
 
 function validatePluginMigrationRequest(request: HoudiniPluginMigrationRequest): void {
-	if (typeof request.sourceInstallId !== 'string' || !request.sourceInstallId.trim()) {
-		throw new Error('A source Houdini install id is required.');
+	if (typeof request.destinationInstallId !== 'string' || !request.destinationInstallId.trim()) {
+		throw new Error('A destination Houdini install id is required.');
+	}
+	if (!Array.isArray(request.sources) || !request.sources.length) {
+		throw new Error('At least one plugin source is required.');
 	}
 	if (
-		!Array.isArray(request.destinationInstallIds) ||
-		!request.destinationInstallIds.length ||
-		request.destinationInstallIds.some(
-			(installId) => typeof installId !== 'string' || !installId.trim()
+		request.sources.some(
+			(source) =>
+				!source ||
+				typeof source.pluginId !== 'string' ||
+				!source.pluginId.trim() ||
+				typeof source.sourceInstallId !== 'string' ||
+				!source.sourceInstallId.trim()
 		)
 	) {
-		throw new Error('At least one destination Houdini install id is required.');
+		throw new Error('Each plugin source requires a plugin id and install id.');
 	}
-	if (new Set(request.destinationInstallIds).size !== request.destinationInstallIds.length) {
-		throw new Error('Destination Houdini install ids must be unique.');
-	}
-	if (request.destinationInstallIds.includes(request.sourceInstallId)) {
-		throw new Error('The source Houdini install cannot also be a destination.');
-	}
-	if (
-		!Array.isArray(request.pluginIds) ||
-		!request.pluginIds.length ||
-		request.pluginIds.some((pluginId) => typeof pluginId !== 'string' || !pluginId.trim())
-	) {
-		throw new Error('At least one plugin id is required.');
-	}
-	if (new Set(request.pluginIds).size !== request.pluginIds.length) {
+	const pluginIds = request.sources.map(({ pluginId }) => pluginId);
+	if (new Set(pluginIds).size !== pluginIds.length) {
 		throw new Error('Plugin ids must be unique.');
 	}
-}
-
-function selectMigrationDestinations(
-	installs: HoudiniInstall[],
-	request: HoudiniPluginMigrationRequest
-): HoudiniInstall[] {
-	const destinationIds = new Set(request.destinationInstallIds);
-	const destinations = installs.filter((install) => destinationIds.has(install.id));
-	if (destinations.length !== destinationIds.size) {
-		throw new Error('One or more destination Houdini installs were not found.');
-	}
-	return destinations;
 }
 
 function safePackageFile(packageFile: string): string {

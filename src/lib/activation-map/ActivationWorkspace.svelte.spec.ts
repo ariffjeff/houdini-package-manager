@@ -201,9 +201,8 @@ function stubDiscovery(
 					action: string;
 					pluginId?: string;
 					installId?: string;
-					sourceInstallId?: string;
-					destinationInstallIds?: string[];
-					pluginIds?: string[];
+					destinationInstallId?: string;
+					sources?: Array<{ pluginId: string; sourceInstallId: string }>;
 					sourcePath?: string;
 					enabled?: boolean;
 					hpath?: string;
@@ -223,7 +222,7 @@ function stubDiscovery(
 					JSON.stringify({
 						message:
 							request.action === 'migrate-configs'
-								? 'Copied 2 plugin configs to 2 Houdini installs.'
+								? 'Copied 2 plugin configs to Houdini 20.0.'
 								: request.action === 'set-enabled'
 									? `MOPS ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`
 									: request.action === 'get-config'
@@ -348,24 +347,24 @@ it('opens the Plugin Migrator and copies all available plugins to selected insta
 	const dialog = page.getByRole('dialog', { name: 'Plugin Migrator' });
 	await expect.element(dialog).toBeInTheDocument();
 	await expect.element(dialog.getByText('Apex', { exact: true })).not.toBeInTheDocument();
-	await expect
-		.element(dialog.getByRole('combobox', { name: 'Source Houdini install' }))
-		.toHaveValue('install:houdini-21.0-455-test');
-
-	await dialog.getByRole('button', { name: 'All', exact: true }).click();
-	await dialog.getByRole('button', { name: 'Select all available', exact: true }).click();
+	await dialog
+		.getByRole('combobox', { name: 'Destination Houdini install' })
+		.selectOptions('install:houdini-20.0-500-test');
+	await dialog.getByRole('button', { name: 'Select all known', exact: true }).click();
 	await dialog.getByRole('button', { name: 'Copy plugin configs', exact: true }).click();
 
 	await expect
 		.poll(() => pluginActionRequests.at(-1))
 		.toEqual({
 			action: 'migrate-configs',
-			sourceInstallId: 'install:houdini-21.0-455-test',
-			destinationInstallIds: ['install:houdini-20.0-500-test', 'install:houdini-21.5-600-test'],
-			pluginIds: ['package:mops', 'package:qlib']
+			destinationInstallId: 'install:houdini-20.0-500-test',
+			sources: [
+				{ pluginId: 'package:mops', sourceInstallId: 'install:houdini-21.0-455-test' },
+				{ pluginId: 'package:qlib', sourceInstallId: 'install:houdini-21.0-455-test' }
+			]
 		});
 	await expect
-		.element(dialog.getByText('Copied 2 plugin configs to 2 Houdini installs.', { exact: true }))
+		.element(dialog.getByText('Copied 2 plugin configs to Houdini 20.0.', { exact: true }))
 		.toBeInTheDocument();
 });
 

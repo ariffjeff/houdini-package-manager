@@ -145,9 +145,11 @@ export type InstallPluginResponse = {
 
 export type HoudiniPluginMigrationRequest = {
 	action: 'migrate-configs';
-	sourceInstallId: string;
-	destinationInstallIds: string[];
-	pluginIds: string[];
+	destinationInstallId: string;
+	sources: Array<{
+		pluginId: string;
+		sourceInstallId: string;
+	}>;
 };
 
 export type HoudiniPluginAction =

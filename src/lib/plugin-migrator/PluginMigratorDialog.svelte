@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ArrowRight, Check, Copy, Search, X } from '@lucide/svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { ActivationTarget } from '$lib/activation-map/types';
 	import type {
 		HoudiniInstall,
@@ -18,11 +19,31 @@
 		onClose: () => void;
 		onMigrate: (request: HoudiniPluginMigrationRequest) => void;
 	}>();
-	let sourceInstallId = $state('');
-	let destinationInstallIds = $state<string[]>([]);
+	let destinationInstallId = $state('');
 	let selectedPluginIds = $state<string[]>([]);
+	let selectedSourceInstallIds = $state<Record<string, string>>({});
+	let sourceInstallFilterIds = $state<string[] | null>(null);
 	let pluginQuery = $state('');
-	let activeSourceInstallId = $derived(sourceInstallId || installs[0]?.id || '');
+	let migrationInstalls = $derived.by(() => {
+		const grouped: HoudiniInstall[] = [];
+		for (const install of installs) {
+			const existing = grouped.find((candidate) => candidate.version === install.version);
+			if (!existing) {
+				grouped.push(install);
+			} else if (Number(install.build) > Number(existing.build)) {
+				grouped[grouped.indexOf(existing)] = install;
+			}
+		}
+		return grouped;
+	});
+	let activeDestinationInstallId = $derived(destinationInstallId || migrationInstalls[0]?.id || '');
+	let sourceInstallChoices = $derived(migrationInstalls);
+	let selectableSourceInstallIds = $derived(
+		sourceInstallChoices
+			.filter((install: HoudiniInstall) => install.id !== activeDestinationInstallId)
+			.map((install: HoudiniInstall) => install.id)
+	);
+	let activeSourceInstallFilterIds = $derived(sourceInstallFilterIds ?? selectableSourceInstallIds);
 	let migratablePlugins = $derived(
 		plugins.filter(
 			(plugin: PluginRecord) => plugin.origin !== 'install' && plugin.origin !== 'site'
@@ -30,17 +51,9 @@
 	);
 
 	let sourcePlugins = $derived(
-		migratablePlugins.filter((plugin: PluginRecord) =>
-			targets.some(
-				(target: ActivationTarget) =>
-					target.pluginId === plugin.id &&
-					target.installId === activeSourceInstallId &&
-					Boolean(target.packagePath)
-			)
+		migratablePlugins.filter(
+			(plugin: PluginRecord) => sourceInstallsForPlugin(plugin.id).length > 0
 		)
-	);
-	let destinationInstalls = $derived(
-		installs.filter((install: HoudiniInstall) => install.id !== activeSourceInstallId)
 	);
 	let visiblePlugins = $derived.by(() => {
 		const query = pluginQuery.trim().toLowerCase();
@@ -56,61 +69,98 @@
 		sourcePlugins.length > 0 &&
 			sourcePlugins.every((plugin: PluginRecord) => selectedPluginIds.includes(plugin.id))
 	);
+	let selectedAvailablePluginIds = $derived(
+		selectedPluginIds.filter((pluginId) => Boolean(sourceInstallForPlugin(pluginId)))
+	);
 	let canMigrate = $derived(
 		migrationState !== 'working' &&
-			Boolean(activeSourceInstallId) &&
-			destinationInstallIds.length > 0 &&
-			selectedPluginIds.length > 0
+			Boolean(activeDestinationInstallId) &&
+			selectedAvailablePluginIds.length > 0
 	);
+	let selectedAvailablePluginCount = $derived(selectedAvailablePluginIds.length);
 
-	function isPluginAvailable(pluginId: string, installId = activeSourceInstallId) {
-		return targets.some(
-			(target: ActivationTarget) =>
-				target.pluginId === pluginId &&
-				target.installId === installId &&
-				Boolean(target.packagePath)
+	function sourceInstallsForPlugin(pluginId: string) {
+		return migrationInstalls.filter(
+			(install: HoudiniInstall) =>
+				install.id !== activeDestinationInstallId &&
+				activeSourceInstallFilterIds.includes(install.id) &&
+				targets.some(
+					(target: ActivationTarget) =>
+						target.pluginId === pluginId &&
+						target.installId === install.id &&
+						Boolean(target.packagePath)
+				)
 		);
 	}
 
-	function selectSource(installId: string) {
-		sourceInstallId = installId;
-		destinationInstallIds = destinationInstallIds.filter((id) => id !== installId);
-		selectedPluginIds = selectedPluginIds.filter((pluginId) =>
-			isPluginAvailable(pluginId, installId)
+	function sourceInstallForPlugin(pluginId: string) {
+		const sourceOptions = sourceInstallsForPlugin(pluginId);
+		return (
+			sourceOptions.find((install) => install.id === selectedSourceInstallIds[pluginId])?.id ??
+			sourceOptions[0]?.id
 		);
 	}
 
-	function toggleDestination(installId: string, checked: boolean) {
-		if (installId === sourceInstallId) return;
-		destinationInstallIds = checked
-			? [...new Set([...destinationInstallIds, installId])]
-			: destinationInstallIds.filter((id) => id !== installId);
+	function selectDestination(installId: string) {
+		destinationInstallId = installId;
 	}
 
-	function setAllDestinations(selected: boolean) {
-		destinationInstallIds = selected
-			? destinationInstalls.map((install: HoudiniInstall) => install.id)
-			: [];
+	function toggleSourceInstall(installId: string, checked: boolean) {
+		const next = new SvelteSet(activeSourceInstallFilterIds);
+		if (checked) next.add(installId);
+		else next.delete(installId);
+		sourceInstallFilterIds = [...next];
+	}
+
+	function setAllSourceInstalls(selected: boolean) {
+		sourceInstallFilterIds = selected ? [...selectableSourceInstallIds] : [];
 	}
 
 	function togglePlugin(pluginId: string, checked: boolean) {
-		if (!isPluginAvailable(pluginId)) return;
+		const sourceInstall = sourceInstallsForPlugin(pluginId)[0];
+		if (!sourceInstall) return;
 		selectedPluginIds = checked
 			? [...new Set([...selectedPluginIds, pluginId])]
 			: selectedPluginIds.filter((id) => id !== pluginId);
+		selectedSourceInstallIds = checked
+			? { ...selectedSourceInstallIds, [pluginId]: sourceInstall.id }
+			: Object.fromEntries(
+					Object.entries(selectedSourceInstallIds).filter(([id]) => id !== pluginId)
+				);
+	}
+
+	function selectPluginSource(pluginId: string, sourceInstallId: string) {
+		selectedSourceInstallIds = { ...selectedSourceInstallIds, [pluginId]: sourceInstallId };
 	}
 
 	function setAllAvailablePlugins(selected: boolean) {
 		selectedPluginIds = selected ? sourcePlugins.map((plugin: PluginRecord) => plugin.id) : [];
+		selectedSourceInstallIds = selected
+			? Object.fromEntries(
+					sourcePlugins.map((plugin: PluginRecord) => [
+						plugin.id,
+						sourceInstallsForPlugin(plugin.id)[0].id
+					])
+				)
+			: {};
 	}
+
+	let allSourceInstallsSelected = $derived(
+		selectableSourceInstallIds.length > 0 &&
+			selectableSourceInstallIds.every((installId) =>
+				activeSourceInstallFilterIds.includes(installId)
+			)
+	);
 
 	function submitMigration() {
 		if (!canMigrate) return;
 		onMigrate({
 			action: 'migrate-configs',
-			sourceInstallId: activeSourceInstallId,
-			destinationInstallIds: [...destinationInstallIds],
-			pluginIds: [...selectedPluginIds]
+			destinationInstallId: activeDestinationInstallId,
+			sources: selectedAvailablePluginIds.map((pluginId) => ({
+				pluginId,
+				sourceInstallId: sourceInstallForPlugin(pluginId) as string
+			}))
 		});
 	}
 
@@ -140,7 +190,7 @@
 			<div>
 				<h2 id="plugin-migrator-title">Plugin Migrator</h2>
 				<p id="plugin-migrator-description">
-					Copy selected Houdini package configs from one install to other installs.
+					Copy selected Houdini package configs from multiple installs into one destination.
 				</p>
 			</div>
 			<button
@@ -157,46 +207,47 @@
 		<div class="migrator-content">
 			<div class="migrator-controls">
 				<label class="migrator-field">
-					<span>Source Houdini install</span>
+					<span>Destination Houdini install</span>
 					<select
-						value={activeSourceInstallId}
-						disabled={migrationState === 'working' || !installs.length}
-						onchange={(event) => selectSource((event.currentTarget as HTMLSelectElement).value)}
+						value={activeDestinationInstallId}
+						disabled={migrationState === 'working' || !migrationInstalls.length}
+						onchange={(event) =>
+							selectDestination((event.currentTarget as HTMLSelectElement).value)}
 					>
 						<option value="" disabled>Choose an install</option>
-						{#each installs as install (install.id)}
-							<option value={install.id}>{install.label} · {install.version}</option>
+						{#each migrationInstalls as install (install.version)}
+							<option value={install.id}>{install.label}</option>
 						{/each}
 					</select>
 				</label>
-
 				<fieldset class="migrator-fieldset">
 					<legend>
-						<span>Destination installs</span>
+						<span>Source Houdini installs</span>
 						<span class="selection-actions">
 							<button
 								type="button"
 								class="selection-link"
-								disabled={migrationState === 'working' || !destinationInstalls.length}
-								onclick={() => setAllDestinations(true)}>All</button
+								disabled={migrationState === 'working' || !selectableSourceInstallIds.length}
+								onclick={() => setAllSourceInstalls(!allSourceInstallsSelected)}
 							>
-							<button
-								type="button"
-								class="selection-link"
-								disabled={migrationState === 'working' || !destinationInstallIds.length}
-								onclick={() => setAllDestinations(false)}>Clear</button
-							>
+								{allSourceInstallsSelected ? 'Clear' : 'All'}
+							</button>
 						</span>
 					</legend>
 					<div class="install-options">
-						{#each destinationInstalls as install (install.id)}
-							<label class="check-row">
+						{#each sourceInstallChoices as install (install.version)}
+							<label
+								class:source-install-destination={install.id === activeDestinationInstallId}
+								class="check-row"
+							>
 								<input
 									type="checkbox"
-									checked={destinationInstallIds.includes(install.id)}
-									disabled={migrationState === 'working'}
+									checked={install.id !== activeDestinationInstallId &&
+										activeSourceInstallFilterIds.includes(install.id)}
+									disabled={migrationState === 'working' ||
+										install.id === activeDestinationInstallId}
 									onchange={(event) =>
-										toggleDestination(
+										toggleSourceInstall(
 											install.id,
 											(event.currentTarget as HTMLInputElement).checked
 										)}
@@ -207,7 +258,7 @@
 								</span>
 							</label>
 						{:else}
-							<p class="empty-copy">Choose a source with another install available.</p>
+							<p class="empty-copy">No source installs available.</p>
 						{/each}
 					</div>
 				</fieldset>
@@ -218,7 +269,7 @@
 					<div>
 						<h3>Plugins to copy</h3>
 						<p>
-							{selectedPluginIds.length} selected · {sourcePlugins.length} available from source
+							{selectedAvailablePluginCount} selected · {sourcePlugins.length} available across installs
 						</p>
 					</div>
 					<div class="picker-actions">
@@ -228,7 +279,7 @@
 							disabled={migrationState === 'working' || !sourcePlugins.length}
 							onclick={() => setAllAvailablePlugins(!allAvailableSelected)}
 						>
-							{allAvailableSelected ? 'Clear all' : 'Select all available'}
+							{allAvailableSelected ? 'Clear all' : 'Select all known'}
 						</button>
 					</div>
 				</div>
@@ -239,7 +290,8 @@
 				</label>
 				<div class="plugin-list">
 					{#each visiblePlugins as plugin (plugin.id)}
-						{@const available = isPluginAvailable(plugin.id)}
+						{@const sourceOptions = sourceInstallsForPlugin(plugin.id)}
+						{@const available = sourceOptions.length > 0}
 						<label class:plugin-unavailable={!available} class="plugin-row">
 							<input
 								type="checkbox"
@@ -253,6 +305,18 @@
 								<small>{plugin.packageFile}</small>
 							</span>
 							{#if available}
+								<select
+									class="plugin-source-select"
+									aria-label={`Source install for ${plugin.name}`}
+									value={sourceInstallForPlugin(plugin.id)}
+									disabled={migrationState === 'working' || !selectedPluginIds.includes(plugin.id)}
+									onchange={(event) =>
+										selectPluginSource(plugin.id, (event.currentTarget as HTMLSelectElement).value)}
+								>
+									{#each sourceOptions as install (install.version)}
+										<option value={install.id}>{install.label}</option>
+									{/each}
+								</select>
 								<Check class="availability-icon" size={15} strokeWidth={2} aria-label="Available" />
 							{:else}
 								<small class="unavailable-label">Unavailable in source</small>
@@ -286,8 +350,7 @@
 
 		<div class="migrator-footer">
 			<span class="migration-summary">
-				{selectedPluginIds.length} plugin{selectedPluginIds.length === 1 ? '' : 's'} ·
-				{destinationInstallIds.length} destination{destinationInstallIds.length === 1 ? '' : 's'}
+				{selectedAvailablePluginCount} plugin{selectedAvailablePluginCount === 1 ? '' : 's'} · 1 destination
 			</span>
 			<button
 				type="button"
@@ -400,7 +463,15 @@
 		gap: 18px;
 	}
 
-	.migrator-field,
+	.migrator-field {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin: 0;
+		padding: 0;
+		border: 0;
+	}
+
 	.migrator-fieldset {
 		display: flex;
 		flex-direction: column;
@@ -411,7 +482,6 @@
 	}
 
 	.migrator-field > span,
-	.migrator-fieldset legend,
 	.plugin-picker-header h3 {
 		color: var(--text-dim);
 		font-size: 11px;
@@ -438,16 +508,23 @@
 		outline-offset: 1px;
 	}
 
+	.picker-actions {
+		display: flex;
+		gap: 8px;
+	}
+
 	.migrator-fieldset legend {
 		display: flex;
 		width: 100%;
 		align-items: center;
 		justify-content: space-between;
 		padding: 0;
+		color: var(--text-dim);
+		font-size: 11px;
+		font-weight: 600;
 	}
 
-	.selection-actions,
-	.picker-actions {
+	.selection-actions {
 		display: flex;
 		gap: 8px;
 	}
@@ -483,7 +560,57 @@
 		overflow: auto;
 	}
 
-	.check-row,
+	.check-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 42px;
+		padding: 7px 8px;
+		border: 1px solid rgba(211, 232, 225, 0.08);
+		border-radius: 5px;
+		background: rgba(255, 255, 255, 0.025);
+		cursor: pointer;
+	}
+
+	.check-row:hover {
+		border-color: rgba(57, 155, 130, 0.45);
+		background: rgba(57, 155, 130, 0.08);
+	}
+
+	.check-row.source-install-destination {
+		cursor: not-allowed;
+		opacity: 0.45;
+	}
+
+	.check-row.source-install-destination:hover {
+		border-color: rgba(211, 232, 225, 0.08);
+		background: rgba(255, 255, 255, 0.025);
+	}
+
+	.check-row input {
+		accent-color: #399b82;
+		flex: 0 0 auto;
+	}
+
+	.check-row span {
+		display: flex;
+		min-width: 0;
+		flex: 1;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.check-row strong {
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.check-row small {
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 9px;
+	}
+
 	.plugin-row {
 		display: flex;
 		align-items: center;
@@ -496,19 +623,16 @@
 		cursor: pointer;
 	}
 
-	.check-row:hover,
 	.plugin-row:hover:not(.plugin-unavailable) {
 		border-color: rgba(57, 155, 130, 0.45);
 		background: rgba(57, 155, 130, 0.08);
 	}
 
-	.check-row input,
 	.plugin-row input {
 		accent-color: #399b82;
 		flex: 0 0 auto;
 	}
 
-	.check-row span,
 	.plugin-row-copy {
 		display: flex;
 		min-width: 0;
@@ -517,17 +641,46 @@
 		gap: 2px;
 	}
 
-	.check-row strong,
 	.plugin-row strong {
 		font-size: 12px;
 		font-weight: 600;
 	}
 
-	.check-row small,
 	.plugin-row small {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 9px;
+	}
+
+	.plugin-source-select {
+		max-width: 135px;
+		padding: 5px 6px;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.045);
+		color: var(--text-muted);
+		font: inherit;
+		font-size: 10px;
+	}
+
+	.plugin-source-select:focus-visible {
+		border-color: #399b82;
+		outline: 2px solid rgba(57, 155, 130, 0.2);
+		outline-offset: 1px;
+	}
+
+	.plugin-source-select:hover:not(:disabled) {
+		border-color: rgba(57, 155, 130, 0.7);
+		background: rgba(57, 155, 130, 0.1);
+		color: var(--text);
+	}
+
+	.plugin-source-select:disabled {
+		border-color: rgba(211, 232, 225, 0.08);
+		background: rgba(255, 255, 255, 0.02);
+		color: var(--text-dim);
+		cursor: not-allowed;
+		opacity: 0.45;
 	}
 
 	.plugin-picker {
@@ -694,7 +847,6 @@
 			grid-template-columns: 1fr;
 		}
 
-		.install-options,
 		.plugin-list {
 			max-height: 220px;
 		}
