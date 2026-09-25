@@ -542,7 +542,6 @@
 		</p>
 		<div class="install-facts">
 			<div><span>Build</span><strong>{install.build}</strong></div>
-			<div><span>Platform</span><strong>{install.platform}</strong></div>
 			<div><span>Packages</span><strong>{install.packageCount}</strong></div>
 		</div>
 		<div class="path-facts">
@@ -1430,7 +1429,7 @@
 
 	.install-facts {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: 8px;
 		margin: 26px 0 36px;
 	}
