@@ -576,8 +576,12 @@
 				)}
 				<div class="target-item">
 					<div>
-						<strong>{targetPlugin?.name}</strong>
-						<small>{target.artifactVersion ?? 'No artifact resolved'}</small>
+						<div class="target-summary">
+							<strong>{targetPlugin?.name}</strong>
+							<span class="target-artifact-version">
+								{target.artifactVersion ?? 'No artifact resolved'}
+							</span>
+						</div>
 					</div>
 					<span class={['status-pill', `status-${target.status}`]}
 						>{statusLabel(target.status)}</span
@@ -1305,8 +1309,34 @@
 		display: block;
 	}
 
-	.target-item strong {
+	.target-summary {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.target-summary strong {
+		display: inline;
+	}
+
+	.target-artifact-version {
+		display: inline-flex;
+		align-items: center;
+		padding: 3px 6px;
+		border: 1px solid rgba(211, 155, 56, 0.4);
+		border-radius: 4px;
+		background: rgba(211, 155, 56, 0.09);
+		color: #e2b95f;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;
+		font-weight: 600;
+		line-height: 1;
+	}
+
+	.target-item strong {
+		font-size: 16px;
 		font-weight: 600;
 	}
 
