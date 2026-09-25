@@ -485,6 +485,18 @@
 		installDialogOpen = true;
 	}
 
+	async function openInstallPath(path: string) {
+		try {
+			await runHoudiniPluginAction({
+				action: 'open-path',
+				installId: selectedInstall?.id ?? '',
+				path
+			});
+		} catch {
+			// The path action is best effort; the selected install remains unchanged.
+		}
+	}
+
 	function closeInstallDialog() {
 		if (installState === 'working') return;
 		installDialogOpen = false;
@@ -1019,6 +1031,7 @@
 						onOpenTargetConfig={openTargetConfigDialog}
 						onOpenTargetIssueDetails={openTargetIssueDetails}
 						onOpenInstallDialog={openInstallDialog}
+						onOpenInstallPath={openInstallPath}
 					/>
 				</div>
 			{:else}

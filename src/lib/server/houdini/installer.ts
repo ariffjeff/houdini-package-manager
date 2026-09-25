@@ -77,6 +77,31 @@ export async function runHoudiniPluginAction(
 	if (request?.action === 'migrate-configs') {
 		return migratePluginConfigs(request);
 	}
+	if (request?.action === 'open-path') {
+		if (typeof request.installId !== 'string' || !request.installId.trim()) {
+			throw new Error('An install id is required.');
+		}
+		if (typeof request.path !== 'string' || !request.path.trim()) {
+			throw new Error('A path is required.');
+		}
+
+		const current = await discoverHoudiniWorkspace();
+		const install = current.installs.find((candidate) => candidate.id === request.installId);
+		if (!install) throw new Error('The Houdini install was not found.');
+		const allowedPaths = [
+			install.hfs,
+			install.hconfig,
+			install.userPreferences,
+			install.packageDirectory,
+			...install.packageRoots.map((root) => root.path)
+		];
+		if (!allowedPaths.some((allowedPath) => samePath(allowedPath, request.path))) {
+			throw new Error('That path is not associated with the selected Houdini install.');
+		}
+
+		await openPath(request.path);
+		return { message: `Opened ${path.basename(request.path)}.` };
+	}
 	if (
 		!request ||
 		typeof request !== 'object' ||

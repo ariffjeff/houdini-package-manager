@@ -51,7 +51,8 @@
 		onPluginAction,
 		onOpenTargetConfig,
 		onOpenTargetIssueDetails,
-		onOpenInstallDialog
+		onOpenInstallDialog,
+		onOpenInstallPath
 	} = $props<{
 		plugin?: PluginRecord;
 		officialPlugins: PluginRecord[];
@@ -75,6 +76,7 @@
 		onOpenTargetConfig: (install: HoudiniInstall, target: ActivationTarget) => void;
 		onOpenTargetIssueDetails: (install: HoudiniInstall, target: ActivationTarget) => void;
 		onOpenInstallDialog: () => void;
+		onOpenInstallPath: (path: string) => void | Promise<void>;
 	}>();
 
 	function stopActionPropagation(event: MouseEvent) {
@@ -545,15 +547,41 @@
 			<div><span>Packages</span><strong>{install.packageCount}</strong></div>
 		</div>
 		<div class="path-facts">
-			<div><span>HFS</span><code>{install.hfs}</code></div>
-			<div><span>hconfig</span><code>{install.hconfig}</code></div>
-			<div><span>User preferences</span><code>{install.userPreferences}</code></div>
-			<div><span>User package directory</span><code>{install.packageDirectory}</code></div>
+			<button type="button" class="path-fact" onclick={() => void onOpenInstallPath(install.hfs)}>
+				<span>HFS</span><code>{install.hfs}</code>
+			</button>
+			<button
+				type="button"
+				class="path-fact"
+				onclick={() => void onOpenInstallPath(install.hconfig)}
+			>
+				<span>hconfig</span><code>{install.hconfig}</code>
+			</button>
+			<button
+				type="button"
+				class="path-fact"
+				onclick={() => void onOpenInstallPath(install.userPreferences)}
+			>
+				<span>User preferences</span><code>{install.userPreferences}</code>
+			</button>
+			<button
+				type="button"
+				class="path-fact"
+				onclick={() => void onOpenInstallPath(install.packageDirectory)}
+			>
+				<span>User package directory</span><code>{install.packageDirectory}</code>
+			</button>
 		</div>
 		<div class="package-roots">
 			<span>Scanned package roots</span>
 			{#each install.packageRoots as root (root.path)}
-				<code>{root.origin}: {root.path}</code>
+				<button
+					type="button"
+					class="package-root-path"
+					onclick={() => void onOpenInstallPath(root.path)}
+				>
+					{root.origin}: {root.path}
+				</button>
 			{/each}
 		</div>
 		{#if install.diagnostics.length}
@@ -1452,12 +1480,46 @@
 		margin-bottom: 28px;
 	}
 
-	.path-facts div {
+	.path-facts div,
+	.path-fact {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 		padding-bottom: 8px;
 		border-bottom: 1px solid var(--line);
+	}
+
+	.path-fact {
+		width: 100%;
+		align-items: flex-start;
+		padding: 0 0 8px;
+		border-top: 0;
+		border-right: 0;
+		border-left: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.path-fact:hover,
+	.path-fact:focus-visible,
+	.package-root-path:hover,
+	.package-root-path:focus-visible {
+		border-color: #399b82;
+		background: rgba(57, 155, 130, 0.1);
+		color: var(--text);
+		outline: none;
+	}
+
+	.path-fact:hover span,
+	.path-fact:focus-visible span,
+	.path-fact:hover code,
+	.path-fact:focus-visible code,
+	.package-root-path:hover,
+	.package-root-path:focus-visible {
+		color: #8de0c5;
 	}
 
 	.path-facts span,
@@ -1496,12 +1558,20 @@
 		text-transform: uppercase;
 	}
 
-	.package-roots code {
+	.package-root-path {
 		overflow-wrap: anywhere;
+		padding: 0;
+		border: 0;
+		background: transparent;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;
 		line-height: 1.4;
+		text-align: left;
+		cursor: pointer;
+		transition:
+			background-color 120ms ease,
+			color 120ms ease;
 	}
 
 	.diagnostics {
