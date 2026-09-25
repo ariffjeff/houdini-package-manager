@@ -575,7 +575,7 @@
 	.install-review span {
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 8px;
+		font-size: 12px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 	}
@@ -588,7 +588,7 @@
 		border-radius: 4px;
 		background: var(--surface-raised);
 		color: var(--text);
-		font-size: 11px;
+		font-size: 12px;
 	}
 
 	.version-select {
@@ -607,7 +607,7 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		font: inherit;
-		font-size: 11px;
+		font-size: 12px;
 		text-align: left;
 		cursor: pointer;
 	}
@@ -651,7 +651,7 @@
 		background: transparent;
 		color: var(--text);
 		font: inherit;
-		font-size: 11px;
+		font-size: 12px;
 		text-align: left;
 		cursor: pointer;
 	}
@@ -663,7 +663,7 @@
 		background: rgba(211, 155, 56, 0.1);
 		color: #e2b95f;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		font-weight: 600;
 		line-height: 1;
 		text-transform: uppercase;
@@ -699,13 +699,13 @@
 
 	.install-version-toggle strong {
 		color: var(--text);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
 	.install-version-toggle small {
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		line-height: 1.4;
 	}
 
@@ -748,7 +748,7 @@
 		color: #55c4a5;
 		cursor: pointer;
 		font: inherit;
-		font-size: 10px;
+		font-size: 12px;
 	}
 
 	.selection-link:hover:not(:disabled),
@@ -768,7 +768,7 @@
 	.install-destination-option small {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.4;
 	}
 
@@ -825,7 +825,7 @@
 	.install-target-option strong,
 	.install-destination-option strong,
 	.install-open-folder-option strong {
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
@@ -847,7 +847,7 @@
 	.install-version-next {
 		display: block !important;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		line-height: 1.4;
 	}
 
@@ -875,7 +875,7 @@
 	.install-destination-input {
 		margin-top: 8px;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 	}
 
 	.install-destination-input:disabled {
@@ -901,7 +901,7 @@
 	}
 
 	.install-review strong {
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
@@ -910,7 +910,7 @@
 		overflow-wrap: anywhere;
 		color: #55c4a5;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		line-height: 1.4;
 	}
 
@@ -918,7 +918,7 @@
 		margin: 0;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		line-height: 1.45;
 	}
 
@@ -944,7 +944,7 @@
 		border: 1px solid var(--line);
 		border-radius: 5px;
 		font: inherit;
-		font-size: 11px;
+		font-size: 12px;
 		cursor: pointer;
 	}
 

@@ -215,7 +215,7 @@
 		min-width: 190px;
 		gap: 5px;
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
@@ -248,7 +248,7 @@
 		min-height: 34px;
 		padding: 0 2px;
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 		white-space: nowrap;
 	}
@@ -364,7 +364,7 @@
 	.issue-list-copy small {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		line-height: 1.4;
 		overflow-wrap: anywhere;
 	}

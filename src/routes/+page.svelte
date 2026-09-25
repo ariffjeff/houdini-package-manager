@@ -1171,7 +1171,7 @@
 		gap: 8px;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 	}
@@ -1246,7 +1246,7 @@
 		border-radius: 4px;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		font-weight: 600;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
@@ -1302,7 +1302,7 @@
 		margin: 0;
 		color: #df6d58;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		line-height: 1.4;
 		overflow-wrap: anywhere;
 	}
@@ -1311,7 +1311,7 @@
 		background: rgba(57, 156, 132, 0.12);
 		color: var(--text);
 		cursor: pointer;
-		font-size: 10px;
+		font-size: 12px;
 		font-weight: 600;
 		line-height: 1.3;
 		text-align: center;
@@ -1335,7 +1335,7 @@
 	.section-kicker {
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 	}
@@ -1383,7 +1383,7 @@
 		margin-top: 1px;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 	}
@@ -1454,7 +1454,7 @@
 		background: transparent;
 		color: var(--text-muted);
 		cursor: pointer;
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
@@ -1502,7 +1502,7 @@
 		background: rgba(255, 255, 255, 0.045);
 		color: var(--text);
 		cursor: pointer;
-		font-size: 9px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
@@ -1586,7 +1586,7 @@
 		gap: 13px;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		letter-spacing: 0.02em;
 		text-transform: uppercase;
 	}
@@ -1619,7 +1619,7 @@
 	.surface-count {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		white-space: nowrap;
 	}
 
@@ -1634,7 +1634,7 @@
 		box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
 		color: var(--text);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		line-height: 1.35;
 		pointer-events: none;
 		white-space: nowrap;
@@ -1660,7 +1660,7 @@
 		padding: 10px 3px 0;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		letter-spacing: 0.03em;
 		text-transform: uppercase;
 	}

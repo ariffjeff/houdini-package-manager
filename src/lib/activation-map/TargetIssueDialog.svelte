@@ -178,7 +178,7 @@
 		background: rgba(211, 155, 56, 0.08);
 		color: #e7d6ae;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.5;
 		overflow-wrap: anywhere;
 	}
@@ -193,7 +193,7 @@
 		background: rgba(211, 155, 56, 0.16);
 		color: #f0c96f;
 		font-family: inherit;
-		font-size: 10px;
+		font-size: 12px;
 		font-weight: 700;
 	}
 
@@ -210,7 +210,7 @@
 		border: 1px solid var(--line);
 		border-radius: 5px;
 		font: inherit;
-		font-size: 11px;
+		font-size: 12px;
 		cursor: pointer;
 	}
 

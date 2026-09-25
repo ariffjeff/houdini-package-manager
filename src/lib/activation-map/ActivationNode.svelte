@@ -117,7 +117,7 @@
 	.node-state,
 	.node-meta {
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
@@ -158,7 +158,7 @@
 	.node-git-status {
 		color: #6bc0a4;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		letter-spacing: 0.03em;
 		line-height: 1.2;
 	}

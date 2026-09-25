@@ -853,7 +853,7 @@
 	.install-dialog-field > span {
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
+		font-size: 12px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 	}
@@ -875,7 +875,7 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
+		font-size: 12px;
 	}
 
 	.config-source-input:focus-visible {
@@ -917,7 +917,7 @@
 	.config-warnings ul {
 		margin: 4px 0 0;
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.45;
 	}
 
@@ -940,7 +940,7 @@
 	.config-fix-description {
 		margin: 4px 0 0;
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.45;
 	}
 
@@ -965,7 +965,7 @@
 		align-items: flex-start;
 		gap: 8px;
 		color: var(--text-dim);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 		line-height: 1.4;
 		cursor: pointer;
@@ -1003,7 +1003,7 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
+		font-size: 12px;
 	}
 
 	.config-fix-source-field select:focus-visible {
@@ -1019,7 +1019,7 @@
 		border-radius: 4px;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		overflow-wrap: anywhere;
 	}
 
@@ -1069,7 +1069,7 @@
 		border-bottom: 1px solid var(--line);
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 	}
 
 	.config-preview-heading code {
@@ -1086,7 +1086,7 @@
 		padding: 12px;
 		color: var(--text);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.5;
 		white-space: pre-wrap;
 		word-break: break-word;
@@ -1140,7 +1140,7 @@
 		border: 1px solid var(--line);
 		border-radius: 5px;
 		font: inherit;
-		font-size: 11px;
+		font-size: 12px;
 		cursor: pointer;
 	}
 
@@ -1177,7 +1177,7 @@
 		margin: 0;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		line-height: 1.45;
 	}
 

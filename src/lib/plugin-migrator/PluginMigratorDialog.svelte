@@ -484,7 +484,7 @@
 	.migrator-field > span,
 	.plugin-picker-header h3 {
 		color: var(--text-dim);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
@@ -520,7 +520,7 @@
 		justify-content: space-between;
 		padding: 0;
 		color: var(--text-dim);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
@@ -536,7 +536,7 @@
 		color: #7dc6ae;
 		cursor: pointer;
 		font: inherit;
-		font-size: 10px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
@@ -608,7 +608,7 @@
 	.check-row small {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.plugin-row {
@@ -649,7 +649,7 @@
 	.plugin-row small {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 	}
 
 	.plugin-source-select {
@@ -660,7 +660,7 @@
 		background: rgba(255, 255, 255, 0.045);
 		color: var(--text-muted);
 		font: inherit;
-		font-size: 10px;
+		font-size: 12px;
 	}
 
 	.plugin-source-select:focus-visible {
@@ -741,7 +741,7 @@
 	.empty-copy {
 		margin: 8px 0;
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.4;
 	}
 
@@ -753,7 +753,7 @@
 		border-left: 2px solid #d39b38;
 		background: rgba(211, 155, 56, 0.1);
 		color: #d9b86e;
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.4;
 	}
 
@@ -764,7 +764,7 @@
 
 	.migrator-message {
 		margin: 12px 20px 0;
-		font-size: 11px;
+		font-size: 12px;
 		line-height: 1.4;
 	}
 
@@ -785,7 +785,7 @@
 		margin-right: auto;
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 	}
 
 	.secondary-action,
@@ -799,7 +799,7 @@
 		border-radius: 5px;
 		cursor: pointer;
 		font: inherit;
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 

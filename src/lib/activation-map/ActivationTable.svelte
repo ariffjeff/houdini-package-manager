@@ -101,7 +101,7 @@
 		background: var(--surface-muted);
 		color: #a8bbb4;
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 		font-weight: 500;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -115,7 +115,7 @@
 	thead th small {
 		margin-top: 5px;
 		color: var(--text-dim);
-		font-size: 9px;
+		font-size: 12px;
 		letter-spacing: 0.02em;
 		text-transform: none;
 	}
@@ -157,7 +157,7 @@
 	.plugin-name span {
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 10px;
+		font-size: 12px;
 	}
 
 	.status-cell {
@@ -185,7 +185,7 @@
 		grid-column: 2;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 9px;
+		font-size: 12px;
 		font-weight: 400;
 	}
 
