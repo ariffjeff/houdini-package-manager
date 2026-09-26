@@ -1419,7 +1419,7 @@
 
 	.workspace-actions {
 		display: flex;
-		align-items: center;
+		align-items: stretch;
 		gap: 6px;
 	}
 
