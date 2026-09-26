@@ -85,7 +85,7 @@ export async function runHoudiniPluginAction(
 			throw new Error('A path is required.');
 		}
 
-		const current = await discoverHoudiniWorkspace();
+		const current = await scanHoudiniWorkspace({ stage: 'installs' });
 		const install = current.installs.find((candidate) => candidate.id === request.installId);
 		if (!install) throw new Error('The Houdini install was not found.');
 		const allowedPaths = [
@@ -532,18 +532,8 @@ async function openPath(target: string): Promise<void> {
 				: ['/d', '/c', 'start', '', '/b', normalizedTarget]
 			: [normalizedTarget];
 
-	await new Promise<void>((resolve, reject) => {
-		const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
-		child.once('error', (error) => {
-			reject(
-				new Error(
-					`Cannot open ${target} with ${command}: ${error instanceof Error ? error.message : String(error)}`,
-					{ cause: error }
-				)
-			);
-		});
-		child.once('close', () => resolve());
-	});
+	const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
+	child.unref?.();
 }
 
 async function runGit(cwd: string | undefined, args: string[]): Promise<string> {
