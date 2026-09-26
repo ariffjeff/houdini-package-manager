@@ -1585,10 +1585,15 @@
 	}
 
 	.install-detail-heading {
+		position: sticky;
+		top: 0;
+		z-index: 3;
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 12px;
+		padding: 14px 0 10px;
+		background: var(--surface);
 	}
 
 	.install-detail-heading h3 {
