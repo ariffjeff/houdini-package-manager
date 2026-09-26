@@ -53,7 +53,8 @@
 		onOpenTargetConfig,
 		onOpenTargetIssueDetails,
 		onOpenInstallDialog,
-		onOpenInstallPath
+		onOpenInstallPath,
+		onSelectPlugin
 	} = $props<{
 		plugin?: PluginRecord;
 		officialPlugins: PluginRecord[];
@@ -79,6 +80,7 @@
 		onOpenTargetIssueDetails: (install: HoudiniInstall, target: ActivationTarget) => void;
 		onOpenInstallDialog: () => void;
 		onOpenInstallPath: (path: string) => void | Promise<void>;
+		onSelectPlugin: (pluginId: string) => void;
 	}>();
 
 	function stopActionPropagation(event: MouseEvent) {
@@ -554,7 +556,6 @@
 	{:else if install}
 		<div class="install-detail-heading">
 			<div>
-				<p class="section-kicker">Install detail</p>
 				<h3>{install.label}</h3>
 			</div>
 			<button
@@ -571,12 +572,9 @@
 				<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
 			</button>
 		</div>
-		<p class="detail-description">
-			{install.role}. hconfig resolved {install.packageCount} package configs for this install.
-		</p>
 		<div class="install-facts">
-			<div><span>Build</span><strong>{install.build}</strong></div>
-			<div><span>Packages</span><strong>{install.packageCount}</strong></div>
+			<div><span>Build {install.build}</span></div>
+			<div><span>{install.packageCount} Packages</span></div>
 		</div>
 		<div class="path-facts">
 			<button type="button" class="path-fact" onclick={() => void onOpenInstallPath(install.hfs)}>
@@ -633,7 +631,11 @@
 				{@const targetPlugin = activationPlugins.find(
 					(item: PluginRecord) => item.id === target.pluginId
 				)}
-				<div class="target-item">
+				<button
+					type="button"
+					class="target-item target-plugin-button"
+					onclick={() => onSelectPlugin(target.pluginId)}
+				>
 					<div>
 						<div class="target-summary">
 							<strong>{targetPlugin?.name}</strong>
@@ -645,7 +647,7 @@
 					<span class={['status-pill', `status-${target.status}`]}
 						>{statusLabel(target.status)}</span
 					>
-				</div>
+				</button>
 			{/each}
 		</div>
 		{@const officialTargets = installTargets.filter(isOfficialTarget)}
@@ -660,7 +662,11 @@
 						{@const targetPlugin = activationPlugins.find(
 							(item: PluginRecord) => item.id === target.pluginId
 						)}
-						<div class="target-item">
+						<button
+							type="button"
+							class="target-item target-plugin-button"
+							onclick={() => onSelectPlugin(target.pluginId)}
+						>
 							<div>
 								<strong>{targetPlugin?.name}</strong>
 								<small>{target.packageFile} / {target.origin}</small>
@@ -668,7 +674,7 @@
 							<span class={['status-pill', `status-${target.status}`]}
 								>{statusLabel(target.status)}</span
 							>
-						</div>
+						</button>
 					{/each}
 				</div>
 			</details>
@@ -1244,6 +1250,24 @@
 		border-top: 1px solid var(--line);
 	}
 
+	.target-plugin-button {
+		width: 100%;
+		border-right: 0;
+		border-bottom: 0;
+		border-left: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.target-plugin-button:hover,
+	.target-plugin-button:focus-visible {
+		background: rgba(77, 167, 161, 0.08);
+		outline: none;
+	}
+
 	.target-section .target-item {
 		padding-inline: 10px;
 		border-radius: 4px;
@@ -1555,10 +1579,9 @@
 	}
 
 	.install-facts {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		display: flex;
 		gap: 8px;
-		margin: 26px 0 36px;
+		margin: 8px 0;
 	}
 
 	.install-detail-heading {
@@ -1573,7 +1596,7 @@
 	}
 
 	.install-facts div {
-		padding: 10px 9px;
+		padding: 6px 10px;
 		border: 1px solid var(--line);
 		border-radius: 5px;
 	}
@@ -1710,7 +1733,6 @@
 	}
 
 	.install-facts span {
-		margin-bottom: 5px;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;

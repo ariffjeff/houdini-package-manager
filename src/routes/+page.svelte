@@ -1038,6 +1038,7 @@
 						onOpenTargetIssueDetails={openTargetIssueDetails}
 						onOpenInstallDialog={openInstallDialog}
 						onOpenInstallPath={openInstallPath}
+						onSelectPlugin={(pluginId) => selectNode(`plugin:${pluginId}`)}
 					/>
 				</div>
 			{:else}

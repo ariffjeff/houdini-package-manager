@@ -887,6 +887,10 @@ describe('activation workspace', () => {
 			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Rescan Houdini 21.0' }).click();
 		await expect.poll(() => scanRequests.at(-1)).toEqual({ stage: 'installs' });
+		await page.getByRole('button', { name: /qLib 2\.4\.1/ }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'qLib', exact: true }))
+			.toBeInTheDocument();
 	});
 
 	it('hides missing plugin configs from an install card', async () => {
