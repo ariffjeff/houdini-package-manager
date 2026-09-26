@@ -877,6 +877,8 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText('C:/Users/test/Documents/houdini21.0', { exact: true }))
 			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'Rescan Houdini 21.0' }).click();
+		await expect.poll(() => scanRequests.at(-1)).toEqual({ stage: 'installs' });
 	});
 
 	it('switches to the table and filters plugin rows', async () => {

@@ -555,6 +555,11 @@
 		}
 	}
 
+	async function rescanSelectedInstall() {
+		if (!selectedInstall || isScanActive) return;
+		await runStage('installs');
+	}
+
 	async function runSelectedPluginAction(request: PluginDetailAction) {
 		const plugin = selectedPlugin;
 		if (!plugin || isScanActive || pluginActionState === 'working') return;
@@ -1026,6 +1031,7 @@
 						{installState}
 						{installMessage}
 						onRescanPluginConfigs={() => void rescanSelectedPluginConfigs()}
+						onRescanInstall={() => void rescanSelectedInstall()}
 						onSyncGit={() => void syncSelectedPluginGit()}
 						onPluginAction={(request) => void runSelectedPluginAction(request)}
 						onOpenTargetConfig={openTargetConfigDialog}

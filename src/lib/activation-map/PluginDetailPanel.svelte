@@ -47,6 +47,7 @@
 		installState,
 		installMessage,
 		onRescanPluginConfigs,
+		onRescanInstall,
 		onSyncGit,
 		onPluginAction,
 		onOpenTargetConfig,
@@ -71,6 +72,7 @@
 		installState: InstallDialogState;
 		installMessage: string;
 		onRescanPluginConfigs: () => void | Promise<void>;
+		onRescanInstall: () => void | Promise<void>;
 		onSyncGit: () => void | Promise<void>;
 		onPluginAction: (request: PluginDetailAction) => void | Promise<void>;
 		onOpenTargetConfig: (install: HoudiniInstall, target: ActivationTarget) => void;
@@ -537,8 +539,25 @@
 			{/each}
 		</div>
 	{:else if install}
-		<p class="section-kicker">Install detail</p>
-		<h3>{install.label}</h3>
+		<div class="install-detail-heading">
+			<div>
+				<p class="section-kicker">Install detail</p>
+				<h3>{install.label}</h3>
+			</div>
+			<button
+				type="button"
+				class="node-action-button icon-action-button plugin-rescan-button"
+				aria-label={`Rescan ${install.label}`}
+				data-tooltip={`Rescan ${install.label}`}
+				disabled={isScanActive}
+				onclick={(event) => {
+					stopActionPropagation(event);
+					void onRescanInstall();
+				}}
+			>
+				<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
+			</button>
+		</div>
 		<p class="detail-description">
 			{install.role}. hconfig resolved {install.packageCount} package configs for this install.
 		</p>
@@ -1460,6 +1479,17 @@
 		grid-template-columns: repeat(4, 1fr);
 		gap: 8px;
 		margin: 26px 0 36px;
+	}
+
+	.install-detail-heading {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.install-detail-heading h3 {
+		margin-bottom: 0;
 	}
 
 	.install-facts div {
