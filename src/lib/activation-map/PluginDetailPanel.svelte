@@ -89,6 +89,14 @@
 		const plugin = activationPlugins.find((item: PluginRecord) => item.id === target.pluginId);
 		return plugin ? isOfficialPlugin(plugin) : false;
 	}
+
+	let installTargets = $derived(
+		selectedTargets.filter(
+			(target: ActivationTarget) =>
+				target.packagePath !== null &&
+				activationPlugins.some((plugin: PluginRecord) => plugin.id === target.pluginId)
+		)
+	);
 </script>
 
 {#snippet rescanPluginConfigsButton(className = '')}
@@ -618,10 +626,10 @@
 		{/if}
 		<div class="target-heading">
 			<span>Plugin targets</span>
-			<span>{selectedTargets.length}</span>
+			<span>{installTargets.length}</span>
 		</div>
 		<div class="target-list">
-			{#each selectedTargets.filter((target: ActivationTarget) => !isOfficialTarget(target)) as target (target.pluginId)}
+			{#each installTargets.filter((target: ActivationTarget) => !isOfficialTarget(target)) as target (target.pluginId)}
 				{@const targetPlugin = activationPlugins.find(
 					(item: PluginRecord) => item.id === target.pluginId
 				)}
@@ -640,7 +648,7 @@
 				</div>
 			{/each}
 		</div>
-		{@const officialTargets = selectedTargets.filter(isOfficialTarget)}
+		{@const officialTargets = installTargets.filter(isOfficialTarget)}
 		{#if officialTargets.length}
 			<details class="official-package-group">
 				<summary>

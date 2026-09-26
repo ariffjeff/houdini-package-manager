@@ -889,6 +889,47 @@ describe('activation workspace', () => {
 		await expect.poll(() => scanRequests.at(-1)).toEqual({ stage: 'installs' });
 	});
 
+	it('hides missing plugin configs from an install card', async () => {
+		const missingConfigResponse = {
+			...discoveryResponse,
+			plugins: [
+				...discoveryResponse.plugins,
+				{
+					id: 'package:hpaste',
+					name: 'hpaste',
+					description: 'Discovered from a Houdini package configuration.',
+					version: 'Unknown',
+					license: 'Not declared',
+					source: 'C:/Users/test/Documents/houdini21.0/packages/hpaste',
+					tags: ['hconfig', 'user'],
+					packageFile: 'hpaste.json',
+					packagePath: 'C:/Users/test/Documents/houdini21.0/packages/hpaste.json',
+					origin: 'user' as const,
+					valid: true
+				}
+			],
+			targets: [
+				...discoveryResponse.targets,
+				{
+					...discoveryResponse.targets[0],
+					pluginId: 'package:hpaste',
+					status: 'missing' as const,
+					artifactVersion: null,
+					packageFile: 'hpaste.json',
+					packagePath: null,
+					origin: 'user' as const,
+					note: 'No package config was found for this install.'
+				}
+			]
+		} as typeof discoveryResponse;
+		stubDiscovery(missingConfigResponse);
+		render(Page);
+
+		await page.getByRole('group', { name: 'Houdini 21.0, 1 package configs' }).click();
+		const detailPanel = page.getByRole('complementary');
+		await expect.element(detailPanel.getByText('hpaste', { exact: true })).not.toBeInTheDocument();
+	});
+
 	it('switches to the table and filters plugin rows', async () => {
 		stubDiscovery();
 		render(Page);
