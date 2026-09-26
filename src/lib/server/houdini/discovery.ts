@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -1113,6 +1114,7 @@ export function packageRoots(
 
 	return roots.filter(
 		(item, index, all) =>
+			existsSync(item.directory) &&
 			all.findIndex(
 				(candidate) => path.normalize(candidate.directory) === path.normalize(item.directory)
 			) === index

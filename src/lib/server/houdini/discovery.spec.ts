@@ -153,6 +153,20 @@ CUSTOM_HOUDINI_VAR := 'custom'
 		);
 	});
 
+	it('omits package roots that do not exist', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-package-roots-'));
+		const existingRoot = path.join(root, 'packages');
+		const missingRoot = path.join(root, 'missing-packages');
+		await mkdir(existingRoot, { recursive: true });
+
+		const roots = packageRoots(root, root, '21.0', {
+			HOUDINI_PACKAGE_PATH: `${existingRoot}${process.platform === 'win32' ? ';' : ':'}${missingRoot}`
+		});
+
+		expect(roots).toContainEqual({ directory: existingRoot, origin: 'user' });
+		expect(roots).not.toContainEqual({ directory: missingRoot, origin: 'unknown' });
+	});
+
 	it('normalizes Git remotes into browser-friendly repository URLs', () => {
 		expect(normalizeRepositoryUrl('git@github.com:toadstorm/MOPS.git')).toBe(
 			'https://github.com/toadstorm/MOPS'
