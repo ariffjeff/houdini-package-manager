@@ -1513,13 +1513,16 @@
 		outline: none;
 	}
 
-	.path-fact:hover span,
-	.path-fact:focus-visible span,
 	.path-fact:hover code,
 	.path-fact:focus-visible code,
 	.package-root-path:hover,
 	.package-root-path:focus-visible {
 		color: #8de0c5;
+	}
+
+	.path-fact:active code,
+	.package-root-path:active {
+		color: #2f7a61;
 	}
 
 	.path-facts span,
