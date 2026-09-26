@@ -27,7 +27,7 @@
 		type PluginDetailActionState,
 		type PluginTargetGroup
 	} from './plugin-detail';
-	import { statusLabel } from './model';
+	import { isOfficialPlugin, statusLabel } from './model';
 
 	let {
 		plugin,
@@ -83,6 +83,11 @@
 
 	function stopActionPropagation(event: MouseEvent) {
 		event.stopPropagation();
+	}
+
+	function isOfficialTarget(target: ActivationTarget) {
+		const plugin = activationPlugins.find((item: PluginRecord) => item.id === target.pluginId);
+		return plugin ? isOfficialPlugin(plugin) : false;
 	}
 </script>
 
@@ -616,7 +621,7 @@
 			<span>{selectedTargets.length}</span>
 		</div>
 		<div class="target-list">
-			{#each selectedTargets as target (target.pluginId)}
+			{#each selectedTargets.filter((target: ActivationTarget) => !isOfficialTarget(target)) as target (target.pluginId)}
 				{@const targetPlugin = activationPlugins.find(
 					(item: PluginRecord) => item.id === target.pluginId
 				)}
@@ -635,6 +640,31 @@
 				</div>
 			{/each}
 		</div>
+		{@const officialTargets = selectedTargets.filter(isOfficialTarget)}
+		{#if officialTargets.length}
+			<details class="official-package-group">
+				<summary>
+					<span>Official Houdini packages</span>
+					<span>{officialTargets.length} package configs</span>
+				</summary>
+				<div class="target-list">
+					{#each officialTargets as target (target.pluginId)}
+						{@const targetPlugin = activationPlugins.find(
+							(item: PluginRecord) => item.id === target.pluginId
+						)}
+						<div class="target-item">
+							<div>
+								<strong>{targetPlugin?.name}</strong>
+								<small>{target.packageFile} / {target.origin}</small>
+							</div>
+							<span class={['status-pill', `status-${target.status}`]}
+								>{statusLabel(target.status)}</span
+							>
+						</div>
+					{/each}
+				</div>
+			</details>
+		{/if}
 	{:else}
 		<div class="detail-empty">
 			<span class="empty-mark">+</span>
@@ -1153,6 +1183,48 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1px;
+	}
+
+	.official-package-group {
+		margin-top: 12px;
+		border-top: 1px solid var(--line);
+	}
+
+	.official-package-group summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 10px 0;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 12px;
+		list-style: none;
+	}
+
+	.official-package-group summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.official-package-group summary::before {
+		content: '+';
+		margin-right: 6px;
+		color: var(--text-dim);
+	}
+
+	.official-package-group[open] summary::before {
+		content: '-';
+	}
+
+	.official-package-group summary span:first-child {
+		margin-right: auto;
+	}
+
+	.official-package-group summary:hover,
+	.official-package-group summary:focus-visible {
+		color: var(--text);
+		outline: none;
 	}
 
 	.target-item {

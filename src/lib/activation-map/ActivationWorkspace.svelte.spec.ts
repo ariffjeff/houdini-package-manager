@@ -877,6 +877,14 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText('C:/Users/test/Documents/houdini21.0', { exact: true }))
 			.toBeInTheDocument();
+		const officialPackageGroup = page
+			.getByRole('complementary')
+			.getByText('Official Houdini packages', { exact: true });
+		await expect.element(officialPackageGroup).toBeInTheDocument();
+		await officialPackageGroup.click();
+		await expect
+			.element(page.getByText('apex.json / install', { exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Rescan Houdini 21.0' }).click();
 		await expect.poll(() => scanRequests.at(-1)).toEqual({ stage: 'installs' });
 	});
