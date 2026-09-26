@@ -1058,6 +1058,8 @@ describe('activation workspace', () => {
 					? {
 							...target,
 							status: 'warning' as const,
+							usesLegacyPath: false,
+							note: '',
 							undefinedVariableReferences: ['MISSING']
 						}
 					: target
@@ -1070,10 +1072,15 @@ describe('activation workspace', () => {
 		render(Page);
 
 		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
-		await expect
-			.element(page.getByText('Undefined variable reference: $MISSING', { exact: true }))
-			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
+		await expect
+			.element(
+				page.getByText(
+					'Package config references undefined variable key: $MISSING. Add the missing key or replace the reference; no reliable autofix is available.',
+					{ exact: true }
+				)
+			)
+			.toBeInTheDocument();
 		await page
 			.getByRole('dialog', { name: 'Undefined variable reference' })
 			.getByRole('button', { name: 'Live JSON Editor', exact: true })
