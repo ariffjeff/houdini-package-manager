@@ -1,11 +1,13 @@
 <script lang="ts">
 	import {
+		ControlButton,
 		Controls,
 		// MiniMap,
 		SvelteFlow,
 		type NodeEventWithPointer,
 		type NodeTypes
 	} from '@xyflow/svelte';
+	import { Spline } from '@lucide/svelte';
 	import ActivationNode from './ActivationNode.svelte';
 	import ActivationMapViewport from './ActivationMapViewport.svelte';
 	import type { ActivationEdge, ActivationNode as ActivationNodeRecord } from './types';
@@ -26,6 +28,21 @@
 		install: ActivationNode
 	} satisfies NodeTypes;
 
+	const edgeTypes = ['smoothstep', 'bezier', 'straight'] as const;
+	const edgeTypeLabels = {
+		smoothstep: 'Smooth step',
+		bezier: 'Bezier',
+		straight: 'Straight'
+	} satisfies Record<(typeof edgeTypes)[number], string>;
+	let edgeTypeIndex = $state(0);
+	let currentEdgeType = $derived(edgeTypes[edgeTypeIndex]);
+	let renderedEdges = $derived(
+		edges.map((edge) => ({
+			...edge,
+			type: currentEdgeType
+		}))
+	);
+
 	const handleNodeClick: NodeEventWithPointer<MouseEvent | TouchEvent, ActivationNodeRecord> = ({
 		node
 	}) => {
@@ -37,12 +54,16 @@
 	};
 
 	const handlePaneClick = () => onselect(null);
+
+	function cycleEdgeType() {
+		edgeTypeIndex = (edgeTypeIndex + 1) % edgeTypes.length;
+	}
 </script>
 
 <div class="flow-shell" role="group" aria-label="Plugin activation map">
 	<SvelteFlow
 		bind:nodes
-		bind:edges
+		edges={renderedEdges}
 		{nodeTypes}
 		fitView
 		fitViewOptions={{ padding: 0.16 }}
@@ -56,7 +77,18 @@
 		attributionPosition="bottom-left"
 		style="color: white;"
 	>
-		<Controls showZoom={false} />
+		<Controls showZoom={false}>
+			{#snippet before()}
+				<ControlButton
+					type="button"
+					title={`Wire style: ${edgeTypeLabels[currentEdgeType]}`}
+					aria-label={`Change wire style, currently ${edgeTypeLabels[currentEdgeType]}`}
+					onclick={cycleEdgeType}
+				>
+					<Spline size={16} strokeWidth={1.9} aria-hidden="true" />
+				</ControlButton>
+			{/snippet}
+		</Controls>
 		<ActivationMapViewport nodeId={focusNodeId} {nodes} {onfocuscomplete} />
 		<!-- <MiniMap /> -->
 	</SvelteFlow>
