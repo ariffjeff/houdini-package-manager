@@ -75,7 +75,11 @@ export function createActivationGraph(
 	const officialPluginIds = officialPlugins.map((plugin) => plugin.id);
 	const officialTargets = targets.filter((target) => officialPluginIds.includes(target.pluginId));
 	const pluginGridColumns = gridColumnCount(userPlugins.length + (officialPlugins.length ? 1 : 0));
-	const installGridOriginX = pluginGridOriginX + pluginGridColumns * nodeWidth + gridColumnGap + 70;
+	const installGridOriginX =
+		pluginGridOriginX +
+		pluginGridColumns * nodeWidth +
+		(pluginGridColumns - 1) * gridColumnGap +
+		70;
 	const nodes: ActivationNode[] = [
 		...userPlugins.map((plugin, index) => {
 			const pluginTargets = targets.filter((target) => target.pluginId === plugin.id);
