@@ -23,6 +23,44 @@ const statusColors: Record<ActivationStatus, string> = {
 const pluginAccents = ['#ef795f', '#4da7a1', '#d3a43d', '#8296e8', '#b77dd1'];
 export const OFFICIAL_NODE_ID = 'official:sidefx';
 
+const nodeWidth = 256;
+const nodeHeight = 104;
+const gridColumnGap = 36;
+const gridRowGap = 22;
+const gridOriginY = 48;
+const pluginGridOriginX = 70;
+const pluginGridTargetAspectRatio = 1.4;
+
+function gridColumnCount(itemCount: number) {
+	if (itemCount <= 1) return 1;
+
+	let bestColumns = 1;
+	let smallestDifference = Number.POSITIVE_INFINITY;
+	for (let columns = 1; columns <= itemCount; columns += 1) {
+		const rows = Math.ceil(itemCount / columns);
+		const width = columns * nodeWidth + (columns - 1) * gridColumnGap;
+		const height = rows * nodeHeight + (rows - 1) * gridRowGap;
+		const difference = Math.abs(Math.log(width / height / pluginGridTargetAspectRatio));
+
+		if (difference < smallestDifference) {
+			bestColumns = columns;
+			smallestDifference = difference;
+		}
+	}
+
+	return bestColumns;
+}
+
+function gridPosition(index: number, originX: number, columns: number) {
+	const column = index % columns;
+	const row = Math.floor(index / columns);
+
+	return {
+		x: originX + column * (nodeWidth + gridColumnGap),
+		y: gridOriginY + row * (nodeHeight + gridRowGap)
+	};
+}
+
 export function isOfficialPlugin(plugin: PluginRecord): boolean {
 	return plugin.origin === 'install' || plugin.origin === 'site';
 }
@@ -36,6 +74,8 @@ export function createActivationGraph(
 	const officialPlugins = plugins.filter(isOfficialPlugin);
 	const officialPluginIds = officialPlugins.map((plugin) => plugin.id);
 	const officialTargets = targets.filter((target) => officialPluginIds.includes(target.pluginId));
+	const pluginGridColumns = gridColumnCount(userPlugins.length + (officialPlugins.length ? 1 : 0));
+	const installGridOriginX = pluginGridOriginX + pluginGridColumns * nodeWidth + gridColumnGap + 70;
 	const nodes: ActivationNode[] = [
 		...userPlugins.map((plugin, index) => {
 			const pluginTargets = targets.filter((target) => target.pluginId === plugin.id);
@@ -44,14 +84,12 @@ export function createActivationGraph(
 				plugin.installedVersions && plugin.installedVersions.length > 1
 					? `${plugin.installedVersions.length} versions`
 					: plugin.version;
-			const sourceLabel =
-				plugin.sources && plugin.sources.length > 1 ? ` / ${plugin.sources.length} sources` : '';
 			const attention = pluginTargets.some(isTargetIssue);
 
 			return {
 				id: `plugin:${plugin.id}`,
 				type: 'plugin' as const,
-				position: { x: 70, y: 48 + index * 126 },
+				position: gridPosition(index, pluginGridOriginX, pluginGridColumns),
 				sourcePosition: Position.Right,
 				width: 256,
 				height: 104,
@@ -76,7 +114,7 @@ export function createActivationGraph(
 					{
 						id: OFFICIAL_NODE_ID,
 						type: 'official' as const,
-						position: { x: 70, y: 48 + userPlugins.length * 126 },
+						position: gridPosition(userPlugins.length, pluginGridOriginX, pluginGridColumns),
 						sourcePosition: Position.Right,
 						width: 256,
 						height: 104,
@@ -106,7 +144,7 @@ export function createActivationGraph(
 			return {
 				id: install.id,
 				type: 'install' as const,
-				position: { x: 640, y: 84 + index * 126 },
+				position: gridPosition(index, installGridOriginX, 1),
 				targetPosition: Position.Left,
 				width: 256,
 				height: 104,
