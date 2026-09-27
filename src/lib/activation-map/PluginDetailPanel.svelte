@@ -5,6 +5,7 @@
 		Cog,
 		FileCog,
 		FolderCode,
+		FolderHeart,
 		GitBranch,
 		Globe,
 		GlobeOff,
@@ -19,7 +20,6 @@
 	import type { PluginSource, PluginRecord } from '$lib/houdini/types';
 	import type { ActivationTarget, HoudiniInstall } from './types';
 	import {
-		compactPath,
 		installedVersionLabel,
 		installBuildLabels,
 		sourceTargets,
@@ -350,6 +350,9 @@
 					{@const currentInstall = group.representativeInstall}
 					{@const target = group.target}
 					{@const sourcePaths = target.sourcePaths ?? []}
+					{@const existingSourcePath = plugin?.sources?.find(
+						(source: PluginSource) => source.exists && sourcePaths.includes(source.path)
+					)?.path}
 					<div class={['target-item', 'target-item-actions', `target-item-${target.status}`]}>
 						<div class="target-actions target-primary-actions">
 							<div class="node-action-row" aria-label={`${currentInstall.label} primary actions`}>
@@ -383,64 +386,87 @@
 										<Square class="action-icon" size={18} strokeWidth={2.2} aria-hidden="true" />
 									{/if}
 								</button>
-								<button
-									type="button"
-									class="node-action-button icon-action-button"
-									class:issue-config-button={hasTargetIssues(target)}
-									aria-label={`Edit Live JSON Editor for ${currentInstall.label}`}
-									data-tooltip="Live JSON editor"
-									disabled={isScanActive || pluginActionState === 'working'}
-									onclick={(event) => {
-										stopActionPropagation(event);
-										void onOpenTargetConfig(currentInstall, target);
-									}}
-								>
-									<Cog size={22} strokeWidth={1.8} aria-hidden="true" />
-								</button>
-								<button
-									type="button"
-									class={[
-										'node-action-button',
-										'icon-action-button',
-										target.usesLegacyPath ||
-										['warning', 'incompatible', 'missing'].includes(target.status)
-											? 'issue-config-button'
-											: ''
-									]}
-									aria-label={`Open JSON config for ${currentInstall.label}`}
-									data-tooltip="Open JSON config"
-									disabled={isScanActive || pluginActionState === 'working'}
-									onclick={(event) => {
-										stopActionPropagation(event);
-										void onPluginAction({
-											action: 'open-config',
-											installId: currentInstall.id
-										});
-									}}
-								>
-									<FileCog size={22} strokeWidth={1.8} aria-hidden="true" />
-								</button>
-								<button
-									type="button"
-									class="node-action-button icon-action-button"
-									aria-label={`Open packages folder for ${currentInstall.label}`}
-									data-tooltip="Open packages folder"
-									disabled={isScanActive || pluginActionState === 'working'}
-									onclick={(event) => {
-										stopActionPropagation(event);
-										void onPluginAction({
-											action: 'open-package-folder',
-											installId: currentInstall.id
-										});
-									}}
-								>
-									<FolderCode
-										class="detail-meta-icon"
-										size={22}
-										strokeWidth={1.8}
-										aria-hidden="true"
-									/>
-								</button>
+								<div class="grid grid-cols-2 gap-1.5">
+									<button
+										type="button"
+										class="node-action-button icon-action-button"
+										class:issue-config-button={hasTargetIssues(target)}
+										aria-label={`Edit Live JSON Editor for ${currentInstall.label}`}
+										data-tooltip="Live JSON editor"
+										disabled={isScanActive || pluginActionState === 'working'}
+										onclick={(event) => {
+											stopActionPropagation(event);
+											void onOpenTargetConfig(currentInstall, target);
+										}}
+									>
+										<Cog size={22} strokeWidth={1.8} aria-hidden="true" />
+									</button>
+									<button
+										type="button"
+										class={[
+											'node-action-button',
+											'icon-action-button',
+											target.usesLegacyPath ||
+											['warning', 'incompatible', 'missing'].includes(target.status)
+												? 'issue-config-button'
+												: ''
+										]}
+										aria-label={`Open JSON config for ${currentInstall.label}`}
+										data-tooltip="Open JSON config"
+										disabled={isScanActive || pluginActionState === 'working'}
+										onclick={(event) => {
+											stopActionPropagation(event);
+											void onPluginAction({
+												action: 'open-config',
+												installId: currentInstall.id
+											});
+										}}
+									>
+										<FileCog size={22} strokeWidth={1.8} aria-hidden="true" />
+									</button>
+									<button
+										type="button"
+										class="node-action-button icon-action-button"
+										aria-label={`Open packages folder for ${currentInstall.label}`}
+										data-tooltip="Open packages folder"
+										disabled={isScanActive || pluginActionState === 'working'}
+										onclick={(event) => {
+											stopActionPropagation(event);
+											void onPluginAction({
+												action: 'open-package-folder',
+												installId: currentInstall.id
+											});
+										}}
+									>
+										<FolderCode
+											class="detail-meta-icon"
+											size={22}
+											strokeWidth={1.8}
+											aria-hidden="true"
+										/>
+									</button>
+									<button
+										type="button"
+										class="node-action-button icon-action-button target-plugin-folder-button"
+										aria-label={`Open plugin folder for ${plugin.name} in ${currentInstall.label} at ${existingSourcePath ?? sourcePaths[0] ?? 'No configured path'}`}
+										data-tooltip={existingSourcePath
+											? 'Open plugin folder'
+											: 'Plugin folder unavailable'}
+										disabled={isScanActive ||
+											pluginActionState === 'working' ||
+											!existingSourcePath}
+										onclick={() => {
+											if (existingSourcePath) {
+												void onPluginAction({
+													action: 'open-source',
+													sourcePath: existingSourcePath
+												});
+											}
+										}}
+									>
+										<FolderHeart size={18} strokeWidth={1.8} aria-hidden="true" />
+									</button>
+								</div>
 							</div>
 						</div>
 						<div class="target-install-label">
@@ -466,14 +492,9 @@
 								{/if}
 								{target.artifactVersion ?? 'Version unresolved'}
 							</span>
-							<small
-								class="target-plugin-location"
-								title={sourcePaths.join('\n') || 'No plugin source configured'}
-							>
-								{sourcePaths.length
-									? `${compactPath(sourcePaths[0])}${sourcePaths.length > 1 ? ` + ${sourcePaths.length - 1} more` : ''}`
-									: 'No plugin source configured'}
-							</small>
+							{#if !sourcePaths.length}
+								<small class="target-plugin-location">No plugin source configured</small>
+							{/if}
 							<div class="target-builds" aria-label="Install builds">
 								{#each installBuildLabels(group.installs) as build (build)}
 									<span data-tooltip={`Build ${build}`}>{build}</span>
@@ -979,7 +1000,8 @@
 		position: relative;
 		display: inline-flex;
 		width: 34px;
-		height: 34px;
+		min-height: 34px;
+		align-self: stretch;
 		align-items: center;
 		justify-content: center;
 		padding: 0;
@@ -1046,7 +1068,7 @@
 	}
 
 	.node-action-button:disabled {
-		cursor: wait;
+		cursor: default;
 		opacity: 0.55;
 	}
 
