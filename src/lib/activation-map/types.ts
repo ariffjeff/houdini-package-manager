@@ -47,6 +47,8 @@ export type ActivationNodeData = {
 	meta: string;
 	status: ActivationStatus;
 	statusLabel: string;
+	activeInstallCount?: number;
+	totalInstallCount?: number;
 	accent: string;
 	hasGitRepository?: boolean;
 	hasRemoteRepository?: boolean;

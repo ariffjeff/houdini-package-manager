@@ -118,6 +118,7 @@ export function createActivationGraph(
 					statusLabel: installs.length
 						? `${activeCount} / ${installs.length} installs`
 						: 'No detected installs',
+					activeInstallCount: activeCount,
 					accent: pluginAccents[index % pluginAccents.length],
 					hasGitRepository,
 					hasRemoteRepository,

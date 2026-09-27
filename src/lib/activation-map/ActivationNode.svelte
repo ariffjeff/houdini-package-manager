@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import { GitCommitHorizontal, Globe } from '@lucide/svelte';
+	import houdiniBadge from '$lib/assets/houdini_badge_flat.svg';
 	import type { ActivationNode } from './types';
 
 	let { data, selected }: NodeProps<ActivationNode> = $props();
@@ -37,7 +38,17 @@
 	<div class="node-content">
 		<div class="node-header">
 			<span class="node-eyebrow">{data.eyebrow}</span>
-			<span class={['node-state', `status-${data.status}`]}>{data.statusLabel}</span>
+			{#if data.kind === 'plugin' && data.activeInstallCount !== undefined}
+				<span
+					class={['node-state', 'node-install-count', `status-${data.status}`]}
+					aria-label={`${data.activeInstallCount} of ${data.totalInstallCount ?? 0} installs enabled`}
+				>
+					<span>{data.activeInstallCount}</span>
+					<img src={houdiniBadge} alt="" aria-hidden="true" />
+				</span>
+			{:else}
+				<span class={['node-state', `status-${data.status}`]}>{data.statusLabel}</span>
+			{/if}
 		</div>
 		<strong>{data.label}</strong>
 		<span class="node-meta">{data.meta}</span>
@@ -138,6 +149,21 @@
 
 	.node-state {
 		color: #399b82;
+	}
+
+	.node-install-count {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		color: #9aa7a3;
+	}
+
+	.node-install-count img {
+		width: 14px;
+		height: 14px;
+		object-fit: contain;
+		filter: grayscale(1);
+		opacity: 0.72;
 	}
 
 	.node-state.status-disabled,
