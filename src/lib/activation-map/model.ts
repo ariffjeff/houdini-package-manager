@@ -13,7 +13,7 @@ import { isTargetIssue } from '../houdini/known-issues';
 export { isTargetIssue } from '../houdini/known-issues';
 
 const statusColors: Record<ActivationStatus, string> = {
-	enabled: '#399b82',
+	enabled: '#777',
 	disabled: '#87948f',
 	warning: '#d39b38',
 	incompatible: '#df6d58',

@@ -307,6 +307,10 @@
 				const outlineStyle = (typeof edge.style === 'string' ? edge.style : '')
 					.replace(/stroke: [^;]+;/, 'stroke: #090d0e;')
 					.replace(/stroke-width: [^;]+;/, 'stroke-width: 8;');
+				const selectedStyle = (typeof edge.style === 'string' ? edge.style : '').replace(
+					/stroke: [^;]+;/,
+					'stroke: var(--accent-orange);'
+				);
 
 				return [
 					{
@@ -315,7 +319,7 @@
 						selectable: false,
 						style: outlineStyle
 					},
-					edge
+					{ ...edge, style: selectedStyle }
 				];
 			})
 	);

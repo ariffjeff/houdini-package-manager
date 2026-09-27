@@ -44,7 +44,7 @@
 					aria-label="User package"
 					title="User package"
 				>
-					<Blocks size={14} strokeWidth={1.9} aria-hidden="true" />
+					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
 				</span>
 			{:else if data.kind === 'install'}
 				<span
@@ -69,12 +69,12 @@
 			{:else if data.kind === 'install' && data.totalPluginCount !== undefined}
 				<span class="node-state node-install-count" aria-label={data.statusLabel}>
 					<span>{data.totalPluginCount}</span>
-					<Blocks size={14} strokeWidth={1.9} aria-hidden="true" />
+					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
 				</span>
 			{:else if data.kind === 'official' && data.totalPluginCount !== undefined}
 				<span class="node-state node-install-count" aria-label={data.statusLabel}>
 					<span>{data.totalPluginCount}</span>
-					<Blocks size={14} strokeWidth={1.9} aria-hidden="true" />
+					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
 				</span>
 			{:else}
 				<span class={['node-state', `status-${data.status}`]}>{data.statusLabel}</span>
@@ -122,7 +122,7 @@
 		width: 100%;
 		height: 100%;
 		overflow: hidden;
-		border: 1px solid var(--line-strong);
+		border: 1px solid #202b2d;
 		border-radius: 10px;
 		background: #202b2d;
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
@@ -134,11 +134,10 @@
 	}
 
 	.activation-node.is-selected {
-		border-color: var(--node-accent);
+		border-color: rgb(255, 136, 0);
 		box-shadow:
 			0 10px 28px rgba(0, 0, 0, 0.32),
 			0 0 0 3px color-mix(in srgb, var(--node-accent) 22%, transparent);
-		transform: translateY(-2px);
 	}
 
 	.node-accent {
@@ -182,12 +181,14 @@
 		align-items: center;
 	}
 
+	.node-eyebrow-icon .node-blocks-icon {
+		color: #8ca099;
+	}
+
 	.node-eyebrow-badge {
 		width: 14px;
 		height: 14px;
 		object-fit: contain;
-		filter: grayscale(1);
-		opacity: 0.72;
 	}
 
 	.node-state {
@@ -201,6 +202,10 @@
 		color: #9aa7a3;
 		font-size: 18px;
 		line-height: 0.5;
+	}
+
+	.node-install-count .node-blocks-icon {
+		color: #9aa7a3;
 	}
 
 	.node-install-count img {
