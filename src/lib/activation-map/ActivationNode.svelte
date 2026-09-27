@@ -51,6 +51,11 @@
 					<span>{data.totalPluginCount}</span>
 					<Blocks size={14} strokeWidth={1.9} aria-hidden="true" />
 				</span>
+			{:else if data.kind === 'official' && data.totalPluginCount !== undefined}
+				<span class="node-state node-install-count" aria-label={data.statusLabel}>
+					<span>{data.totalPluginCount}</span>
+					<Blocks size={14} strokeWidth={1.9} aria-hidden="true" />
+				</span>
 			{:else}
 				<span class={['node-state', `status-${data.status}`]}>{data.statusLabel}</span>
 			{/if}

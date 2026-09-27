@@ -138,11 +138,12 @@ export function createActivationGraph(
 						height: 104,
 						data: {
 							kind: 'official' as const,
-							eyebrow: 'Official SideFX packages',
-							label: 'Official Houdini packages',
-							meta: `${officialPlugins.length} package configs / install + site roots`,
+							eyebrow: 'SideFX packages',
+							label: 'SideFX packages',
+							meta: '',
 							status: aggregateStatus(officialTargets),
 							statusLabel: `${officialPlugins.length} package configs`,
+							totalPluginCount: officialPlugins.length,
 							accent: '#7a8c8b',
 							searchText: `official sidefx houdini ${officialPlugins.map((plugin) => plugin.name).join(' ')}`,
 							pluginIds: officialPluginIds
