@@ -49,6 +49,7 @@ export type ActivationNodeData = {
 	statusLabel: string;
 	activeInstallCount?: number;
 	totalInstallCount?: number;
+	totalPluginCount?: number;
 	accent: string;
 	hasGitRepository?: boolean;
 	hasRemoteRepository?: boolean;

@@ -173,6 +173,7 @@ export function createActivationGraph(
 					meta: `${install.platform} / ${install.build}`,
 					status,
 					statusLabel,
+					totalPluginCount: install.health === 'error' ? undefined : install.packageCount,
 					accent: '#334447',
 					searchText: `${install.label} ${install.version} ${install.build} ${install.platform} ${install.hfs}`
 				}
