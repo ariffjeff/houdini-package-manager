@@ -54,7 +54,7 @@
 		runHoudiniPluginAction,
 		scanHoudiniWorkspace
 	} from '$lib/houdini/client';
-	import { Play, CloudDownload, Search, ArrowRightLeft, FunnelX } from '@lucide/svelte';
+	import { Play, CloudDownload, Search, ArrowRightLeft, Filter, FunnelX } from '@lucide/svelte';
 
 	type ViewMode = 'map' | 'table';
 	type ScanStage = 'installs' | 'plugins' | 'git';
@@ -185,6 +185,10 @@
 
 		return selectedNodeId;
 	});
+	let filterButtonIsActive = $derived(
+		connectionFilterNodeId !== null &&
+			(selectedGraphNodeId === null || connectionFilterNodeId === selectedGraphNodeId)
+	);
 	let selectedNode = $derived(
 		selectedGraphNodeId
 			? activationNodes.find((node) => node.id === selectedGraphNodeId)
@@ -490,7 +494,10 @@
 	}
 
 	function toggleConnectionFilter() {
-		if (!selectedGraphNodeId) return;
+		if (!selectedGraphNodeId) {
+			connectionFilterNodeId = null;
+			return;
+		}
 		connectionFilterNodeId =
 			connectionFilterNodeId === selectedGraphNodeId ? null : selectedGraphNodeId;
 	}
@@ -1040,15 +1047,22 @@
 			{:else if view === 'map'}
 				<div class="map-layout">
 					<div class="map-column">
-						{#if connectionFilterNodeId}
+						{#if selectedGraphNodeId || connectionFilterNodeId}
 							<button
 								type="button"
 								class="map-clear-filter-button"
-								aria-label="Clear connected-node filter"
-								data-tooltip="Clear connected-node filter"
-								onclick={() => (connectionFilterNodeId = null)}
+								class:is-active={filterButtonIsActive}
+								aria-label={filterButtonIsActive
+									? 'Show all nodes'
+									: 'Show nodes connected to selected node'}
+								data-tooltip={filterButtonIsActive ? 'Show all nodes' : 'Show connected nodes'}
+								onclick={toggleConnectionFilter}
 							>
-								<FunnelX size={18} strokeWidth={2} aria-hidden="true" />
+								{#if filterButtonIsActive}
+									<FunnelX size={18} strokeWidth={2} aria-hidden="true" />
+								{:else}
+									<Filter size={18} strokeWidth={2} aria-hidden="true" />
+								{/if}
 							</button>
 						{/if}
 						<ActivationMap
@@ -1096,8 +1110,6 @@
 						onOpenInstallDialog={openInstallDialog}
 						onOpenInstallPath={openInstallPath}
 						onSelectPlugin={(pluginId) => selectNode(`plugin:${pluginId}`)}
-						onToggleConnectionFilter={toggleConnectionFilter}
-						isConnectionFilterActive={connectionFilterNodeId === selectedGraphNodeId}
 					/>
 				</div>
 			{:else}
@@ -1664,20 +1676,31 @@
 		align-items: center;
 		justify-content: center;
 		padding: 0;
-		border: 1px solid rgba(223, 109, 88, 0.4);
+		border: 1px solid var(--line-strong);
 		border-radius: 5px;
 		background: rgba(21, 29, 32, 0.92);
-		color: #df6d58;
+		color: #d5e4df;
 		cursor: pointer;
 		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
 	}
 
 	.map-clear-filter-button:hover,
 	.map-clear-filter-button:focus-visible {
-		border-color: #df6d58;
+		border-color: #d5e4df;
 		background: #202d30;
-		color: #ff8b77;
+		color: #edf4f1;
 		outline: none;
+	}
+
+	.map-clear-filter-button.is-active {
+		border-color: var(--accent-orange);
+		color: var(--accent-orange);
+	}
+
+	.map-clear-filter-button.is-active:hover,
+	.map-clear-filter-button.is-active:focus-visible {
+		border-color: var(--accent-orange);
+		color: var(--accent-orange);
 	}
 
 	.surface-footer {

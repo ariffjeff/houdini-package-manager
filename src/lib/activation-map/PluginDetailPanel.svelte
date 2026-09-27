@@ -4,7 +4,6 @@
 		CloudDownload,
 		Cog,
 		FileCog,
-		Filter,
 		FolderCode,
 		FolderHeart,
 		GitCommitHorizontal,
@@ -55,9 +54,7 @@
 		onOpenTargetIssueDetails,
 		onOpenInstallDialog,
 		onOpenInstallPath,
-		onSelectPlugin,
-		onToggleConnectionFilter,
-		isConnectionFilterActive
+		onSelectPlugin
 	} = $props<{
 		plugin?: PluginRecord;
 		officialPlugins: PluginRecord[];
@@ -84,8 +81,6 @@
 		onOpenInstallDialog: () => void;
 		onOpenInstallPath: (path: string) => void | Promise<void>;
 		onSelectPlugin: (pluginId: string) => void;
-		onToggleConnectionFilter: () => void;
-		isConnectionFilterActive: boolean;
 	}>();
 
 	function stopActionPropagation(event: MouseEvent) {
@@ -135,18 +130,6 @@
 					<span class="node-author">{plugin.author}</span>
 				{/if}
 			</div>
-			<button
-				type="button"
-				class="node-action-button icon-action-button"
-				class:is-active={isConnectionFilterActive}
-				aria-label={isConnectionFilterActive
-					? 'Show all connected nodes'
-					: `Show nodes connected to ${plugin.name}`}
-				data-tooltip={isConnectionFilterActive ? 'Show all nodes' : 'Show connected nodes'}
-				onclick={onToggleConnectionFilter}
-			>
-				<Filter size={18} strokeWidth={1.8} aria-hidden="true" />
-			</button>
 		</div>
 		<div class="detail-meta">
 			{@render rescanPluginConfigsButton('detail-meta-item')}
@@ -569,18 +552,6 @@
 				<p class="section-kicker">Package group</p>
 				<h3>SideFx Packages</h3>
 			</div>
-			<button
-				type="button"
-				class="node-action-button icon-action-button"
-				class:is-active={isConnectionFilterActive}
-				aria-label={isConnectionFilterActive
-					? 'Show all connected nodes'
-					: 'Show nodes connected to official Houdini packages'}
-				data-tooltip={isConnectionFilterActive ? 'Show all nodes' : 'Show connected nodes'}
-				onclick={onToggleConnectionFilter}
-			>
-				<Filter size={18} strokeWidth={1.8} aria-hidden="true" />
-			</button>
 		</div>
 		<p class="detail-description">
 			These package configs ship with Houdini or SideFX Labs and are grouped here to keep the map
@@ -620,18 +591,6 @@
 				<h3>{install.label}</h3>
 			</div>
 			<div class="detail-heading-actions">
-				<button
-					type="button"
-					class="node-action-button icon-action-button"
-					class:is-active={isConnectionFilterActive}
-					aria-label={isConnectionFilterActive
-						? 'Show all connected nodes'
-						: `Show nodes connected to ${install.label}`}
-					data-tooltip={isConnectionFilterActive ? 'Show all nodes' : 'Show connected nodes'}
-					onclick={onToggleConnectionFilter}
-				>
-					<Filter size={18} strokeWidth={1.8} aria-hidden="true" />
-				</button>
 				<button
 					type="button"
 					class="node-action-button icon-action-button plugin-rescan-button"
