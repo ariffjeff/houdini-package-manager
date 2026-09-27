@@ -37,7 +37,27 @@
 	<div class="node-accent"></div>
 	<div class="node-content">
 		<div class="node-header">
-			<span class="node-eyebrow">{data.eyebrow}</span>
+			{#if data.kind === 'plugin' && data.eyebrow === 'User package'}
+				<span
+					class="node-eyebrow node-eyebrow-icon"
+					role="img"
+					aria-label="User package"
+					title="User package"
+				>
+					<Blocks size={14} strokeWidth={1.9} aria-hidden="true" />
+				</span>
+			{:else if data.kind === 'install'}
+				<span
+					class="node-eyebrow node-eyebrow-icon"
+					role="img"
+					aria-label="Houdini install"
+					title="Houdini install"
+				>
+					<img class="node-eyebrow-badge" src={houdiniBadge} alt="" aria-hidden="true" />
+				</span>
+			{:else}
+				<span class="node-eyebrow">{data.eyebrow}</span>
+			{/if}
 			{#if data.kind === 'plugin' && data.activeInstallCount !== undefined}
 				<span
 					class={['node-state', 'node-install-count', `status-${data.status}`]}
@@ -155,6 +175,19 @@
 
 	.node-eyebrow {
 		color: #8ca099;
+	}
+
+	.node-eyebrow-icon {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.node-eyebrow-badge {
+		width: 14px;
+		height: 14px;
+		object-fit: contain;
+		filter: grayscale(1);
+		opacity: 0.72;
 	}
 
 	.node-state {
