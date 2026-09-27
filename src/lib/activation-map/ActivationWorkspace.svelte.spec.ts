@@ -813,7 +813,9 @@ describe('activation workspace', () => {
 		await expect
 			.poll(() => scanRequests.map(({ stage }) => stage))
 			.toEqual(['installs', 'plugins']);
-		await expect.element(page.getByText('Git not synced', { exact: true })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('img', { name: 'Git not synced', exact: true }))
+			.toBeInTheDocument();
 		await expect.element(page.getByRole('listbox')).not.toBeInTheDocument();
 
 		await page.getByRole('button', { name: 'Rescan all' }).click();
@@ -821,7 +823,7 @@ describe('activation workspace', () => {
 			.poll(() => scanRequests.map(({ stage }) => stage))
 			.toEqual(['installs', 'plugins', 'installs', 'plugins', 'git']);
 		await expect
-			.element(page.getByText('Git synced just now', { exact: true }))
+			.element(page.getByRole('img', { name: 'Git synced just now', exact: true }))
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('heading', { name: 'MOPS', exact: true }))
@@ -973,7 +975,7 @@ describe('activation workspace', () => {
 				pluginIds: ['package:mops']
 			});
 		await expect
-			.element(page.getByText('Git synced just now', { exact: true }))
+			.element(page.getByRole('img', { name: 'Git synced just now', exact: true }))
 			.toBeInTheDocument();
 
 		await page.getByRole('group', { name: /qLib/ }).click();

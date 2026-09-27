@@ -49,6 +49,7 @@ export type ActivationNodeData = {
 	statusLabel: string;
 	accent: string;
 	hasGitRepository?: boolean;
+	hasRemoteRepository?: boolean;
 	gitSyncedAt?: string | null;
 	searchText?: string;
 	pluginIds?: string[];

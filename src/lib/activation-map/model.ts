@@ -89,6 +89,18 @@ export function createActivationGraph(
 					? `${plugin.installedVersions.length} versions`
 					: plugin.version;
 			const attention = pluginTargets.some(isTargetIssue);
+			const hasGitRepository =
+				plugin.versionSource === 'git' ||
+				Boolean(
+					plugin.gitRef ||
+					plugin.gitCommit ||
+					plugin.gitTag ||
+					plugin.gitBranch ||
+					plugin.sources?.some((source) => source.versionSource === 'git')
+				);
+			const hasRemoteRepository =
+				Boolean(plugin.repositoryUrl) ||
+				Boolean(plugin.sources?.some((source) => source.repositoryUrl));
 
 			return {
 				id: `plugin:${plugin.id}`,
@@ -107,7 +119,8 @@ export function createActivationGraph(
 						? `${activeCount} / ${installs.length} installs`
 						: 'No detected installs',
 					accent: pluginAccents[index % pluginAccents.length],
-					hasGitRepository: Boolean(plugin.repositoryUrl),
+					hasGitRepository,
+					hasRemoteRepository,
 					gitSyncedAt: plugin.gitSyncedAt ?? null,
 					searchText: `${plugin.name} ${plugin.version} ${plugin.source} ${plugin.tags.join(' ')}`
 				}

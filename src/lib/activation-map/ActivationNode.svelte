@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
+	import { GitCommitHorizontal, Globe } from '@lucide/svelte';
 	import type { ActivationNode } from './types';
 
 	let { data, selected }: NodeProps<ActivationNode> = $props();
@@ -40,22 +41,31 @@
 		</div>
 		<strong>{data.label}</strong>
 		<span class="node-meta">{data.meta}</span>
-		{#if data.kind === 'plugin'}
-			{#if data.hasGitRepository && data.gitSyncedAt}
-				<time
-					class="node-git-status"
-					datetime={data.gitSyncedAt}
-					title={gitSyncDetails(data.gitSyncedAt)}
+	</div>
+	{#if data.kind === 'plugin' && (data.hasGitRepository || data.hasRemoteRepository)}
+		<div class="node-repository-indicators" aria-label="Repository indicators">
+			{#if data.hasGitRepository}
+				<span
+					class="node-repository-indicator"
+					role="img"
+					aria-label={gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}
+					title={data.gitSyncedAt ? gitSyncDetails(data.gitSyncedAt) : 'Git repository not synced'}
 				>
-					{gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}
-				</time>
-			{:else}
-				<span class="node-git-status is-muted">
-					{gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}
+					<GitCommitHorizontal size={15} strokeWidth={1.9} aria-hidden="true" />
 				</span>
 			{/if}
-		{/if}
-	</div>
+			{#if data.hasRemoteRepository}
+				<span
+					class="node-repository-indicator"
+					role="img"
+					aria-label="Remote repository"
+					title="Remote repository"
+				>
+					<Globe size={15} strokeWidth={1.9} aria-hidden="true" />
+				</span>
+			{/if}
+		</div>
+	{/if}
 
 	{#if data.kind === 'install'}
 		<Handle type="target" position={Position.Left} />
@@ -155,16 +165,21 @@
 		text-transform: none;
 	}
 
-	.node-git-status {
-		color: #6bc0a4;
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 12px;
-		letter-spacing: 0.03em;
-		line-height: 1.2;
+	.node-repository-indicators {
+		position: absolute;
+		right: 12px;
+		bottom: 10px;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		color: #8de0c5;
 	}
 
-	.node-git-status.is-muted {
-		color: #82918d;
+	.node-repository-indicator {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		color: inherit;
 	}
 
 	:global(.svelte-flow__handle) {
