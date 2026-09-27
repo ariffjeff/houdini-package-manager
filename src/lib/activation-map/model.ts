@@ -171,7 +171,7 @@ export function createActivationGraph(
 					kind: 'install' as const,
 					eyebrow: 'Houdini install',
 					label: install.label,
-					meta: `${install.platform} / ${install.build}`,
+					meta: `Build ${install.build}`,
 					status,
 					statusLabel,
 					totalPluginCount: install.health === 'error' ? undefined : install.packageCount,
