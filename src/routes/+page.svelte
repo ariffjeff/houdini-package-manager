@@ -454,7 +454,6 @@
 	function selectNode(id: string | null) {
 		installDialogOpen = false;
 		selectedNodeId = id;
-		connectionFilterNodeId = null;
 		persistSelectedNode(id);
 		installState = 'idle';
 		installMessage = '';
