@@ -5,6 +5,7 @@
 		type HoudiniInstall,
 		type PluginRecord
 	} from './types';
+	import { isOfficialPlugin } from './model';
 
 	type Props = {
 		plugins: PluginRecord[];
@@ -15,6 +16,11 @@
 	};
 
 	let { plugins, installs, targets, selectedId, onselect }: Props = $props();
+	let sortedPlugins = $derived(
+		[...plugins].sort(
+			(left, right) => Number(isOfficialPlugin(left)) - Number(isOfficialPlugin(right))
+		)
+	);
 
 	function targetFor(pluginId: string, installId: string) {
 		return targets.find((target) => target.pluginId === pluginId && target.installId === installId);
@@ -35,7 +41,7 @@
 			</tr>
 		</thead>
 		<tbody>
-			{#each plugins as plugin (plugin.id)}
+			{#each sortedPlugins as plugin (plugin.id)}
 				{@const pluginId = `plugin:${plugin.id}`}
 				<tr
 					class={['plugin-row', selectedId === pluginId && 'is-selected']}

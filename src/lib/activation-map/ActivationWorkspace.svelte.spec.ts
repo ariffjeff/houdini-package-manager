@@ -940,6 +940,10 @@ describe('activation workspace', () => {
 
 		await page.getByRole('button', { name: 'Table' }).click();
 		await expect.element(page.getByRole('table')).toBeInTheDocument();
+		const pluginRows = page.getByRole('row');
+		await expect.element(pluginRows.nth(1)).toHaveTextContent(/MOPS/);
+		await expect.element(pluginRows.nth(2)).toHaveTextContent(/qLib/);
+		await expect.element(pluginRows.nth(3)).toHaveTextContent(/Apex/);
 
 		const filter = page.getByRole('searchbox', { name: 'Filter plugins or installs' });
 		await filter.fill('qlib');
