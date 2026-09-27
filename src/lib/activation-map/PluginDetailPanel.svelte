@@ -7,7 +7,7 @@
 		Filter,
 		FolderCode,
 		FolderHeart,
-		GitBranch,
+		GitCommitHorizontal,
 		Globe,
 		GlobeOff,
 		HardDriveDownload,
@@ -185,7 +185,12 @@
 						: 'Version controlled'
 					: 'No version control'}
 			>
-				<GitBranch class="detail-meta-icon" size={22} strokeWidth={1.8} aria-hidden="true" />
+				<GitCommitHorizontal
+					class="detail-meta-icon"
+					size={22}
+					strokeWidth={1.8}
+					aria-hidden="true"
+				/>
 				{#if pluginGitSource && plugin.installedVersions?.length}
 					<span class="detail-meta-version-box">
 						{#if pluginGitSource.gitTag}
@@ -507,7 +512,7 @@
 								{#if pluginGitSource?.gitTag}
 									<Tag size={13} strokeWidth={2} aria-hidden="true" />
 								{:else if pluginGitSource?.gitRef}
-									<GitBranch size={13} strokeWidth={2} aria-hidden="true" />
+									<GitCommitHorizontal size={13} strokeWidth={2} aria-hidden="true" />
 								{/if}
 								{target.artifactVersion ?? 'Version unresolved'}
 							</span>
