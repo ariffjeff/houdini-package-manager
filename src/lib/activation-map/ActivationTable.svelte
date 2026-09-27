@@ -37,29 +37,35 @@
 		<tbody>
 			{#each plugins as plugin (plugin.id)}
 				{@const pluginId = `plugin:${plugin.id}`}
-				<tr class={['plugin-row', selectedId === pluginId && 'is-selected']}>
+				<tr
+					class={['plugin-row', selectedId === pluginId && 'is-selected']}
+					tabindex="0"
+					aria-selected={selectedId === pluginId}
+					onclick={() => onselect(pluginId)}
+					onkeydown={(event) => {
+						if (event.key === 'Enter' || event.key === ' ') {
+							event.preventDefault();
+							onselect(pluginId);
+						}
+					}}
+				>
 					<th scope="row">
-						<button type="button" class="plugin-name" onclick={() => onselect(pluginId)}>
+						<div class="plugin-name">
 							<strong>{plugin.name}</strong>
 							<span>{plugin.version} / {plugin.source}</span>
-						</button>
+						</div>
 					</th>
 					{#each installs as install (install.id)}
 						{@const target = targetFor(plugin.id, install.id)}
 						{@const status = target?.status ?? 'missing'}
-						<td>
-							<button
-								type="button"
-								class={['status-cell', `status-${status}`]}
-								onclick={() => onselect(pluginId)}
-								aria-label={`${plugin.name} on ${install.label}: ${activationStatusLabels[status]}`}
-							>
+						<td class={['status-cell', `status-${status}`]}>
+							<div class="status-content">
 								<span class="status-dot"></span>
 								<span>{activationStatusLabels[status]}</span>
 								{#if target?.artifactVersion}
 									<small>{target.artifactVersion}</small>
 								{/if}
-							</button>
+							</div>
 						</td>
 					{/each}
 				</tr>
@@ -90,7 +96,7 @@
 
 	th,
 	td {
-		padding: 10px 14px;
+		padding: 4px 14px;
 		border-bottom: 1px solid var(--line);
 		vertical-align: middle;
 	}
@@ -132,13 +138,16 @@
 		background: rgba(57, 155, 130, 0.1);
 	}
 
-	.plugin-name,
-	.status-cell {
-		border: 0;
-		background: transparent;
-		color: inherit;
-		cursor: pointer;
-		text-align: left;
+	.plugin-row {
+		transition: background 140ms ease;
+	}
+
+	.plugin-row:hover th,
+	.plugin-row:hover td,
+	.plugin-row:focus-visible th,
+	.plugin-row:focus-visible td {
+		background: rgba(255, 255, 255, 0.07);
+		outline: none;
 	}
 
 	.plugin-name {
@@ -158,28 +167,17 @@
 		font-size: 12px;
 	}
 
-	.status-cell {
+	.status-content {
 		display: grid;
 		grid-template-columns: auto 1fr;
 		align-items: center;
 		gap: 7px;
 		min-width: 120px;
-		padding: 7px 8px;
-		border-radius: 6px;
 		font-size: 12px;
 		font-weight: 600;
-		transition: background 140ms ease;
 	}
 
-	.status-cell:hover,
-	.status-cell:focus-visible,
-	.plugin-name:hover,
-	.plugin-name:focus-visible {
-		outline: none;
-		background: rgba(255, 255, 255, 0.07);
-	}
-
-	.status-cell small {
+	.status-content small {
 		grid-column: 2;
 		color: var(--text-dim);
 		font-family: 'Cascadia Code', 'Courier New', monospace;

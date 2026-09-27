@@ -946,6 +946,10 @@ describe('activation workspace', () => {
 
 		await expect.element(page.getByRole('row', { name: /qLib/ })).toBeInTheDocument();
 		await expect.element(page.getByRole('row', { name: /MOPS/ })).not.toBeInTheDocument();
+		await page.getByRole('row', { name: /qLib/ }).click();
+		await expect
+			.element(page.getByRole('row', { name: /qLib/ }))
+			.toHaveAttribute('aria-selected', 'true');
 	});
 
 	it('syncs Git metadata for the selected plugin', async () => {
