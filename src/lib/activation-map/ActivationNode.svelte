@@ -154,8 +154,10 @@
 	.node-install-count {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: 2px;
 		color: #9aa7a3;
+		font-size: 18px;
+		line-height: 0.5;
 	}
 
 	.node-install-count img {
