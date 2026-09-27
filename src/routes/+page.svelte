@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
@@ -93,6 +94,7 @@
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
 	let selectedNodeId = $state<string | null>(null);
+	let connectionFilterNodeId = $state<string | null>(null);
 	let focusNodeId = $state<string | null>(null);
 	let activeScan = $state<ScanAction | null>(null);
 	let initialScanStarted = false;
@@ -259,7 +261,19 @@
 		activationNodes.map((node) => ({ ...node, selected: node.id === selectedGraphNodeId }))
 	);
 	let visibleMapNodes = $derived.by(() => {
-		if (!normalizedQuery) return mapNodes;
+		let candidateNodes = mapNodes;
+		if (connectionFilterNodeId) {
+			const connectedNodeIds = new SvelteSet([connectionFilterNodeId]);
+			for (const edge of activationEdges) {
+				if (edge.source === connectionFilterNodeId || edge.target === connectionFilterNodeId) {
+					connectedNodeIds.add(edge.source);
+					connectedNodeIds.add(edge.target);
+				}
+			}
+			candidateNodes = mapNodes.filter((node) => connectedNodeIds.has(node.id));
+		}
+
+		if (!normalizedQuery) return candidateNodes;
 
 		const matchingPluginIds = filteredPlugins.map((plugin) => `plugin:${plugin.id}`);
 		const matchingIds = activationNodes
@@ -275,7 +289,7 @@
 			}
 		}
 
-		return mapNodes.filter((node) => matchingIds.includes(node.id));
+		return candidateNodes.filter((node) => matchingIds.includes(node.id));
 	});
 	let visibleNodeIds = $derived(visibleMapNodes.map((node) => node.id));
 	let visibleMapEdges = $derived(
@@ -440,6 +454,7 @@
 	function selectNode(id: string | null) {
 		installDialogOpen = false;
 		selectedNodeId = id;
+		connectionFilterNodeId = null;
 		persistSelectedNode(id);
 		installState = 'idle';
 		installMessage = '';
@@ -447,6 +462,12 @@
 		gitSyncMessage = '';
 		pluginScanState = 'idle';
 		pluginActionState = 'idle';
+	}
+
+	function toggleConnectionFilter() {
+		if (!selectedGraphNodeId) return;
+		connectionFilterNodeId =
+			connectionFilterNodeId === selectedGraphNodeId ? null : selectedGraphNodeId;
 	}
 
 	function openIssuesDialog(target?: ActivationTarget) {
@@ -1039,6 +1060,8 @@
 						onOpenInstallDialog={openInstallDialog}
 						onOpenInstallPath={openInstallPath}
 						onSelectPlugin={(pluginId) => selectNode(`plugin:${pluginId}`)}
+						onToggleConnectionFilter={toggleConnectionFilter}
+						isConnectionFilterActive={connectionFilterNodeId === selectedGraphNodeId}
 					/>
 				</div>
 			{:else}

@@ -4,6 +4,7 @@
 		CloudDownload,
 		Cog,
 		FileCog,
+		Filter,
 		FolderCode,
 		FolderHeart,
 		GitBranch,
@@ -54,7 +55,9 @@
 		onOpenTargetIssueDetails,
 		onOpenInstallDialog,
 		onOpenInstallPath,
-		onSelectPlugin
+		onSelectPlugin,
+		onToggleConnectionFilter,
+		isConnectionFilterActive
 	} = $props<{
 		plugin?: PluginRecord;
 		officialPlugins: PluginRecord[];
@@ -81,6 +84,8 @@
 		onOpenInstallDialog: () => void;
 		onOpenInstallPath: (path: string) => void | Promise<void>;
 		onSelectPlugin: (pluginId: string) => void;
+		onToggleConnectionFilter: () => void;
+		isConnectionFilterActive: boolean;
 	}>();
 
 	function stopActionPropagation(event: MouseEvent) {
@@ -124,10 +129,24 @@
 <aside class="detail-panel" aria-live="polite">
 	{#if plugin}
 		<div class="plugin-header">
-			<h3>{plugin.name}</h3>
-			{#if plugin.author}
-				<span class="node-author">{plugin.author}</span>
-			{/if}
+			<div>
+				<h3>{plugin.name}</h3>
+				{#if plugin.author}
+					<span class="node-author">{plugin.author}</span>
+				{/if}
+			</div>
+			<button
+				type="button"
+				class="node-action-button icon-action-button"
+				class:is-active={isConnectionFilterActive}
+				aria-label={isConnectionFilterActive
+					? 'Show all connected nodes'
+					: `Show nodes connected to ${plugin.name}`}
+				data-tooltip={isConnectionFilterActive ? 'Show all nodes' : 'Show connected nodes'}
+				onclick={onToggleConnectionFilter}
+			>
+				<Filter size={18} strokeWidth={1.8} aria-hidden="true" />
+			</button>
 		</div>
 		<div class="detail-meta">
 			{@render rescanPluginConfigsButton('detail-meta-item')}
@@ -540,8 +559,24 @@
 			</div>
 		</section>
 	{:else if officialPlugins.length}
-		<p class="section-kicker">Official package group</p>
-		<h3>Official Houdini packages</h3>
+		<div class="plugin-header">
+			<div>
+				<p class="section-kicker">Official package group</p>
+				<h3>Official Houdini packages</h3>
+			</div>
+			<button
+				type="button"
+				class="node-action-button icon-action-button"
+				class:is-active={isConnectionFilterActive}
+				aria-label={isConnectionFilterActive
+					? 'Show all connected nodes'
+					: 'Show nodes connected to official Houdini packages'}
+				data-tooltip={isConnectionFilterActive ? 'Show all nodes' : 'Show connected nodes'}
+				onclick={onToggleConnectionFilter}
+			>
+				<Filter size={18} strokeWidth={1.8} aria-hidden="true" />
+			</button>
+		</div>
 		<p class="detail-description">
 			These package configs ship with Houdini or SideFX Labs and are grouped here to keep the map
 			focused on user-installed plugins.
@@ -579,19 +614,33 @@
 			<div>
 				<h3>{install.label}</h3>
 			</div>
-			<button
-				type="button"
-				class="node-action-button icon-action-button plugin-rescan-button"
-				aria-label={`Rescan ${install.label}`}
-				data-tooltip={`Rescan ${install.label}`}
-				disabled={isScanActive}
-				onclick={(event) => {
-					stopActionPropagation(event);
-					void onRescanInstall();
-				}}
-			>
-				<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
-			</button>
+			<div class="detail-heading-actions">
+				<button
+					type="button"
+					class="node-action-button icon-action-button"
+					class:is-active={isConnectionFilterActive}
+					aria-label={isConnectionFilterActive
+						? 'Show all connected nodes'
+						: `Show nodes connected to ${install.label}`}
+					data-tooltip={isConnectionFilterActive ? 'Show all nodes' : 'Show connected nodes'}
+					onclick={onToggleConnectionFilter}
+				>
+					<Filter size={18} strokeWidth={1.8} aria-hidden="true" />
+				</button>
+				<button
+					type="button"
+					class="node-action-button icon-action-button plugin-rescan-button"
+					aria-label={`Rescan ${install.label}`}
+					data-tooltip={`Rescan ${install.label}`}
+					disabled={isScanActive}
+					onclick={(event) => {
+						stopActionPropagation(event);
+						void onRescanInstall();
+					}}
+				>
+					<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
+				</button>
+			</div>
 		</div>
 		<div class="install-facts">
 			<div><span>Build {install.build}</span></div>
@@ -732,7 +781,23 @@
 	}
 
 	.plugin-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
 		margin-bottom: 12px;
+	}
+
+	.detail-heading-actions {
+		display: flex;
+		align-items: flex-start;
+		gap: 6px;
+	}
+
+	.node-action-button.is-active {
+		border-color: rgba(57, 155, 130, 0.7);
+		background: rgba(57, 155, 130, 0.16);
+		color: #8de0c5;
 	}
 
 	.detail-description {
