@@ -211,7 +211,7 @@
 												void onPluginAction({ action: 'open-source', sourcePath: source.path });
 											}}
 										>
-											<FolderCode
+											<FolderHeart
 												class="detail-meta-icon"
 												size={22}
 												strokeWidth={1.8}
