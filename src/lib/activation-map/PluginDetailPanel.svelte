@@ -561,8 +561,8 @@
 	{:else if officialPlugins.length}
 		<div class="plugin-header">
 			<div>
-				<p class="section-kicker">Official package group</p>
-				<h3>Official Houdini packages</h3>
+				<p class="section-kicker">Package group</p>
+				<h3>SideFx Packages</h3>
 			</div>
 			<button
 				type="button"
