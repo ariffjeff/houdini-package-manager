@@ -55,6 +55,15 @@
 				>
 					<img class="node-eyebrow-badge" src={houdiniBadge} alt="" aria-hidden="true" />
 				</span>
+			{:else if data.kind === 'official'}
+				<span
+					class="node-eyebrow node-eyebrow-icon"
+					role="img"
+					aria-label="SideFX packages"
+					title="SideFX packages"
+				>
+					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
+				</span>
 			{:else}
 				<span class="node-eyebrow">{data.eyebrow}</span>
 			{/if}
