@@ -292,10 +292,32 @@
 		return candidateNodes.filter((node) => matchingIds.includes(node.id));
 	});
 	let visibleNodeIds = $derived(visibleMapNodes.map((node) => node.id));
+	// Compute the edges that are visible based on the currently visible nodes and highlight edges connected to the selected node.
 	let visibleMapEdges = $derived(
-		activationEdges.filter(
-			(edge) => visibleNodeIds.includes(edge.source) && visibleNodeIds.includes(edge.target)
-		)
+		activationEdges
+			.filter(
+				(edge) => visibleNodeIds.includes(edge.source) && visibleNodeIds.includes(edge.target)
+			)
+			.flatMap((edge) => {
+				const isConnectedToSelectedNode =
+					selectedGraphNodeId !== null &&
+					(edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId);
+				if (!isConnectedToSelectedNode) return [edge];
+
+				const outlineStyle = (typeof edge.style === 'string' ? edge.style : '')
+					.replace(/stroke: [^;]+;/, 'stroke: #090d0e;')
+					.replace(/stroke-width: [^;]+;/, 'stroke-width: 8;');
+
+				return [
+					{
+						...edge,
+						id: `${edge.id}-selection-outline`,
+						selectable: false,
+						style: outlineStyle
+					},
+					edge
+				];
+			})
 	);
 	let selectedTargets = $derived.by(() => {
 		if (selectedPlugin) {
