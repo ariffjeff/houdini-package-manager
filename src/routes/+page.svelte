@@ -308,22 +308,25 @@
 					(edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId);
 				if (!isConnectedToSelectedNode) return [edge];
 
-				const outlineStyle = (typeof edge.style === 'string' ? edge.style : '')
-					.replace(/stroke: [^;]+;/, 'stroke: #090d0e;')
-					.replace(/stroke-width: [^;]+;/, 'stroke-width: 8;');
-				const selectedStyle = (typeof edge.style === 'string' ? edge.style : '').replace(
-					/stroke: [^;]+;/,
-					'stroke: var(--accent-orange);'
-				);
+				const outlineStyle =
+					(typeof edge.style === 'string' ? edge.style : '')
+						.replace(/stroke: [^;]+;/, 'stroke: #090d0e;')
+						.replace(/stroke-width: [^;]+;/, 'stroke-width: 8;') + ' pointer-events: none;';
+				const selectedStyle =
+					(typeof edge.style === 'string' ? edge.style : '').replace(
+						/stroke: [^;]+;/,
+						'stroke: var(--accent-orange);'
+					) + ' pointer-events: none;';
 
 				return [
 					{
 						...edge,
 						id: `${edge.id}-selection-outline`,
 						selectable: false,
+						interactionWidth: 0,
 						style: outlineStyle
 					},
-					{ ...edge, style: selectedStyle }
+					{ ...edge, selectable: false, interactionWidth: 0, style: selectedStyle }
 				];
 			})
 	);
