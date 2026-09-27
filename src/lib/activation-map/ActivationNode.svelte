@@ -35,87 +35,98 @@
 	aria-label={`${data.label}, ${data.statusLabel}${data.kind === 'plugin' ? `, ${gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}` : ''}`}
 >
 	<div class="node-accent"></div>
-	<div class="node-content">
-		<div class="node-header">
-			{#if data.kind === 'plugin' && data.eyebrow === 'User package'}
+	<div class={['node-content', data.kind === 'plugin' && 'plugin-node-content']}>
+		{#if data.kind === 'plugin'}
+			<strong class="plugin-node-label">{data.label}</strong>
+			<div class="plugin-node-footer">
 				<span
-					class="node-eyebrow node-eyebrow-icon"
+					class="node-meta plugin-node-version"
 					role="img"
-					aria-label="User package"
-					title="User package"
+					aria-label={`${data.eyebrow}: ${data.meta}`}
+					title={data.eyebrow}
 				>
 					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
+					<span>{data.meta}</span>
 				</span>
-			{:else if data.kind === 'install'}
-				<span
-					class="node-eyebrow node-eyebrow-icon"
-					role="img"
-					aria-label="Houdini install"
-					title="Houdini install"
-				>
-					<img class="node-eyebrow-badge" src={houdiniBadge} alt="" aria-hidden="true" />
-				</span>
-			{:else if data.kind === 'official'}
-				<span
-					class="node-eyebrow node-eyebrow-icon"
-					role="img"
-					aria-label="SideFX packages"
-					title="SideFX packages"
-				>
-					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
-				</span>
-			{:else}
-				<span class="node-eyebrow">{data.eyebrow}</span>
-			{/if}
-			{#if data.kind === 'plugin' && data.activeInstallCount !== undefined}
-				<span
-					class={['node-state', 'node-install-count', `status-${data.status}`]}
-					aria-label={`${data.activeInstallCount} of ${data.totalInstallCount ?? 0} installs enabled`}
-				>
-					<span>{data.activeInstallCount}</span>
-					<img src={houdiniBadge} alt="" aria-hidden="true" />
-				</span>
-			{:else if data.kind === 'install' && data.totalPluginCount !== undefined}
-				<span class="node-state node-install-count" aria-label={data.statusLabel}>
-					<span>{data.totalPluginCount}</span>
-					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
-				</span>
-			{:else if data.kind === 'official' && data.totalPluginCount !== undefined}
-				<span class="node-state node-install-count" aria-label={data.statusLabel}>
-					<span>{data.totalPluginCount}</span>
-					<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
-				</span>
-			{:else}
-				<span class={['node-state', `status-${data.status}`]}>{data.statusLabel}</span>
-			{/if}
-		</div>
-		<strong>{data.label}</strong>
-		<span class="node-meta">{data.meta}</span>
+				<div class="plugin-node-actions">
+					{#if data.activeInstallCount !== undefined}
+						<span
+							class={['node-state', 'node-install-count', `status-${data.status}`]}
+							aria-label={`${data.activeInstallCount} of ${data.totalInstallCount ?? 0} installs enabled`}
+						>
+							<span>{data.activeInstallCount}</span>
+							<img src={houdiniBadge} alt="" aria-hidden="true" />
+						</span>
+					{/if}
+					{#if data.hasGitRepository || data.hasRemoteRepository}
+						<div class="node-repository-indicators" aria-label="Repository indicators">
+							{#if data.hasGitRepository}
+								<span
+									class="node-repository-indicator"
+									role="img"
+									aria-label={gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}
+									title={data.gitSyncedAt
+										? gitSyncDetails(data.gitSyncedAt)
+										: 'Git repository not synced'}
+								>
+									<GitCommitHorizontal size={15} strokeWidth={1.9} aria-hidden="true" />
+								</span>
+							{/if}
+							{#if data.hasRemoteRepository}
+								<span
+									class="node-repository-indicator"
+									role="img"
+									aria-label="Remote repository"
+									title="Remote repository"
+								>
+									<Globe size={15} strokeWidth={1.9} aria-hidden="true" />
+								</span>
+							{/if}
+						</div>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div class="node-header">
+				{#if data.kind === 'install'}
+					<span
+						class="node-eyebrow node-eyebrow-icon"
+						role="img"
+						aria-label="Houdini install"
+						title="Houdini install"
+					>
+						<img class="node-eyebrow-badge" src={houdiniBadge} alt="" aria-hidden="true" />
+					</span>
+				{:else if data.kind === 'official'}
+					<span
+						class="node-eyebrow node-eyebrow-icon"
+						role="img"
+						aria-label="SideFX packages"
+						title="SideFX packages"
+					>
+						<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
+					</span>
+				{:else}
+					<span class="node-eyebrow">{data.eyebrow}</span>
+				{/if}
+				{#if data.kind === 'install' && data.totalPluginCount !== undefined}
+					<span class="node-state node-install-count" aria-label={data.statusLabel}>
+						<span>{data.totalPluginCount}</span>
+						<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
+					</span>
+				{:else if data.kind === 'official' && data.totalPluginCount !== undefined}
+					<span class="node-state node-install-count" aria-label={data.statusLabel}>
+						<span>{data.totalPluginCount}</span>
+						<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
+					</span>
+				{:else}
+					<span class={['node-state', `status-${data.status}`]}>{data.statusLabel}</span>
+				{/if}
+			</div>
+			<strong>{data.label}</strong>
+			<span class="node-meta">{data.meta}</span>
+		{/if}
 	</div>
-	{#if data.kind === 'plugin' && (data.hasGitRepository || data.hasRemoteRepository)}
-		<div class="node-repository-indicators" aria-label="Repository indicators">
-			{#if data.hasGitRepository}
-				<span
-					class="node-repository-indicator"
-					role="img"
-					aria-label={gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}
-					title={data.gitSyncedAt ? gitSyncDetails(data.gitSyncedAt) : 'Git repository not synced'}
-				>
-					<GitCommitHorizontal size={15} strokeWidth={1.9} aria-hidden="true" />
-				</span>
-			{/if}
-			{#if data.hasRemoteRepository}
-				<span
-					class="node-repository-indicator"
-					role="img"
-					aria-label="Remote repository"
-					title="Remote repository"
-				>
-					<Globe size={15} strokeWidth={1.9} aria-hidden="true" />
-				</span>
-			{/if}
-		</div>
-	{/if}
 
 	{#if data.kind === 'install'}
 		<Handle type="target" position={Position.Left} />
@@ -170,6 +181,50 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
+	}
+
+	.plugin-node-content {
+		gap: 2px;
+	}
+
+	.plugin-node-label {
+		min-width: 0;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.plugin-node-footer {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.plugin-node-version {
+		display: inline-flex;
+		min-width: 0;
+		align-items: center;
+		flex-direction: row;
+		gap: 5px;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+
+	.plugin-node-version .node-blocks-icon {
+		flex: 0 0 auto;
+	}
+
+	.plugin-node-version > span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.plugin-node-actions {
+		display: inline-flex;
+		justify-content: space-between;
+		flex-shrink: 0;
+		gap: 8px;
 	}
 
 	.node-eyebrow,
@@ -251,10 +306,7 @@
 	}
 
 	.node-repository-indicators {
-		position: absolute;
-		right: 12px;
-		bottom: 10px;
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		gap: 5px;
 		color: #8de0c5;
