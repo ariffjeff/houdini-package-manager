@@ -54,7 +54,7 @@
 		runHoudiniPluginAction,
 		scanHoudiniWorkspace
 	} from '$lib/houdini/client';
-	import { Play, CloudDownload, Search, ArrowRightLeft } from '@lucide/svelte';
+	import { Play, CloudDownload, Search, ArrowRightLeft, FunnelX } from '@lucide/svelte';
 
 	type ViewMode = 'map' | 'table';
 	type ScanStage = 'installs' | 'plugins' | 'git';
@@ -1014,6 +1014,17 @@
 			{:else if view === 'map'}
 				<div class="map-layout">
 					<div class="map-column">
+						{#if connectionFilterNodeId}
+							<button
+								type="button"
+								class="map-clear-filter-button"
+								aria-label="Clear connected-node filter"
+								data-tooltip="Clear connected-node filter"
+								onclick={() => (connectionFilterNodeId = null)}
+							>
+								<FunnelX size={18} strokeWidth={2} aria-hidden="true" />
+							</button>
+						{/if}
 						<ActivationMap
 							nodes={visibleMapNodes}
 							edges={visibleMapEdges}
@@ -1609,10 +1620,38 @@
 	}
 
 	.map-column {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
 		min-height: 0;
+	}
+
+	.map-clear-filter-button {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		z-index: 4;
+		display: inline-flex;
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 1px solid rgba(223, 109, 88, 0.4);
+		border-radius: 5px;
+		background: rgba(21, 29, 32, 0.92);
+		color: #df6d58;
+		cursor: pointer;
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+	}
+
+	.map-clear-filter-button:hover,
+	.map-clear-filter-button:focus-visible {
+		border-color: #df6d58;
+		background: #202d30;
+		color: #ff8b77;
+		outline: none;
 	}
 
 	.surface-footer {
