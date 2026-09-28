@@ -49,8 +49,8 @@
 						class="node-state node-install-count official-node-count"
 						aria-label={data.statusLabel}
 					>
-						<span>{data.totalPluginCount}</span>
 						<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
+						<span>{data.totalPluginCount}</span>
 					</span>
 				{/if}
 			{:else}
@@ -70,8 +70,8 @@
 								class={['node-state', 'node-install-count', `status-${data.status}`]}
 								aria-label={`${data.activeInstallCount} of ${data.totalInstallCount ?? 0} installs enabled`}
 							>
-								<span>{data.activeInstallCount}</span>
 								<img src={houdiniBadge} alt="" aria-hidden="true" />
+								<span>{data.activeInstallCount}</span>
 							</span>
 						{/if}
 						{#if data.hasGitRepository || data.hasRemoteRepository}
