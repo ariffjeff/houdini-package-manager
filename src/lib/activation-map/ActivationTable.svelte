@@ -6,6 +6,7 @@
 		type PluginRecord
 	} from './types';
 	import { isOfficialPlugin } from './model';
+	import houdiniBadge from '$lib/assets/houdini_badge_flat.svg';
 
 	type Props = {
 		plugins: PluginRecord[];
@@ -57,7 +58,12 @@
 				>
 					<th scope="row">
 						<div class="plugin-name">
-							<strong>{plugin.name}</strong>
+							<strong class:official-plugin-name={isOfficialPlugin(plugin)}>
+								{#if isOfficialPlugin(plugin)}
+									<img src={houdiniBadge} alt="" aria-hidden="true" />
+								{/if}
+								{plugin.name}
+							</strong>
 							<span>{plugin.version} / {plugin.source}</span>
 						</div>
 					</th>
@@ -163,8 +169,18 @@
 	}
 
 	.plugin-name strong {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 		font-size: 15px;
 		font-weight: 650;
+	}
+
+	.plugin-name strong img {
+		width: 14px;
+		height: 14px;
+		flex: 0 0 auto;
+		object-fit: contain;
 	}
 
 	.plugin-name span {
