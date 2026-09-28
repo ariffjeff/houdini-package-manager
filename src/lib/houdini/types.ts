@@ -86,6 +86,8 @@ export type HoudiniInstall = {
 	packageFiles: string[];
 	houdiniPath: string[];
 	variables: Record<string, string>;
+	hconfigOutput?: string;
+	hconfigOutputCapturedAt?: string;
 	health: InstallHealth;
 	diagnostics: string[];
 	scannedAt: string;

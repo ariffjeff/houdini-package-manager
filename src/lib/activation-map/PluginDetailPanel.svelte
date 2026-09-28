@@ -113,6 +113,26 @@
 		expanded: string | null;
 		capturedAt: string | null;
 	} | null>(null);
+	let stagedHconfigOutput = $derived.by(() =>
+		install?.hconfigOutput !== undefined
+			? {
+					installId: install.id,
+					raw: install.hconfigOutput,
+					expanded: null,
+					capturedAt: install.hconfigOutputCapturedAt ?? install.scannedAt
+				}
+			: null
+	);
+	let dialogHconfigOutput = $derived.by(() => {
+		if (!hconfigOutput) return stagedHconfigOutput;
+		if (!stagedHconfigOutput || hconfigOutput.installId !== stagedHconfigOutput.installId) {
+			return hconfigOutput;
+		}
+		if (!hconfigOutput.capturedAt || !stagedHconfigOutput.capturedAt) return hconfigOutput;
+		return new Date(hconfigOutput.capturedAt) >= new Date(stagedHconfigOutput.capturedAt)
+			? hconfigOutput
+			: stagedHconfigOutput;
+	});
 	let hconfigDialogOpen = $state(false);
 	let hconfigState = $state<'idle' | 'working'>('idle');
 	let hconfigFreshForOpen = $state(false);
@@ -176,7 +196,9 @@
 		if (!install) return;
 		hconfigDialogOpen = true;
 		hconfigFreshForOpen = false;
-		if (hconfigOutput?.installId !== install.id) void runInstallHconfig();
+		if (hconfigOutput?.installId !== install.id && install.hconfigOutput === undefined) {
+			void runInstallHconfig();
+		}
 	}
 
 	function closeHconfigDialog() {
@@ -737,13 +759,9 @@
 		{#if hconfigDialogOpen}
 			<HconfigDialog
 				installLabel={install.label}
-				rawOutput={hconfigOutput?.installId === install.id ? (hconfigOutput?.raw ?? null) : null}
-				expandedOutput={hconfigOutput?.installId === install.id
-					? (hconfigOutput?.expanded ?? null)
-					: null}
-				capturedAt={hconfigOutput?.installId === install.id
-					? (hconfigOutput?.capturedAt ?? null)
-					: null}
+				rawOutput={dialogHconfigOutput?.raw ?? null}
+				expandedOutput={dialogHconfigOutput?.expanded ?? null}
+				capturedAt={dialogHconfigOutput?.capturedAt ?? null}
 				showStaleWarning={!hconfigFreshForOpen}
 				isWorking={hconfigState === 'working'}
 				onClose={closeHconfigDialog}

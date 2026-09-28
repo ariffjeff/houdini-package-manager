@@ -742,6 +742,7 @@ async function scanInstall(
 	const diagnostics: string[] = [];
 	let variables: Record<string, string>;
 	let hconfigVariableNames: string[];
+	let hconfigOutput: string;
 	let health: InstallHealth = 'ready';
 
 	try {
@@ -753,12 +754,15 @@ async function scanInstall(
 			timeout: 10000,
 			windowsHide: true
 		});
+		hconfigOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
 		variables = parseHconfigOutput(result.stdout);
 		hconfigVariableNames = parseHconfigVariableNames(result.stdout);
 		if (result.stderr.trim()) diagnostics.push(result.stderr.trim());
 	} catch (error) {
 		const commandError = error as Error & { stderr?: string; stdout?: string };
 		const output = commandError.stdout ?? '';
+		hconfigOutput =
+			[output, commandError.stderr].filter(Boolean).join('\n') || commandError.message;
 		variables = parseHconfigOutput(output);
 		hconfigVariableNames = parseHconfigVariableNames(output);
 		diagnostics.push(commandError.stderr?.trim() || commandError.message);
@@ -802,6 +806,8 @@ async function scanInstall(
 		packageFiles: [...packages.values()].map((packageConfig) => packageConfig.plugin.packageFile),
 		houdiniPath: splitHoudiniPath(variables.HOUDINI_PATH, variables),
 		variables,
+		hconfigOutput,
+		hconfigOutputCapturedAt: scannedAt,
 		health,
 		diagnostics,
 		scannedAt
@@ -1587,6 +1593,8 @@ function makeFailedInstall(
 		packageFiles: [],
 		houdiniPath: [],
 		variables: {},
+		hconfigOutput: '',
+		hconfigOutputCapturedAt: scannedAt,
 		health: 'error',
 		diagnostics: [message],
 		scannedAt
