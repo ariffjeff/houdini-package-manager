@@ -163,6 +163,7 @@ const discoveryResponse = {
 
 afterEach(() => {
 	localStorage.removeItem('hpm:last-selected-node');
+	localStorage.removeItem('hpm:activity-history');
 	vi.unstubAllGlobals();
 });
 
@@ -740,6 +741,36 @@ it('hydrates a saved snapshot without running automatic scans', async () => {
 	await expect.poll(() => scanRequests).toEqual([]);
 	await expect
 		.element(page.getByRole('status', { name: 'Houdini installs: Saved' }))
+		.toBeInTheDocument();
+});
+
+it('restores activity history across page loads', async () => {
+	localStorage.setItem(
+		'hpm:activity-history',
+		JSON.stringify([
+			{
+				id: 'stored-event',
+				timestamp: '2026-09-05T00:00:00.000Z',
+				kind: 'plugin',
+				status: 'success',
+				title: 'Enabled MOPS',
+				detail: 'Houdini 21.0'
+			}
+		])
+	);
+	stubDiscovery(discoveryResponse, discoveryResponse);
+	render(Page);
+
+	await expect
+		.element(page.getByRole('button', { name: /Discovery snapshot restored/ }))
+		.toBeInTheDocument();
+	await page.getByRole('button', { name: /Discovery snapshot restored/ }).click();
+	const activityDialog = page.getByRole('dialog');
+	await expect
+		.element(activityDialog.getByText('Enabled MOPS', { exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(activityDialog.getByText('Houdini 21.0', { exact: true }))
 		.toBeInTheDocument();
 });
 

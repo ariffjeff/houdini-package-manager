@@ -91,6 +91,8 @@
 		git: 'Git Metadata'
 	};
 	const selectedNodeStorageKey = 'hpm:last-selected-node';
+	const activityStorageKey = 'hpm:activity-history';
+	const activityHistoryLimit = 100;
 
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
@@ -547,7 +549,46 @@
 				timestamp
 			},
 			...activityEvents
-		].slice(0, 100);
+		].slice(0, activityHistoryLimit);
+		persistActivityEvents();
+	}
+
+	function isActivityEvent(value: unknown): value is ActivityEvent {
+		if (!value || typeof value !== 'object') return false;
+
+		const event = value as Partial<ActivityEvent>;
+		return (
+			typeof event.id === 'string' &&
+			typeof event.timestamp === 'string' &&
+			['scan', 'sync', 'plugin', 'hconfig', 'install', 'migration', 'config'].includes(
+				event.kind ?? ''
+			) &&
+			['success', 'error', 'cancelled'].includes(event.status ?? '') &&
+			typeof event.title === 'string' &&
+			typeof event.detail === 'string'
+		);
+	}
+
+	function restoreActivityEvents() {
+		try {
+			const stored = localStorage.getItem(activityStorageKey);
+			if (!stored) return;
+
+			const parsed: unknown = JSON.parse(stored);
+			if (Array.isArray(parsed)) {
+				activityEvents = parsed.filter(isActivityEvent).slice(0, activityHistoryLimit);
+			}
+		} catch {
+			activityEvents = [];
+		}
+	}
+
+	function persistActivityEvents() {
+		try {
+			localStorage.setItem(activityStorageKey, JSON.stringify(activityEvents));
+		} catch {
+			return;
+		}
 	}
 
 	function selectNode(id: string | null) {
@@ -974,6 +1015,7 @@
 
 	onMount(() => {
 		restoreSelectedNode();
+		restoreActivityEvents();
 		void loadInitialDiscovery();
 	});
 </script>
