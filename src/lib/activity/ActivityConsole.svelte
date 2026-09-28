@@ -57,15 +57,15 @@
 			<Activity size={16} strokeWidth={1.9} />
 		{/if}
 	</span>
+	{#if latestEvent}
+		<time datetime={latestEvent.timestamp}>{formatTime(latestEvent.timestamp)}</time>
+	{/if}
 	<span class="activity-latest-copy">
 		<strong>{latestEvent?.title ?? 'No activity recorded yet'}</strong>
 		{#if latestEvent?.detail}
 			<span> · {latestEvent.detail}</span>
 		{/if}
 	</span>
-	{#if latestEvent}
-		<time datetime={latestEvent.timestamp}>{formatTime(latestEvent.timestamp)}</time>
-	{/if}
 	<ChevronRight class="activity-latest-arrow" size={16} strokeWidth={1.8} aria-hidden="true" />
 </button>
 
@@ -173,7 +173,10 @@
 
 	.activity-latest time {
 		flex: 0 0 auto;
-		margin-left: auto;
+		padding: 3px 6px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(0, 0, 0, 0.14);
 		color: var(--text-muted);
 		white-space: nowrap;
 	}
@@ -329,8 +332,12 @@
 	}
 
 	.activity-entry-copy time {
-		display: block;
-		margin-top: 6px;
+		display: inline-flex;
+		margin-top: 10px;
+		padding: 3px 6px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(0, 0, 0, 0.14);
 	}
 
 	.activity-empty {
