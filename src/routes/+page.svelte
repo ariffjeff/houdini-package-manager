@@ -261,8 +261,28 @@
 				.includes(normalizedQuery)
 		);
 	});
+	let selectedConnectedNodeIds = $derived.by(() => {
+		if (!selectedGraphNodeId) return null;
+
+		const connectedNodeIds = new SvelteSet([selectedGraphNodeId]);
+		for (const edge of activationEdges) {
+			if (edge.source === selectedGraphNodeId || edge.target === selectedGraphNodeId) {
+				connectedNodeIds.add(edge.source);
+				connectedNodeIds.add(edge.target);
+			}
+		}
+
+		return connectedNodeIds;
+	});
 	let mapNodes = $derived(
-		activationNodes.map((node) => ({ ...node, selected: node.id === selectedGraphNodeId }))
+		activationNodes.map((node) => ({
+			...node,
+			selected: node.id === selectedGraphNodeId,
+			data: {
+				...node.data,
+				dimmed: selectedConnectedNodeIds !== null && !selectedConnectedNodeIds.has(node.id)
+			}
+		}))
 	);
 	let visibleMapNodes = $derived.by(() => {
 		let candidateNodes = mapNodes;

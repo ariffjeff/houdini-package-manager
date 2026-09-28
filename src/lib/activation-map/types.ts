@@ -54,6 +54,7 @@ export type ActivationNodeData = {
 	hasGitRepository?: boolean;
 	hasRemoteRepository?: boolean;
 	gitSyncedAt?: string | null;
+	dimmed?: boolean;
 	searchText?: string;
 	pluginIds?: string[];
 };

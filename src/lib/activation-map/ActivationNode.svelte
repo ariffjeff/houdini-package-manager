@@ -29,7 +29,12 @@
 </script>
 
 <div
-	class={['activation-node', `kind-${data.kind}`, selected && 'is-selected']}
+	class={[
+		'activation-node',
+		`kind-${data.kind}`,
+		selected && 'is-selected',
+		data.dimmed && 'is-dimmed'
+	]}
 	style:--node-accent={data.accent}
 	role="group"
 	aria-label={`${data.label}, ${data.statusLabel}${data.kind === 'plugin' ? `, ${gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}` : ''}`}
@@ -170,6 +175,11 @@
 		box-shadow:
 			0 10px 28px rgba(0, 0, 0, 0.32),
 			0 0 0 3px color-mix(in srgb, var(--node-accent) 22%, transparent);
+	}
+
+	.activation-node.is-dimmed {
+		opacity: 0.62;
+		filter: brightness(0.72);
 	}
 
 	.node-content {
