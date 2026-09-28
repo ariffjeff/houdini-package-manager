@@ -104,6 +104,9 @@
 				activationPlugins.some((plugin: PluginRecord) => plugin.id === target.pluginId)
 		)
 	);
+	let userInstallTargets = $derived(
+		installTargets.filter((target: ActivationTarget) => !isOfficialTarget(target))
+	);
 	let hconfigOutput = $state<string | null>(null);
 	let hconfigDialogOpen = $state(false);
 	let hconfigState = $state<'idle' | 'working'>('idle');
@@ -656,7 +659,7 @@
 		</div>
 		<div class="install-facts">
 			<div><span>Build {install.build}</span></div>
-			<div><span>{install.packageCount} Packages</span></div>
+			<div><span>{userInstallTargets.length} Packages</span></div>
 		</div>
 		<div class="path-facts">
 			<button type="button" class="path-fact" onclick={() => void onOpenInstallPath(install.hfs)}>
@@ -725,10 +728,10 @@
 		{/if}
 		<div class="target-heading">
 			<span>Plugin targets</span>
-			<span>{installTargets.length}</span>
+			<span>{userInstallTargets.length}</span>
 		</div>
 		<div class="target-list">
-			{#each installTargets.filter((target: ActivationTarget) => !isOfficialTarget(target)) as target (target.pluginId)}
+			{#each userInstallTargets as target (target.pluginId)}
 				{@const targetPlugin = activationPlugins.find(
 					(item: PluginRecord) => item.id === target.pluginId
 				)}

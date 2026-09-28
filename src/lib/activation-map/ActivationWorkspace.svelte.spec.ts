@@ -931,6 +931,13 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText('C:/Users/test/Documents/houdini21.0', { exact: true }))
 			.toBeInTheDocument();
+		await expect.element(page.getByText('2 Packages', { exact: true })).toBeInTheDocument();
+		await expect.element(page.getByText('Plugin targets', { exact: true })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('complementary').getByText('2', { exact: true }))
+			.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: /MOPS/ })).toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: /qLib/ })).toBeInTheDocument();
 		const officialPackageGroup = page
 			.getByRole('complementary')
 			.getByText('Official Houdini packages', { exact: true });
