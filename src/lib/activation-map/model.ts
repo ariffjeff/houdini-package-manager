@@ -14,7 +14,7 @@ export { isTargetIssue } from '../houdini/known-issues';
 
 const statusColors: Record<ActivationStatus, string> = {
 	enabled: '#777',
-	disabled: '#87948f',
+	disabled: '#4f8f9c',
 	warning: '#d39b38',
 	incompatible: '#df6d58',
 	missing: '#ad7769'

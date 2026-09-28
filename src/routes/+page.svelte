@@ -2036,11 +2036,11 @@
 		width: 7px;
 		height: 7px;
 		border-radius: 50%;
-		background: #399b82;
+		background: #777;
 	}
 
 	.status-legend i.disabled {
-		background: #87948f;
+		background: #4f8f9c;
 	}
 
 	.status-legend i.warning {
