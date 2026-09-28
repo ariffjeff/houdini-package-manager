@@ -86,7 +86,7 @@ describe('activation graph model', () => {
 		]);
 		expect(graph.nodes.find((node) => node.id === OFFICIAL_NODE_ID)?.data).toMatchObject({
 			kind: 'official',
-			label: 'Official Houdini packages',
+			label: 'SideFX packages',
 			pluginIds: ['package:apex', 'package:kinefx']
 		});
 		expect(graph.nodes.find((node) => node.id === 'plugin:package:custom')?.data.meta).toBe(

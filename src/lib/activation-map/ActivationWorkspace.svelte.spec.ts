@@ -900,12 +900,12 @@ describe('activation workspace', () => {
 			.element(page.getByRole('button', { name: 'Configure remote install for MOPS' }))
 			.toBeInTheDocument();
 		await expect
-			.element(page.getByRole('group', { name: 'Official Houdini packages, 1 package configs' }))
+			.element(page.getByRole('group', { name: 'SideFX packages, 1 package configs' }))
 			.toBeInTheDocument();
 
-		await page.getByRole('group', { name: 'Official Houdini packages, 1 package configs' }).click();
+		await page.getByRole('group', { name: 'SideFX packages, 1 package configs' }).click();
 		await expect
-			.element(page.getByRole('heading', { name: 'Official Houdini packages', exact: true }))
+			.element(page.getByRole('heading', { name: 'SideFx Packages', exact: true }))
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByText('apex.json / install / 1 enabled targets'))
@@ -1022,7 +1022,7 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Sync Git', exact: true }))
 			.not.toBeInTheDocument();
-		await page.getByRole('group', { name: /Official Houdini packages/ }).click();
+		await page.getByRole('group', { name: /SideFX packages/ }).click();
 		await expect
 			.element(page.getByRole('button', { name: 'Sync Git', exact: true }))
 			.not.toBeInTheDocument();
