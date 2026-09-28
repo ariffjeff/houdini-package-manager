@@ -1070,23 +1070,38 @@
 			{:else if view === 'map'}
 				<div class="map-layout">
 					<div class="map-column">
-						{#if selectedGraphNodeId || connectionFilterNodeId}
-							<button
-								type="button"
-								class="map-clear-filter-button"
-								class:is-active={filterButtonIsActive}
-								aria-label={filterButtonIsActive
-									? 'Show all nodes'
-									: 'Show nodes connected to selected node'}
-								data-tooltip={filterButtonIsActive ? 'Show all nodes' : 'Show connected nodes'}
-								onclick={toggleConnectionFilter}
-							>
-								{#if filterButtonIsActive}
-									<FunnelX size={18} strokeWidth={2} aria-hidden="true" />
-								{:else}
-									<Filter size={18} strokeWidth={2} aria-hidden="true" />
+						{#if searchQuery || selectedGraphNodeId || connectionFilterNodeId}
+							<div class="map-filter-actions">
+								{#if searchQuery}
+									<button
+										type="button"
+										class="map-clear-filter-button search-clear-button"
+										aria-label="Clear library filter"
+										data-tooltip="Clear library filter"
+										onclick={() => (searchQuery = '')}
+									>
+										<FunnelX size={18} strokeWidth={2} aria-hidden="true" />
+									</button>
 								{/if}
-							</button>
+								{#if selectedGraphNodeId || connectionFilterNodeId}
+									<button
+										type="button"
+										class="map-clear-filter-button"
+										class:is-active={filterButtonIsActive}
+										aria-label={filterButtonIsActive
+											? 'Show all nodes'
+											: 'Show nodes connected to selected node'}
+										data-tooltip={filterButtonIsActive ? 'Show all nodes' : 'Show connected nodes'}
+										onclick={toggleConnectionFilter}
+									>
+										{#if filterButtonIsActive}
+											<FunnelX size={18} strokeWidth={2} aria-hidden="true" />
+										{:else}
+											<Filter size={18} strokeWidth={2} aria-hidden="true" />
+										{/if}
+									</button>
+								{/if}
+							</div>
 						{/if}
 						<ActivationMap
 							nodes={visibleMapNodes}
@@ -1688,11 +1703,17 @@
 		min-height: 0;
 	}
 
-	.map-clear-filter-button {
+	.map-filter-actions {
 		position: absolute;
 		top: 12px;
 		right: 12px;
 		z-index: 4;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.map-clear-filter-button {
 		display: inline-flex;
 		width: 34px;
 		height: 34px;
@@ -1724,6 +1745,19 @@
 	.map-clear-filter-button.is-active:focus-visible {
 		border-color: var(--accent-orange);
 		color: var(--accent-orange);
+	}
+
+	.search-clear-button {
+		border-color: #df6d58;
+		color: #df6d58;
+	}
+
+	.search-clear-button:hover,
+	.search-clear-button:focus-visible {
+		border-color: #ffb09f;
+		background: #3a2828;
+		color: #ffb09f;
+		outline: none;
 	}
 
 	.surface-footer {
