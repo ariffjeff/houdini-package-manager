@@ -152,13 +152,19 @@ export function createActivationGraph(
 				]
 			: []),
 		...installs.map((install, index) => {
+			const userPackageCount = targets.filter(
+				(target) =>
+					target.installId === install.id &&
+					target.status !== 'missing' &&
+					!officialPluginIds.includes(target.pluginId)
+			).length;
 			const status: ActivationStatus = install.health === 'ready' ? 'enabled' : 'warning';
 			const statusLabel =
 				install.health === 'error'
 					? 'hconfig unavailable'
 					: install.health === 'warning'
-						? `${install.packageCount} package configs / review`
-						: `${install.packageCount} package configs`;
+						? `${userPackageCount} package configs / review`
+						: `${userPackageCount} package configs`;
 
 			return {
 				id: install.id,
@@ -174,7 +180,7 @@ export function createActivationGraph(
 					meta: `Build ${install.build}`,
 					status,
 					statusLabel,
-					totalPluginCount: install.health === 'error' ? undefined : install.packageCount,
+					totalPluginCount: install.health === 'error' ? undefined : userPackageCount,
 					accent: '#334447',
 					searchText: `${install.label} ${install.version} ${install.build} ${install.platform} ${install.hfs}`
 				}

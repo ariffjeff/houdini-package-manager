@@ -923,7 +923,7 @@ describe('activation workspace', () => {
 			.element(page.getByText('apex.json / install / 1 enabled targets'))
 			.toBeInTheDocument();
 
-		await page.getByRole('group', { name: 'Houdini 21.0, 1 package configs' }).click();
+		await page.getByRole('group', { name: 'Houdini 21.0, 2 package configs' }).click();
 
 		await expect
 			.element(page.getByRole('heading', { name: 'Houdini 21.0', exact: true }))
@@ -983,7 +983,7 @@ describe('activation workspace', () => {
 		stubDiscovery(missingConfigResponse);
 		render(Page);
 
-		await page.getByRole('group', { name: 'Houdini 21.0, 1 package configs' }).click();
+		await page.getByRole('group', { name: 'Houdini 21.0, 2 package configs' }).click();
 		const detailPanel = page.getByRole('complementary');
 		await expect.element(detailPanel.getByText('hpaste', { exact: true })).not.toBeInTheDocument();
 	});

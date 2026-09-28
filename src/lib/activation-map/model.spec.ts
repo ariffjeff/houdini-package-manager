@@ -92,6 +92,10 @@ describe('activation graph model', () => {
 		expect(graph.nodes.find((node) => node.id === 'plugin:package:custom')?.data.meta).toBe(
 			'Unversioned'
 		);
+		expect(graph.nodes.find((node) => node.id === install.id)?.data).toMatchObject({
+			statusLabel: '1 package configs',
+			totalPluginCount: 1
+		});
 		expect(graph.edges).toHaveLength(2);
 		const officialEdge = graph.edges.find((edge) => edge.source === OFFICIAL_NODE_ID);
 		expect(officialEdge).toBeDefined();
