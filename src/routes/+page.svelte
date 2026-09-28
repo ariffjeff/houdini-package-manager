@@ -5,13 +5,8 @@
 	import ActivityConsole from '$lib/activity/ActivityConsole.svelte';
 	import type { ActivityEvent, ActivityEventStatus } from '$lib/activity/types';
 	import ActivationWorkspace from '$lib/activation-map/ActivationWorkspace.svelte';
-	import IssueChecker from '$lib/activation-map/IssueChecker.svelte';
-	import TargetIssueDialog from '$lib/activation-map/TargetIssueDialog.svelte';
+	import ActivationDialogs from '$lib/activation-map/ActivationDialogs.svelte';
 	import type { TargetIssueDetails } from '$lib/activation-map/target-issue-dialog';
-	import LiveJsonEditor from '$lib/live-json-editor/LiveJsonEditor.svelte';
-	import PluginInstallDialog from '$lib/plugin-install/PluginInstallDialog.svelte';
-	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
-	import SettingsPanel from '$lib/settings/SettingsPanel.svelte';
 	import {
 		getActivityHistoryRetention,
 		initializeActivitySettings
@@ -622,6 +617,35 @@
 		if (install) openTargetIssueDetails(install, target);
 	}
 
+	function handleIssueFilterChange(filterId: string) {
+		issueCheckerFilterId = filterId;
+	}
+
+	function handleGroupIssueBuildsChange(value: boolean) {
+		groupIssueBuilds = value;
+	}
+
+	function handleLiveJsonDiscovery(response: HoudiniDiscoveryResponse) {
+		const pluginName = liveJsonEditorContext?.plugin.name ?? 'Plugin';
+		const installLabel = liveJsonEditorContext?.install.label ?? 'Houdini install';
+		applyDiscovery(response, 'plugins');
+		recordActivity({
+			kind: 'config',
+			status: 'success',
+			title: `Updated ${pluginName} config`,
+			detail: installLabel
+		});
+	}
+
+	function handleOpenTargetConfig(installId: string) {
+		void runSelectedPluginAction({ action: 'open-config', installId });
+	}
+
+	function handleOpenTargetEditor(installId: string, target: ActivationTarget) {
+		const install = activationInstalls.find((candidate) => candidate.id === installId);
+		if (install) openTargetConfigDialog(install, target);
+	}
+
 	function openInstallDialog() {
 		const plugin = selectedPlugin;
 		if (
@@ -1157,95 +1181,47 @@
 		/>
 		<ActivityConsole events={activityEvents} />
 	</main>
-	{#if settingsDialogOpen}
-		<div class="settings-dialog-backdrop">
-			<button
-				type="button"
-				class="settings-dialog-dismiss"
-				aria-label="Close settings dialog"
-				onclick={closeSettingsDialog}
-			></button>
-			<dialog open class="settings-dialog" aria-labelledby="settings-dialog-title">
-				<SettingsPanel
-					onClose={closeSettingsDialog}
-					onActivitySettingsSaved={restoreActivityEvents}
-				/>
-			</dialog>
-		</div>
-	{/if}
-	{#if installDialogOpen && selectedPlugin}
-		<PluginInstallDialog
-			plugin={selectedPlugin}
-			versions={selectedPluginVersionOptions}
-			installs={activationInstalls}
-			targets={activationTargets}
-			{remoteSourceOptions}
-			{hpmPluginDestination}
-			{installState}
-			message={installMessage}
-			onClose={closeInstallDialog}
-			onCancel={cancelInstall}
-			onInstall={(request, options) => void installSelectedPlugin(request, options)}
-		/>
-	{/if}
-	{#if pluginMigratorOpen}
-		<PluginMigratorDialog
-			plugins={activationPlugins}
-			installs={activationInstalls}
-			targets={activationTargets}
-			{migrationState}
-			message={migrationMessage}
-			onClose={closePluginMigrator}
-			onMigrate={(request) => void migratePlugins(request)}
-		/>
-	{/if}
-	{#if issuesDialogOpen}
-		<IssueChecker
-			{issueItems}
-			{issueConfigOptions}
-			installs={activationInstalls}
-			filterId={issueCheckerFilterId}
-			{groupIssueBuilds}
-			onClose={closeIssuesDialog}
-			onFilterChange={(filterId) => (issueCheckerFilterId = filterId)}
-			onGroupBuildsChange={(value) => (groupIssueBuilds = value)}
-			onSelectIssue={selectIssue}
-		/>
-	{/if}
-	{#if liveJsonEditorContext}
-		<LiveJsonEditor
-			plugin={liveJsonEditorContext.plugin}
-			install={liveJsonEditorContext.install}
-			target={liveJsonEditorContext.target}
-			targets={activationTargets}
-			{isScanActive}
-			onClose={closeTargetConfigDialog}
-			onDiscovery={(response) => {
-				const pluginName = liveJsonEditorContext?.plugin.name ?? 'Plugin';
-				const installLabel = liveJsonEditorContext?.install.label ?? 'Houdini install';
-				applyDiscovery(response, 'plugins');
-				recordActivity({
-					kind: 'config',
-					status: 'success',
-					title: `Updated ${pluginName} config`,
-					detail: installLabel
-				});
-			}}
-		/>
-	{/if}
-	{#if targetIssueDetails}
-		<TargetIssueDialog
-			details={targetIssueDetails}
-			actionsDisabled={isScanActive || pluginActionState === 'working'}
-			onClose={closeTargetIssueDetails}
-			onOpenConfig={(installId) =>
-				void runSelectedPluginAction({ action: 'open-config', installId })}
-			onOpenEditor={(installId, target) => {
-				const install = activationInstalls.find((candidate) => candidate.id === installId);
-				if (install) openTargetConfigDialog(install, target);
-			}}
-		/>
-	{/if}
+	<ActivationDialogs
+		{settingsDialogOpen}
+		{installDialogOpen}
+		{selectedPlugin}
+		{selectedPluginVersionOptions}
+		{activationInstalls}
+		{activationTargets}
+		{remoteSourceOptions}
+		{hpmPluginDestination}
+		{installState}
+		{installMessage}
+		{pluginMigratorOpen}
+		{activationPlugins}
+		{migrationState}
+		{migrationMessage}
+		{issuesDialogOpen}
+		{issueItems}
+		{issueConfigOptions}
+		{issueCheckerFilterId}
+		{groupIssueBuilds}
+		{liveJsonEditorContext}
+		{isScanActive}
+		{targetIssueDetails}
+		{pluginActionState}
+		onCloseSettings={closeSettingsDialog}
+		onActivitySettingsSaved={restoreActivityEvents}
+		onCloseInstall={closeInstallDialog}
+		onCancelInstall={cancelInstall}
+		onInstall={(request, options) => void installSelectedPlugin(request, options)}
+		onClosePluginMigrator={closePluginMigrator}
+		onMigrate={(request) => void migratePlugins(request)}
+		onCloseIssues={closeIssuesDialog}
+		onFilterChange={handleIssueFilterChange}
+		onGroupBuildsChange={handleGroupIssueBuildsChange}
+		onSelectIssue={selectIssue}
+		onCloseLiveJsonEditor={closeTargetConfigDialog}
+		onLiveJsonDiscovery={handleLiveJsonDiscovery}
+		onCloseTargetIssue={closeTargetIssueDetails}
+		onOpenTargetConfig={handleOpenTargetConfig}
+		onOpenTargetEditor={handleOpenTargetEditor}
+	/>
 	{#if tooltip}
 		<div
 			class={['global-tooltip', `global-tooltip-${tooltip.placement}`]}
@@ -1259,40 +1235,6 @@
 </div>
 
 <style>
-	.settings-dialog-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 9000;
-		display: grid;
-		place-items: center;
-		padding: 24px;
-		background: rgba(9, 14, 15, 0.72);
-	}
-
-	.settings-dialog-dismiss {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		border: 0;
-		background: transparent;
-		cursor: default;
-	}
-
-	.settings-dialog {
-		position: relative;
-		z-index: 1;
-		width: min(980px, 100%);
-		max-height: calc(100dvh - 48px);
-		margin: 0;
-		padding: 0;
-		overflow: auto;
-		border: 1px solid var(--line-strong);
-		border-radius: 8px;
-		background: #182224;
-		box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
-	}
-
 	.page-shell {
 		display: flex;
 		height: 100dvh;
