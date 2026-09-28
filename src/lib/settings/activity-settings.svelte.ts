@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import type { ActivityEvent } from '$lib/activity/types';
 
 export const DEFAULT_ACTIVITY_HISTORY_RETENTION = 100;
 export const MIN_ACTIVITY_HISTORY_RETENTION = 0;
@@ -77,4 +78,30 @@ export function setActivityHistoryRetention(value: number) {
 	}
 
 	return retention;
+}
+
+export function recordActivitySettingsSaved(retention: number) {
+	if (!browser || retention <= 0) return;
+
+	try {
+		const stored = localStorage.getItem(activityHistoryStorageKey);
+		const parsed: unknown = stored ? JSON.parse(stored) : [];
+		const existingEvents = Array.isArray(parsed) ? parsed : [];
+		const timestamp = new Date().toISOString();
+		const event: ActivityEvent = {
+			id: `${timestamp}-settings`,
+			timestamp,
+			kind: 'config',
+			status: 'success',
+			title: 'Settings saved',
+			detail: `Activity history retention set to ${retention} event${retention === 1 ? '' : 's'}`
+		};
+
+		localStorage.setItem(
+			activityHistoryStorageKey,
+			JSON.stringify([event, ...existingEvents].slice(0, retention))
+		);
+	} catch {
+		return;
+	}
 }

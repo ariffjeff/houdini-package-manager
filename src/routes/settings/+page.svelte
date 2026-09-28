@@ -17,6 +17,7 @@
 		getActivityHistoryRetention,
 		initializeActivitySettings,
 		normalizeActivityHistoryRetention,
+		recordActivitySettingsSaved,
 		setActivityHistoryRetention
 	} from '$lib/settings/activity-settings.svelte';
 
@@ -64,6 +65,7 @@
 		finishEditingRetention();
 		activityHistoryRetention = setActivityHistoryRetention(Number(retentionDraft));
 		retentionDraft = String(activityHistoryRetention);
+		recordActivitySettingsSaved(activityHistoryRetention);
 		changesSaved = true;
 	}
 
