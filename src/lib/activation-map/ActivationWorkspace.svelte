@@ -146,7 +146,7 @@
 		onFocusComplete: () => void;
 		onViewChange: (view: ViewMode) => void;
 		onRescanPluginConfigs: () => void | Promise<void>;
-		onRescanInstall: () => void | Promise<void>;
+		onRescanInstall: () => boolean | Promise<boolean>;
 		onSyncGit: () => void | Promise<void>;
 		onPluginAction: (request: PluginDetailAction) => void | Promise<void>;
 		onOpenTargetConfig: (install: HoudiniInstall, target: ActivationTarget) => void;
@@ -396,6 +396,7 @@
 				pluginUpdates={selectedPluginUpdates}
 				{activationPlugins}
 				{isScanActive}
+				isInstallScanWorking={scanStatuses.installs.state === 'loading'}
 				{pluginScanState}
 				{pluginActionState}
 				{gitSyncState}

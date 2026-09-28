@@ -96,8 +96,8 @@
 				<button
 					type="button"
 					class="dialog-close-button dialog-action-button"
-					aria-label={isWorking ? 'Refreshing hconfig output' : 'Refresh hconfig output'}
-					data-tooltip={isWorking ? 'Refreshing hconfig output' : 'Refresh hconfig output'}
+					aria-label={isWorking ? 'Rescanning Houdini install' : 'Rescan Houdini install'}
+					data-tooltip={isWorking ? 'Rescanning Houdini install' : 'Rescan Houdini install'}
 					disabled={isWorking}
 					onclick={refreshHconfig}
 				>

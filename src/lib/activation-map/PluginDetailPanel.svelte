@@ -43,6 +43,7 @@
 		pluginUpdates,
 		activationPlugins,
 		isScanActive,
+		isInstallScanWorking,
 		pluginScanState,
 		pluginActionState,
 		gitSyncState,
@@ -70,6 +71,7 @@
 		pluginUpdates: string[];
 		activationPlugins: PluginRecord[];
 		isScanActive: boolean;
+		isInstallScanWorking: boolean;
 		pluginScanState: PluginDetailActionState;
 		pluginActionState: PluginDetailActionState;
 		gitSyncState: PluginDetailActionState;
@@ -135,6 +137,7 @@
 	});
 	let hconfigDialogOpen = $state(false);
 	let hconfigState = $state<'idle' | 'working'>('idle');
+	let hconfigStageScanState = $state<'idle' | 'working'>('idle');
 	let hconfigFreshForOpen = $state(false);
 	let hconfigController: AbortController | null = null;
 
@@ -198,6 +201,28 @@
 		hconfigFreshForOpen = false;
 		if (hconfigOutput?.installId !== install.id && install.hconfigOutput === undefined) {
 			void runInstallHconfig();
+		}
+	}
+
+	async function refreshHconfigFromInstallScan() {
+		if (!install || isInstallScanWorking || hconfigStageScanState === 'working') return;
+		const previousOutput = hconfigOutput;
+		hconfigFreshForOpen = true;
+		hconfigOutput = {
+			installId: install.id,
+			raw: 'Running hconfig...',
+			expanded: null,
+			capturedAt: dialogHconfigOutput?.capturedAt ?? null
+		};
+		hconfigStageScanState = 'working';
+		try {
+			const refreshed = await onRescanInstall();
+			if (!refreshed) {
+				hconfigOutput = previousOutput;
+				hconfigFreshForOpen = false;
+			}
+		} finally {
+			hconfigStageScanState = 'idle';
 		}
 	}
 
@@ -763,9 +788,11 @@
 				expandedOutput={dialogHconfigOutput?.expanded ?? null}
 				capturedAt={dialogHconfigOutput?.capturedAt ?? null}
 				showStaleWarning={!hconfigFreshForOpen}
-				isWorking={hconfigState === 'working'}
+				isWorking={hconfigState === 'working' ||
+					hconfigStageScanState === 'working' ||
+					isInstallScanWorking}
 				onClose={closeHconfigDialog}
-				onRefresh={() => void runInstallHconfig(true)}
+				onRefresh={() => void refreshHconfigFromInstallScan()}
 			/>
 		{/if}
 		<div class="package-roots">

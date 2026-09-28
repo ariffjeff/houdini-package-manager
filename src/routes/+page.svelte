@@ -715,8 +715,8 @@
 	}
 
 	async function rescanSelectedInstall() {
-		if (!selectedInstall || isScanActive) return;
-		await runStage('installs');
+		if (!selectedInstall || isScanActive) return false;
+		return await runStage('installs');
 	}
 
 	async function runSelectedPluginAction(request: PluginDetailAction) {
@@ -1013,7 +1013,7 @@
 			onFocusComplete={() => (focusNodeId = null)}
 			onViewChange={(nextView) => (view = nextView)}
 			onRescanPluginConfigs={() => void rescanSelectedPluginConfigs()}
-			onRescanInstall={() => void rescanSelectedInstall()}
+			onRescanInstall={() => rescanSelectedInstall()}
 			onSyncGit={() => void syncSelectedPluginGit()}
 			onPluginAction={(request) => void runSelectedPluginAction(request)}
 			onOpenTargetConfig={openTargetConfigDialog}
