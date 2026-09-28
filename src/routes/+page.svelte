@@ -13,6 +13,7 @@
 	import LiveJsonEditor from '$lib/live-json-editor/LiveJsonEditor.svelte';
 	import PluginInstallDialog from '$lib/plugin-install/PluginInstallDialog.svelte';
 	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
+	import SettingsPanel from '$lib/settings/SettingsPanel.svelte';
 	import {
 		getActivityHistoryRetention,
 		initializeActivitySettings
@@ -119,6 +120,7 @@
 	let installMessage = $state('');
 	let installController: AbortController | null = null;
 	let pluginMigratorOpen = $state(false);
+	let settingsDialogOpen = $state(false);
 	let migrationState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let migrationMessage = $state('');
 	let gitSyncState = $state<PluginDetailActionState>('idle');
@@ -573,6 +575,8 @@
 	}
 
 	function restoreActivityEvents() {
+		activityEvents = [];
+
 		try {
 			const stored = localStorage.getItem(activityStorageKey);
 			if (!stored) return;
@@ -681,8 +685,20 @@
 		pluginMigratorOpen = false;
 	}
 
+	function openSettingsDialog() {
+		settingsDialogOpen = true;
+	}
+
+	function closeSettingsDialog() {
+		settingsDialogOpen = false;
+	}
+
 	function handleWindowKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape') return;
+		if (settingsDialogOpen) {
+			closeSettingsDialog();
+			return;
+		}
 		if (pluginMigratorOpen && migrationState !== 'working') {
 			closePluginMigrator();
 			return;
@@ -1056,7 +1072,15 @@
 			<a href="#discover">Discover</a>
 			<a href="#installs">Houdini installs</a>
 			<a href="#activity">Activity</a>
-			<a href={resolve('/settings')}>Settings</a>
+			<a
+				href={resolve('/settings')}
+				aria-haspopup="dialog"
+				aria-expanded={settingsDialogOpen}
+				onclick={(event) => {
+					event.preventDefault();
+					openSettingsDialog();
+				}}>Settings</a
+			>
 		</nav>
 		<div class="topbar-status ml-auto lg:ml-0">
 			<span class:status-error={Boolean(scanError)}></span>
@@ -1342,6 +1366,22 @@
 		</section>
 		<ActivityConsole events={activityEvents} />
 	</main>
+	{#if settingsDialogOpen}
+		<div class="settings-dialog-backdrop">
+			<button
+				type="button"
+				class="settings-dialog-dismiss"
+				aria-label="Close settings dialog"
+				onclick={closeSettingsDialog}
+			></button>
+			<dialog open class="settings-dialog" aria-labelledby="settings-dialog-title">
+				<SettingsPanel
+					onClose={closeSettingsDialog}
+					onActivitySettingsSaved={restoreActivityEvents}
+				/>
+			</dialog>
+		</div>
+	{/if}
 	{#if installDialogOpen && selectedPlugin}
 		<PluginInstallDialog
 			plugin={selectedPlugin}
@@ -1428,6 +1468,40 @@
 </div>
 
 <style>
+	.settings-dialog-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 9000;
+		display: grid;
+		place-items: center;
+		padding: 24px;
+		background: rgba(9, 14, 15, 0.72);
+	}
+
+	.settings-dialog-dismiss {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border: 0;
+		background: transparent;
+		cursor: default;
+	}
+
+	.settings-dialog {
+		position: relative;
+		z-index: 1;
+		width: min(980px, 100%);
+		max-height: calc(100dvh - 48px);
+		margin: 0;
+		padding: 0;
+		overflow: auto;
+		border: 1px solid var(--line-strong);
+		border-radius: 8px;
+		background: #182224;
+		box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+	}
+
 	.page-shell {
 		display: flex;
 		height: 100dvh;
