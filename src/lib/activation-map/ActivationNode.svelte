@@ -34,7 +34,6 @@
 	role="group"
 	aria-label={`${data.label}, ${data.statusLabel}${data.kind === 'plugin' ? `, ${gitSyncLabel(data.hasGitRepository, data.gitSyncedAt)}` : ''}`}
 >
-	<div class="node-accent"></div>
 	<div class={['node-content', data.kind === 'plugin' && 'plugin-node-content']}>
 		{#if data.kind === 'plugin'}
 			<strong class="plugin-node-label">{data.label}</strong>
@@ -158,12 +157,6 @@
 		box-shadow:
 			0 10px 28px rgba(0, 0, 0, 0.32),
 			0 0 0 3px color-mix(in srgb, var(--node-accent) 22%, transparent);
-	}
-
-	.node-accent {
-		width: 6px;
-		flex: 0 0 6px;
-		background: var(--node-accent);
 	}
 
 	.node-content {
