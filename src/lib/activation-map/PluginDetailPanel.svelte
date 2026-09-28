@@ -107,7 +107,7 @@
 	let userInstallTargets = $derived(
 		installTargets.filter((target: ActivationTarget) => !isOfficialTarget(target))
 	);
-	let hconfigOutput = $state<string | null>(null);
+	let hconfigOutput = $state<{ raw: string; expanded: string | null } | null>(null);
 	let hconfigDialogOpen = $state(false);
 	let hconfigState = $state<'idle' | 'working'>('idle');
 	let hconfigController: AbortController | null = null;
@@ -119,22 +119,23 @@
 			return;
 		}
 		hconfigDialogOpen = true;
-		hconfigOutput = 'Running hconfig...';
+		hconfigOutput = { raw: 'Running hconfig...', expanded: null };
 		hconfigState = 'working';
 		hconfigController = new AbortController();
 		try {
 			const result = await runHoudiniPluginAction(
-				{ action: 'run-hconfig', installId: install.id },
+				{ action: 'run-hconfig', installId: install.id, expandShortPaths: true },
 				hconfigController.signal
 			);
-			hconfigOutput = result.output ?? result.message;
+			const rawOutput = result.rawOutput ?? result.output ?? result.message;
+			hconfigOutput = { raw: rawOutput, expanded: result.expandedOutput ?? null };
 			onHconfigEvent({ status: 'success', detail: result.message });
 		} catch (error) {
 			if (error instanceof DOMException && error.name === 'AbortError') {
 				onHconfigEvent({ status: 'cancelled', detail: 'Hconfig execution cancelled' });
 			} else {
 				const message = error instanceof Error ? error.message : String(error);
-				hconfigOutput = message;
+				hconfigOutput = { raw: message, expanded: null };
 				onHconfigEvent({ status: 'error', detail: message });
 			}
 		} finally {
@@ -701,7 +702,8 @@
 		{#if hconfigDialogOpen}
 			<HconfigDialog
 				installLabel={install.label}
-				{hconfigOutput}
+				rawOutput={hconfigOutput?.raw ?? null}
+				expandedOutput={hconfigOutput?.expanded ?? null}
 				isWorking={hconfigState === 'working'}
 				onClose={closeHconfigDialog}
 			/>

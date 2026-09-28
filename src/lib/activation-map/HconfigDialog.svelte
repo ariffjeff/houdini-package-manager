@@ -1,14 +1,17 @@
 <script lang="ts">
 	import { Check, Copy, X } from '@lucide/svelte';
 
-	let { installLabel, hconfigOutput, isWorking, onClose } = $props<{
+	let { installLabel, rawOutput, expandedOutput, isWorking, onClose } = $props<{
 		installLabel: string;
-		hconfigOutput: string | null;
+		rawOutput: string | null;
+		expandedOutput: string | null;
 		isWorking: boolean;
 		onClose: () => void;
 	}>();
 
+	let isExpanded = $state(true);
 	let copyState = $state<'idle' | 'formatted' | 'raw'>('idle');
+	let displayedOutput = $derived(isExpanded && expandedOutput ? expandedOutput : rawOutput);
 
 	function formatHconfigOutput(output: string | null) {
 		if (!output) return output ?? '';
@@ -59,8 +62,8 @@
 					data-tooltip={copyState === 'formatted'
 						? 'Formatted output copied'
 						: 'Copy formatted output'}
-					disabled={isWorking || hconfigOutput === null}
-					onclick={() => void copyHconfigOutput(formatHconfigOutput(hconfigOutput), 'formatted')}
+					disabled={isWorking || displayedOutput === null}
+					onclick={() => void copyHconfigOutput(formatHconfigOutput(displayedOutput), 'formatted')}
 					onmouseenter={() => (copyState = 'idle')}
 				>
 					{#if copyState === 'formatted'}
@@ -74,8 +77,8 @@
 					class="dialog-close-button dialog-action-button"
 					aria-label={copyState === 'raw' ? 'Raw hconfig output copied' : 'Copy raw hconfig output'}
 					data-tooltip={copyState === 'raw' ? 'Raw output copied' : 'Copy raw output'}
-					disabled={isWorking || hconfigOutput === null}
-					onclick={() => void copyHconfigOutput(hconfigOutput, 'raw')}
+					disabled={isWorking || rawOutput === null}
+					onclick={() => void copyHconfigOutput(rawOutput, 'raw')}
 					onmouseenter={() => (copyState = 'idle')}
 				>
 					{#if copyState === 'raw'}
@@ -94,7 +97,15 @@
 				</button>
 			</div>
 		</div>
-		<pre class="hconfig-output">{formatHconfigOutput(hconfigOutput)}</pre>
+		<label class="hconfig-toggle">
+			<input
+				type="checkbox"
+				bind:checked={isExpanded}
+				disabled={isWorking || expandedOutput === null}
+			/>
+			<span>Expand shortened Windows paths</span>
+		</label>
+		<pre class="hconfig-output">{formatHconfigOutput(displayedOutput)}</pre>
 	</dialog>
 </div>
 
@@ -156,6 +167,19 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+	}
+
+	.hconfig-toggle {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 16px;
+		color: var(--text-muted);
+		font-size: 13px;
+	}
+
+	.hconfig-toggle input {
+		accent-color: #df6d58;
 	}
 
 	.dialog-close-button {

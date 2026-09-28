@@ -22,6 +22,7 @@ vi.mock('node:child_process', () => ({
 vi.mock('./discovery.js', () => discoveryMocks);
 
 import {
+	expandWindowsShortPaths,
 	installHoudiniPlugin,
 	runHoudiniPluginAction,
 	validateInstallPluginRequest
@@ -129,11 +130,43 @@ it('runs hconfig for the selected install and returns its output', async () => {
 
 	expect(result.message).toBe('Ran hconfig for Houdini 19.5.');
 	expect(result.output).toBe('HOUDINI_VERSION = 19.5\n\ndiagnostic\n');
+	expect(result.rawOutput).toBe(result.output);
+	expect(result.expandedOutput).toBe(process.platform === 'win32' ? result.output : undefined);
 	expect(childProcessMocks.execFile).toHaveBeenCalledWith(
 		hconfig,
 		[],
 		expect.objectContaining({ cwd: hfs, env: expect.objectContaining({ HFS: hfs }) }),
 		expect.any(Function)
+	);
+});
+
+it('expands existing Windows short path segments without changing unresolved values', async () => {
+	const resolvedPaths = new Map([
+		[
+			'C:/PROGRA~1/SIDEEF~1/HOUDIN~1.368',
+			'C:\\Program Files\\Side Effects Software\\Houdini 18.0.368'
+		],
+		[
+			'C:\\PROGRA~1\\Side Effects Software\\Houdini',
+			'C:\\Program Files\\Side Effects Software\\Houdini'
+		],
+		['C:\\Users\\TESTUS~1\\AppData\\Local', 'C:\\Users\\Test User\\AppData\\Local']
+	]);
+	const output = await expandWindowsShortPaths(
+		"HFS := 'C:/PROGRA~1/SIDEEF~1/HOUDIN~1.368'\n" +
+			'HFS_ALT := C:\\PROGRA~1\\Side Effects Software\\Houdini\n' +
+			'H_PATH := C:\\Users\\TESTUS~1\\AppData\\Local;C:\\missing\\MISSING~1',
+		async (value) => {
+			const resolved = resolvedPaths.get(value);
+			if (!resolved) throw new Error('not found');
+			return resolved;
+		}
+	);
+
+	expect(output).toBe(
+		"HFS := 'C:/Program Files/Side Effects Software/Houdini 18.0.368'\n" +
+			'HFS_ALT := C:\\Program Files\\Side Effects Software\\Houdini\n' +
+			'H_PATH := C:\\Users\\Test User\\AppData\\Local;C:\\missing\\MISSING~1'
 	);
 });
 

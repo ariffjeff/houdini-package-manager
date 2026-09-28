@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { discoverHoudiniWorkspace, scanHoudiniWorkspace } from './discovery.js';
@@ -16,6 +16,61 @@ import type {
 
 const execFileAsync = promisify(execFile);
 const commandTimeout = 120_000;
+
+type PathResolver = (path: string) => Promise<string>;
+
+function looksLikePath(value: string) {
+	return /^(?:[A-Za-z]:[\\/]|[\\/]|~[\\/])/.test(value) || value.includes('\\');
+}
+
+function preservePathSeparators(expanded: string, original: string) {
+	return original.includes('/') && !original.includes('\\')
+		? expanded.replaceAll('\\', '/')
+		: expanded;
+}
+
+async function expandPathSegment(value: string, resolvePath: PathResolver) {
+	const trimmed = value.trim();
+	const quote =
+		trimmed[0] === trimmed.at(-1) && (trimmed[0] === "'" || trimmed[0] === '"') ? trimmed[0] : '';
+	const pathValue = quote ? trimmed.slice(1, -1) : trimmed;
+	if (!pathValue || pathValue === '&' || pathValue === '@' || !looksLikePath(pathValue))
+		return value;
+
+	try {
+		const expanded = preservePathSeparators(await resolvePath(pathValue), pathValue);
+		const leadingWhitespace = value.slice(0, value.indexOf(trimmed));
+		const trailingWhitespace = value.slice(value.indexOf(trimmed) + trimmed.length);
+		return `${leadingWhitespace}${quote}${expanded}${quote}${trailingWhitespace}`;
+	} catch {
+		return value;
+	}
+}
+
+export async function expandWindowsShortPaths(
+	output: string,
+	resolvePath: PathResolver = realpath
+): Promise<string> {
+	const lines = await Promise.all(
+		output.split(/(\r?\n)/).map(async (line) => {
+			if (/^\r?\n$/.test(line)) return line;
+			const match = line.match(/^(\s*[A-Za-z_][A-Za-z0-9_]*\s*(?::=|=)\s*)(.*?)(\s*)$/);
+			if (!match) return line;
+
+			const separator = match[2].includes(';') ? ';' : null;
+			if (!separator) {
+				return `${match[1]}${await expandPathSegment(match[2], resolvePath)}${match[3]}`;
+			}
+
+			const expanded = await Promise.all(
+				match[2].split(separator).map((segment) => expandPathSegment(segment, resolvePath))
+			);
+			return `${match[1]}${expanded.join(separator)}${match[3]}`;
+		})
+	);
+
+	return lines.join('');
+}
 
 export async function installHoudiniPlugin(
 	request: InstallPluginRequest,
@@ -97,16 +152,28 @@ export async function runHoudiniPluginAction(
 				windowsHide: true,
 				signal
 			});
+			const rawOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
 			return {
 				message: `Ran hconfig for ${install.label}.`,
-				output: [result.stdout, result.stderr].filter(Boolean).join('\n')
+				output: rawOutput,
+				rawOutput,
+				expandedOutput:
+					request.expandShortPaths === false || process.platform !== 'win32'
+						? undefined
+						: await expandWindowsShortPaths(rawOutput)
 			};
 		} catch (error) {
 			const commandError = error as Error & { stderr?: string; stdout?: string };
 			const output = [commandError.stdout, commandError.stderr].filter(Boolean).join('\n');
+			const rawOutput = output || commandError.message;
 			return {
 				message: `hconfig failed for ${install.label}.`,
-				output: output || commandError.message
+				output: rawOutput,
+				rawOutput,
+				expandedOutput:
+					request.expandShortPaths === false || process.platform !== 'win32'
+						? undefined
+						: await expandWindowsShortPaths(rawOutput)
 			};
 		}
 	}
