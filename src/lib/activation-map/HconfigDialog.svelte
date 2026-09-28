@@ -1,17 +1,37 @@
 <script lang="ts">
-	import { Check, Copy, X } from '@lucide/svelte';
+	import { Check, Copy, RefreshCw, X } from '@lucide/svelte';
 
-	let { installLabel, rawOutput, expandedOutput, isWorking, onClose } = $props<{
+	let {
+		installLabel,
+		rawOutput,
+		expandedOutput,
+		capturedAt,
+		isWorking,
+		showStaleWarning,
+		onClose,
+		onRefresh
+	} = $props<{
 		installLabel: string;
 		rawOutput: string | null;
 		expandedOutput: string | null;
+		capturedAt: string | null;
 		isWorking: boolean;
+		showStaleWarning: boolean;
 		onClose: () => void;
+		onRefresh: () => void;
 	}>();
 
 	let isExpanded = $state(true);
 	let copyState = $state<'idle' | 'formatted' | 'raw'>('idle');
+	let dialogElement = $state<HTMLDialogElement>();
+	let preservedSize = $state<{ width: number; height: number } | null>(null);
 	let displayedOutput = $derived(isExpanded && expandedOutput ? expandedOutput : rawOutput);
+	let formattedCapturedAt = $derived(capturedAt ? new Date(capturedAt).toLocaleString() : null);
+	let dialogStyle = $derived(
+		preservedSize && (!capturedAt || isWorking)
+			? `width: ${preservedSize.width}px; height: ${preservedSize.height}px;`
+			: undefined
+	);
 
 	function formatHconfigOutput(output: string | null) {
 		if (!output) return output ?? '';
@@ -37,6 +57,20 @@
 		await navigator.clipboard.writeText(output);
 		copyState = copyType;
 	}
+
+	function refreshHconfig() {
+		if (isWorking) return;
+		const bounds = dialogElement?.getBoundingClientRect();
+		if (bounds) preservedSize = { width: bounds.width, height: bounds.height };
+		onRefresh();
+	}
+
+	function attachDialogElement(element: HTMLDialogElement) {
+		dialogElement = element;
+		return () => {
+			if (dialogElement === element) dialogElement = undefined;
+		};
+	}
 </script>
 
 <div class="issues-dialog-backdrop">
@@ -46,13 +80,29 @@
 		aria-label="Close hconfig output"
 		onclick={onClose}
 	></button>
-	<dialog open class="issues-dialog hconfig-dialog" aria-labelledby="hconfig-output-title">
+	<dialog
+		{@attach attachDialogElement}
+		open
+		class="issues-dialog hconfig-dialog"
+		aria-labelledby="hconfig-output-title"
+		style={dialogStyle}
+	>
 		<div class="issues-dialog-header">
 			<div>
 				<h2 id="hconfig-output-title">hconfig output</h2>
 				<p>{installLabel}</p>
 			</div>
 			<div class="hconfig-dialog-actions">
+				<button
+					type="button"
+					class="dialog-close-button dialog-action-button"
+					aria-label={isWorking ? 'Refreshing hconfig output' : 'Refresh hconfig output'}
+					data-tooltip={isWorking ? 'Refreshing hconfig output' : 'Refresh hconfig output'}
+					disabled={isWorking}
+					onclick={refreshHconfig}
+				>
+					<RefreshCw size={18} strokeWidth={1.8} aria-hidden="true" />
+				</button>
 				<button
 					type="button"
 					class="dialog-close-button dialog-action-button"
@@ -105,6 +155,17 @@
 			/>
 			<span>Expand shortened Windows paths</span>
 		</label>
+		{#if formattedCapturedAt && !showStaleWarning}
+			<p class="hconfig-last-run-label">
+				<span>Last run</span>
+				<time datetime={capturedAt ?? undefined}>{formattedCapturedAt}</time>
+			</p>
+		{:else if formattedCapturedAt && showStaleWarning}
+			<p class="hconfig-stale-label">
+				<span>Output may be stale</span>
+				<time datetime={capturedAt ?? undefined}>Captured {formattedCapturedAt}</time>
+			</p>
+		{/if}
 		<pre class="hconfig-output">{formatHconfigOutput(displayedOutput)}</pre>
 	</dialog>
 </div>
@@ -161,6 +222,32 @@
 		margin: 7px 0 0;
 		color: var(--text-muted);
 		font-size: 14px;
+	}
+
+	.hconfig-stale-label {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		margin: 12px 0 0;
+		color: #f2a35d;
+		font-size: 12px;
+	}
+
+	.hconfig-stale-label time {
+		color: #c98249;
+	}
+
+	.hconfig-last-run-label {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		margin: 12px 0 0;
+		color: var(--text-muted);
+		font-size: 12px;
+	}
+
+	.hconfig-last-run-label time {
+		color: var(--text-dim);
 	}
 
 	.hconfig-dialog-actions {

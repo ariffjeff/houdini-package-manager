@@ -107,19 +107,35 @@
 	let userInstallTargets = $derived(
 		installTargets.filter((target: ActivationTarget) => !isOfficialTarget(target))
 	);
-	let hconfigOutput = $state<{ raw: string; expanded: string | null } | null>(null);
+	let hconfigOutput = $state<{
+		installId: string;
+		raw: string;
+		expanded: string | null;
+		capturedAt: string | null;
+	} | null>(null);
 	let hconfigDialogOpen = $state(false);
 	let hconfigState = $state<'idle' | 'working'>('idle');
+	let hconfigFreshForOpen = $state(false);
 	let hconfigController: AbortController | null = null;
 
-	async function runInstallHconfig() {
+	async function runInstallHconfig(clearOutput = false) {
 		if (!install) return;
 		if (hconfigState === 'working') {
 			hconfigDialogOpen = true;
 			return;
 		}
 		hconfigDialogOpen = true;
-		hconfigOutput = { raw: 'Running hconfig...', expanded: null };
+		hconfigFreshForOpen = true;
+		if (clearOutput || hconfigOutput?.installId !== install.id) {
+			const previousCapturedAt =
+				hconfigOutput?.installId === install.id ? (hconfigOutput?.capturedAt ?? null) : null;
+			hconfigOutput = {
+				installId: install.id,
+				raw: 'Running hconfig...',
+				expanded: null,
+				capturedAt: clearOutput ? previousCapturedAt : null
+			};
+		}
 		hconfigState = 'working';
 		hconfigController = new AbortController();
 		try {
@@ -128,14 +144,26 @@
 				hconfigController.signal
 			);
 			const rawOutput = result.rawOutput ?? result.output ?? result.message;
-			hconfigOutput = { raw: rawOutput, expanded: result.expandedOutput ?? null };
+			hconfigOutput = {
+				installId: install.id,
+				raw: rawOutput,
+				expanded: result.expandedOutput ?? null,
+				capturedAt: new Date().toISOString()
+			};
+			hconfigFreshForOpen = true;
 			onHconfigEvent({ status: 'success', detail: result.message });
 		} catch (error) {
 			if (error instanceof DOMException && error.name === 'AbortError') {
 				onHconfigEvent({ status: 'cancelled', detail: 'Hconfig execution cancelled' });
 			} else {
 				const message = error instanceof Error ? error.message : String(error);
-				hconfigOutput = { raw: message, expanded: null };
+				hconfigOutput = {
+					installId: install.id,
+					raw: message,
+					expanded: null,
+					capturedAt: new Date().toISOString()
+				};
+				hconfigFreshForOpen = false;
 				onHconfigEvent({ status: 'error', detail: message });
 			}
 		} finally {
@@ -144,12 +172,19 @@
 		}
 	}
 
+	function openHconfigDialog() {
+		if (!install) return;
+		hconfigDialogOpen = true;
+		hconfigFreshForOpen = false;
+		if (hconfigOutput?.installId !== install.id) void runInstallHconfig();
+	}
+
 	function closeHconfigDialog() {
 		hconfigController?.abort();
 		hconfigController = null;
 		hconfigState = 'idle';
 		hconfigDialogOpen = false;
-		hconfigOutput = null;
+		hconfigFreshForOpen = false;
 	}
 </script>
 
@@ -679,7 +714,7 @@
 					class="node-action-button icon-action-button"
 					aria-label={`Run hconfig for ${install.label}`}
 					data-tooltip="Run hconfig"
-					onclick={() => void runInstallHconfig()}
+					onclick={openHconfigDialog}
 				>
 					<Terminal size={16} strokeWidth={1.8} aria-hidden="true" />
 				</button>
@@ -702,10 +737,17 @@
 		{#if hconfigDialogOpen}
 			<HconfigDialog
 				installLabel={install.label}
-				rawOutput={hconfigOutput?.raw ?? null}
-				expandedOutput={hconfigOutput?.expanded ?? null}
+				rawOutput={hconfigOutput?.installId === install.id ? (hconfigOutput?.raw ?? null) : null}
+				expandedOutput={hconfigOutput?.installId === install.id
+					? (hconfigOutput?.expanded ?? null)
+					: null}
+				capturedAt={hconfigOutput?.installId === install.id
+					? (hconfigOutput?.capturedAt ?? null)
+					: null}
+				showStaleWarning={!hconfigFreshForOpen}
 				isWorking={hconfigState === 'working'}
 				onClose={closeHconfigDialog}
+				onRefresh={() => void runInstallHconfig(true)}
 			/>
 		{/if}
 		<div class="package-roots">
