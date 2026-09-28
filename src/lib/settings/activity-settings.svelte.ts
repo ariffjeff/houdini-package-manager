@@ -14,7 +14,7 @@ const settings = $state<ActivitySettings>({
 	activityHistoryRetention: DEFAULT_ACTIVITY_HISTORY_RETENTION
 });
 
-function normalizeRetention(value: number) {
+export function normalizeActivityHistoryRetention(value: number) {
 	if (!Number.isFinite(value)) return DEFAULT_ACTIVITY_HISTORY_RETENTION;
 	return Math.min(
 		MAX_ACTIVITY_HISTORY_RETENTION,
@@ -48,7 +48,7 @@ export function initializeActivitySettings() {
 		if (parsed && typeof parsed === 'object' && 'activityHistoryRetention' in parsed) {
 			const value = (parsed as Partial<ActivitySettings>).activityHistoryRetention;
 			if (typeof value === 'number') {
-				settings.activityHistoryRetention = normalizeRetention(value);
+				settings.activityHistoryRetention = normalizeActivityHistoryRetention(value);
 			}
 		}
 	} catch {
@@ -61,7 +61,7 @@ export function getActivityHistoryRetention() {
 }
 
 export function setActivityHistoryRetention(value: number) {
-	const retention = normalizeRetention(value);
+	const retention = normalizeActivityHistoryRetention(value);
 	settings.activityHistoryRetention = retention;
 
 	if (!browser) return retention;

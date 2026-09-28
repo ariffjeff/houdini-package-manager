@@ -1,33 +1,49 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { ArrowLeft, ChevronDown, ChevronUp, Settings } from '@lucide/svelte';
+	import {
+		ArrowLeft,
+		Check,
+		ChevronDown,
+		ChevronUp,
+		RotateCcw,
+		Save,
+		Settings
+	} from '@lucide/svelte';
 	import {
 		DEFAULT_ACTIVITY_HISTORY_RETENTION,
 		MAX_ACTIVITY_HISTORY_RETENTION,
 		MIN_ACTIVITY_HISTORY_RETENTION,
 		getActivityHistoryRetention,
 		initializeActivitySettings,
+		normalizeActivityHistoryRetention,
 		setActivityHistoryRetention
 	} from '$lib/settings/activity-settings.svelte';
 
 	let activityHistoryRetention = $state(DEFAULT_ACTIVITY_HISTORY_RETENTION);
 	let editingRetention = $state(false);
-	let retentionDraft = $state('');
+	let retentionDraft = $state(String(DEFAULT_ACTIVITY_HISTORY_RETENTION));
+	let changesSaved = $state(false);
+	let hasUnsavedChanges = $derived(
+		normalizeActivityHistoryRetention(Number(retentionDraft)) !== activityHistoryRetention
+	);
+	let displayedRetention = $derived(normalizeActivityHistoryRetention(Number(retentionDraft)));
 
 	onMount(() => {
 		initializeActivitySettings();
 		activityHistoryRetention = getActivityHistoryRetention();
+		retentionDraft = String(activityHistoryRetention);
 	});
 
 	function beginEditingRetention() {
-		retentionDraft = String(activityHistoryRetention);
+		if (!hasUnsavedChanges) retentionDraft = String(activityHistoryRetention);
 		editingRetention = true;
+		changesSaved = false;
 	}
 
-	function commitRetention() {
+	function finishEditingRetention() {
 		if (!editingRetention) return;
-		activityHistoryRetention = setActivityHistoryRetention(Number(retentionDraft));
+		retentionDraft = String(normalizeActivityHistoryRetention(Number(retentionDraft)));
 		editingRetention = false;
 	}
 
@@ -41,6 +57,21 @@
 		retentionDraft = String(
 			Math.min(MAX_ACTIVITY_HISTORY_RETENTION, Math.max(MIN_ACTIVITY_HISTORY_RETENTION, nextValue))
 		);
+		changesSaved = false;
+	}
+
+	function saveChanges() {
+		finishEditingRetention();
+		activityHistoryRetention = setActivityHistoryRetention(Number(retentionDraft));
+		retentionDraft = String(activityHistoryRetention);
+		changesSaved = true;
+	}
+
+	function revertChanges() {
+		if (!hasUnsavedChanges) return;
+		retentionDraft = String(activityHistoryRetention);
+		editingRetention = false;
+		changesSaved = false;
 	}
 
 	function selectRetentionInput(element: HTMLElement) {
@@ -52,7 +83,7 @@
 	function handleRetentionKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter') {
 			event.preventDefault();
-			commitRetention();
+			finishEditingRetention();
 		} else if (event.key === 'Escape') {
 			event.preventDefault();
 			cancelRetention();
@@ -74,6 +105,26 @@
 		<div class="settings-heading">
 			<Settings size={18} strokeWidth={1.8} aria-hidden="true" />
 			<span>HPM preferences</span>
+		</div>
+		<div class="settings-actions">
+			<button
+				type="button"
+				class="revert-button"
+				disabled={!hasUnsavedChanges}
+				onclick={revertChanges}
+			>
+				<RotateCcw size={15} strokeWidth={1.8} aria-hidden="true" />
+				Revert changes
+			</button>
+			<button type="button" class="save-button" disabled={!hasUnsavedChanges} onclick={saveChanges}>
+				{#if changesSaved}
+					<Check size={15} strokeWidth={2} aria-hidden="true" />
+					Saved
+				{:else}
+					<Save size={15} strokeWidth={1.8} aria-hidden="true" />
+					Save changes
+				{/if}
+			</button>
 		</div>
 	</header>
 
@@ -106,9 +157,11 @@
 							max={MAX_ACTIVITY_HISTORY_RETENTION}
 							step="1"
 							bind:value={retentionDraft}
+							class:has-unsaved={hasUnsavedChanges}
 							aria-label="Events to retain"
 							aria-describedby="activity-history-help"
-							onblur={commitRetention}
+							onblur={finishEditingRetention}
+							oninput={() => (changesSaved = false)}
 							onfocus={(event) => (event.currentTarget as HTMLInputElement).select()}
 							onkeydown={handleRetentionKeydown}
 						/>
@@ -139,11 +192,12 @@
 					<button
 						type="button"
 						class="retention-value"
-						aria-label={`Edit history retention, currently ${activityHistoryRetention} events`}
+						class:has-unsaved={hasUnsavedChanges}
+						aria-label={`Edit history retention, currently ${displayedRetention} events`}
 						title="Edit history retention"
 						onclick={beginEditingRetention}
 					>
-						{activityHistoryRetention}
+						{displayedRetention}
 					</button>
 				{/if}
 			</div>
@@ -253,6 +307,77 @@
 		line-height: 1.6;
 	}
 
+	.settings-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 8px;
+		margin: 24px 0 20px;
+	}
+
+	.settings-header .settings-actions {
+		margin: 0;
+		padding: 0;
+		border: 0;
+	}
+
+	.save-button {
+		display: inline-flex;
+		min-height: 36px;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 13px;
+		border: 1px solid rgba(246, 102, 0, 0.72);
+		border-radius: 5px;
+		background: rgba(246, 102, 0, 0.12);
+		color: #ffb07c;
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.save-button:hover,
+	.save-button:focus-visible {
+		background: rgba(246, 102, 0, 0.2);
+		color: #ffd0ad;
+		outline: none;
+	}
+
+	.save-button:disabled {
+		border-color: var(--line);
+		background: rgba(255, 255, 255, 0.04);
+		color: var(--text-dim);
+		cursor: not-allowed;
+	}
+
+	.revert-button {
+		display: inline-flex;
+		min-height: 36px;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 13px;
+		border: 1px solid var(--line-strong);
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.revert-button:hover,
+	.revert-button:focus-visible {
+		border-color: #df6d58;
+		color: #ffb09f;
+		outline: none;
+	}
+
+	.revert-button:disabled {
+		border-color: var(--line);
+		color: var(--text-dim);
+		cursor: not-allowed;
+	}
+
 	input,
 	.retention-value {
 		box-sizing: border-box;
@@ -339,6 +464,11 @@
 		outline: none;
 	}
 
+	.retention-editor input.has-unsaved,
+	.retention-value.has-unsaved {
+		border-color: var(--accent-orange);
+	}
+
 	@media (max-width: 560px) {
 		.settings-page {
 			padding-right: 16px;
@@ -362,6 +492,23 @@
 
 		.settings-section {
 			padding: 20px;
+		}
+
+		.settings-actions {
+			justify-content: stretch;
+		}
+
+		.save-button {
+			width: 100%;
+			justify-content: center;
+		}
+
+		.settings-header .save-button {
+			width: auto;
+		}
+
+		.settings-header .revert-button {
+			width: auto;
 		}
 
 		.setting-control {
