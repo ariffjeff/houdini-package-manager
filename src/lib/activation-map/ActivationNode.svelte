@@ -128,8 +128,8 @@
 				{/if}
 				{#if data.kind === 'install' && data.totalPluginCount !== undefined}
 					<span class="node-state node-install-count" aria-label={data.statusLabel}>
-						<span>{data.totalPluginCount}</span>
 						<Blocks class="node-blocks-icon" size={14} strokeWidth={1.9} aria-hidden="true" />
+						<span>{data.totalPluginCount}</span>
 					</span>
 				{:else}
 					<span class={['node-state', `status-${data.status}`]}>{data.statusLabel}</span>
@@ -245,7 +245,7 @@
 	.node-state,
 	.node-meta {
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 12px;
+		font-size: 14px;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
@@ -278,7 +278,7 @@
 		align-items: center;
 		gap: 2px;
 		color: #9aa7a3;
-		font-size: 18px;
+		font-size: 20px;
 		line-height: 0.5;
 	}
 
