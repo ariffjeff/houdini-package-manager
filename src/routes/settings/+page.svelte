@@ -29,6 +29,7 @@
 		normalizeActivityHistoryRetention(Number(retentionDraft)) !== activityHistoryRetention
 	);
 	let displayedRetention = $derived(normalizeActivityHistoryRetention(Number(retentionDraft)));
+	let isRetentionNonDefault = $derived(displayedRetention !== DEFAULT_ACTIVITY_HISTORY_RETENTION);
 
 	onMount(() => {
 		initializeActivitySettings();
@@ -72,6 +73,13 @@
 	function revertChanges() {
 		if (!hasUnsavedChanges) return;
 		retentionDraft = String(activityHistoryRetention);
+		editingRetention = false;
+		changesSaved = false;
+	}
+
+	function resetRetentionToDefault() {
+		if (!isRetentionNonDefault) return;
+		retentionDraft = String(DEFAULT_ACTIVITY_HISTORY_RETENTION);
 		editingRetention = false;
 		changesSaved = false;
 	}
@@ -149,59 +157,76 @@
 						session.
 					</p>
 				</div>
-				{#if editingRetention}
-					<div class="retention-editor">
-						<input
-							{@attach selectRetentionInput}
-							id="activity-history-retention"
-							type="number"
-							min={MIN_ACTIVITY_HISTORY_RETENTION}
-							max={MAX_ACTIVITY_HISTORY_RETENTION}
-							step="1"
-							bind:value={retentionDraft}
-							class:has-unsaved={hasUnsavedChanges}
-							aria-label="Events to retain"
-							aria-describedby="activity-history-help"
-							onblur={finishEditingRetention}
-							oninput={() => (changesSaved = false)}
-							onfocus={(event) => (event.currentTarget as HTMLInputElement).select()}
-							onkeydown={handleRetentionKeydown}
-						/>
-						<div class="retention-stepper" aria-label="Adjust events to retain">
-							<button
-								type="button"
-								aria-label="Increase events to retain"
-								onmousedown={(event) => {
-									event.preventDefault();
-									adjustRetention(1);
-								}}
-							>
-								<ChevronUp size={13} strokeWidth={2} aria-hidden="true" />
-							</button>
-							<button
-								type="button"
-								aria-label="Decrease events to retain"
-								onmousedown={(event) => {
-									event.preventDefault();
-									adjustRetention(-1);
-								}}
-							>
-								<ChevronDown size={13} strokeWidth={2} aria-hidden="true" />
-							</button>
+				<div class="retention-control">
+					{#if isRetentionNonDefault}
+						<button
+							type="button"
+							class="default-indicator is-modified"
+							aria-label="Reset history retention to default"
+							title="Reset to default"
+							onclick={resetRetentionToDefault}
+						>
+							<span class="indicator-dot" aria-hidden="true"></span>
+						</button>
+					{:else}
+						<span class="default-indicator" aria-label="History retention is set to default">
+							<span class="indicator-dot" aria-hidden="true"></span>
+						</span>
+					{/if}
+					{#if editingRetention}
+						<div class="retention-editor">
+							<input
+								{@attach selectRetentionInput}
+								id="activity-history-retention"
+								type="number"
+								min={MIN_ACTIVITY_HISTORY_RETENTION}
+								max={MAX_ACTIVITY_HISTORY_RETENTION}
+								step="1"
+								bind:value={retentionDraft}
+								class:has-unsaved={hasUnsavedChanges}
+								aria-label="Events to retain"
+								aria-describedby="activity-history-help"
+								onblur={finishEditingRetention}
+								oninput={() => (changesSaved = false)}
+								onfocus={(event) => (event.currentTarget as HTMLInputElement).select()}
+								onkeydown={handleRetentionKeydown}
+							/>
+							<div class="retention-stepper" aria-label="Adjust events to retain">
+								<button
+									type="button"
+									aria-label="Increase events to retain"
+									onmousedown={(event) => {
+										event.preventDefault();
+										adjustRetention(1);
+									}}
+								>
+									<ChevronUp size={13} strokeWidth={2} aria-hidden="true" />
+								</button>
+								<button
+									type="button"
+									aria-label="Decrease events to retain"
+									onmousedown={(event) => {
+										event.preventDefault();
+										adjustRetention(-1);
+									}}
+								>
+									<ChevronDown size={13} strokeWidth={2} aria-hidden="true" />
+								</button>
+							</div>
 						</div>
-					</div>
-				{:else}
-					<button
-						type="button"
-						class="retention-value"
-						class:has-unsaved={hasUnsavedChanges}
-						aria-label={`Edit history retention, currently ${displayedRetention} events`}
-						title="Edit history retention"
-						onclick={beginEditingRetention}
-					>
-						{displayedRetention}
-					</button>
-				{/if}
+					{:else}
+						<button
+							type="button"
+							class="retention-value"
+							class:has-unsaved={hasUnsavedChanges}
+							aria-label={`Edit history retention, currently ${displayedRetention} events`}
+							title="Edit history retention"
+							onclick={beginEditingRetention}
+						>
+							{displayedRetention}
+						</button>
+					{/if}
+				</div>
 			</div>
 		</section>
 	</main>
@@ -288,6 +313,46 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 24px;
+	}
+
+	.retention-control {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.default-indicator {
+		display: inline-flex;
+		width: 28px;
+		height: 28px;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--text-dim);
+	}
+
+	.indicator-dot {
+		display: block;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: currentColor;
+	}
+
+	button.default-indicator {
+		color: var(--accent-orange);
+		cursor: pointer;
+	}
+
+	button.default-indicator:hover,
+	button.default-indicator:focus-visible {
+		background: rgba(0, 0, 0, 0.5);
+		outline: none;
 	}
 
 	h2 {
@@ -515,6 +580,10 @@
 
 		.setting-control {
 			flex-direction: column;
+		}
+
+		.retention-control {
+			width: 100%;
 		}
 
 		input,
