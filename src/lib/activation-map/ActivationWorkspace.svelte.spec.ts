@@ -164,6 +164,7 @@ const discoveryResponse = {
 afterEach(() => {
 	localStorage.removeItem('hpm:last-selected-node');
 	localStorage.removeItem('hpm:activity-history');
+	localStorage.removeItem('hpm:activity-settings');
 	vi.unstubAllGlobals();
 });
 

@@ -14,6 +14,10 @@
 	import PluginInstallDialog from '$lib/plugin-install/PluginInstallDialog.svelte';
 	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
 	import {
+		getActivityHistoryRetention,
+		initializeActivitySettings
+	} from '$lib/settings/activity-settings.svelte';
+	import {
 		createActivationGraph,
 		isOfficialPlugin,
 		OFFICIAL_NODE_ID
@@ -92,7 +96,6 @@
 	};
 	const selectedNodeStorageKey = 'hpm:last-selected-node';
 	const activityStorageKey = 'hpm:activity-history';
-	const activityHistoryLimit = 100;
 
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
@@ -549,7 +552,7 @@
 				timestamp
 			},
 			...activityEvents
-		].slice(0, activityHistoryLimit);
+		].slice(0, getActivityHistoryRetention());
 		persistActivityEvents();
 	}
 
@@ -576,7 +579,7 @@
 
 			const parsed: unknown = JSON.parse(stored);
 			if (Array.isArray(parsed)) {
-				activityEvents = parsed.filter(isActivityEvent).slice(0, activityHistoryLimit);
+				activityEvents = parsed.filter(isActivityEvent).slice(0, getActivityHistoryRetention());
 			}
 		} catch {
 			activityEvents = [];
@@ -585,6 +588,7 @@
 
 	function persistActivityEvents() {
 		try {
+			activityEvents = activityEvents.slice(0, getActivityHistoryRetention());
 			localStorage.setItem(activityStorageKey, JSON.stringify(activityEvents));
 		} catch {
 			return;
@@ -1014,6 +1018,7 @@
 	}
 
 	onMount(() => {
+		initializeActivitySettings();
 		restoreSelectedNode();
 		restoreActivityEvents();
 		void loadInitialDiscovery();
@@ -1051,6 +1056,7 @@
 			<a href="#discover">Discover</a>
 			<a href="#installs">Houdini installs</a>
 			<a href="#activity">Activity</a>
+			<a href={resolve('/settings')}>Settings</a>
 		</nav>
 		<div class="topbar-status ml-auto lg:ml-0">
 			<span class:status-error={Boolean(scanError)}></span>
