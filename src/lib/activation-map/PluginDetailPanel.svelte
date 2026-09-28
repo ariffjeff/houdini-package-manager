@@ -3,6 +3,7 @@
 		Check,
 		CloudDownload,
 		Cog,
+		Copy,
 		FileCog,
 		FolderCode,
 		FolderHeart,
@@ -13,7 +14,9 @@
 		RefreshCw,
 		Square,
 		Tag,
-		TriangleAlert
+		Terminal,
+		TriangleAlert,
+		X
 	} from '@lucide/svelte';
 	import { hasTargetIssues } from '$lib/houdini/known-issues';
 	import type { InstallDialogState } from '$lib/plugin-install/types';
@@ -28,6 +31,7 @@
 		type PluginTargetGroup
 	} from './plugin-detail';
 	import { isOfficialPlugin, statusLabel } from './model';
+	import { runHoudiniPluginAction } from '$lib/houdini/client';
 
 	let {
 		plugin,
@@ -87,6 +91,25 @@
 		event.stopPropagation();
 	}
 
+	function formatHconfigOutput(output: string | null) {
+		if (!output) return output ?? '';
+
+		return output
+			.split(/\r?\n/)
+			.map((line) => {
+				const match = line.match(/^(\s*(?:PATH|[A-Z_][A-Z0-9_]*_PATH)\s*(?::=|[:=])\s*)(.*)$/i);
+				if (!match) return line;
+
+				const value = match[2];
+				const separator = value.includes(';') || /^[A-Za-z]:[\\/]/.test(value) ? ';' : ':';
+				const paths = value.split(separator);
+				return paths.length > 1
+					? `${match[1]}\n${paths.map((path) => `    ${path}`).join('\n')}`
+					: line;
+			})
+			.join('\n');
+	}
+
 	function isOfficialTarget(target: ActivationTarget) {
 		const plugin = activationPlugins.find((item: PluginRecord) => item.id === target.pluginId);
 		return plugin ? isOfficialPlugin(plugin) : false;
@@ -99,6 +122,53 @@
 				activationPlugins.some((plugin: PluginRecord) => plugin.id === target.pluginId)
 		)
 	);
+	let hconfigOutput = $state<string | null>(null);
+	let hconfigDialogOpen = $state(false);
+	let hconfigState = $state<'idle' | 'working'>('idle');
+	let hconfigCopyState = $state<'idle' | 'formatted' | 'raw'>('idle');
+	let hconfigController: AbortController | null = null;
+
+	async function runInstallHconfig() {
+		if (!install) return;
+		if (hconfigState === 'working') {
+			hconfigDialogOpen = true;
+			return;
+		}
+		hconfigDialogOpen = true;
+		hconfigOutput = 'Running hconfig...';
+		hconfigCopyState = 'idle';
+		hconfigState = 'working';
+		hconfigController = new AbortController();
+		try {
+			const result = await runHoudiniPluginAction(
+				{ action: 'run-hconfig', installId: install.id },
+				hconfigController.signal
+			);
+			hconfigOutput = result.output ?? result.message;
+		} catch (error) {
+			if (!(error instanceof DOMException && error.name === 'AbortError')) {
+				hconfigOutput = error instanceof Error ? error.message : String(error);
+			}
+		} finally {
+			hconfigController = null;
+			hconfigState = 'idle';
+		}
+	}
+
+	function closeHconfigDialog() {
+		hconfigController?.abort();
+		hconfigController = null;
+		hconfigState = 'idle';
+		hconfigDialogOpen = false;
+		hconfigOutput = null;
+		hconfigCopyState = 'idle';
+	}
+
+	async function copyHconfigOutput(output: string | null, copyType: 'formatted' | 'raw') {
+		if (!output || hconfigState === 'working') return;
+		await navigator.clipboard.writeText(output);
+		hconfigCopyState = copyType;
+	}
 </script>
 
 {#snippet rescanPluginConfigsButton(className = '')}
@@ -614,13 +684,24 @@
 			<button type="button" class="path-fact" onclick={() => void onOpenInstallPath(install.hfs)}>
 				<span>HFS</span><code>{install.hfs}</code>
 			</button>
-			<button
-				type="button"
-				class="path-fact"
-				onclick={() => void onOpenInstallPath(install.hconfig)}
-			>
-				<span>hconfig</span><code>{install.hconfig}</code>
-			</button>
+			<div class="path-fact hconfig-path-fact">
+				<button
+					type="button"
+					class="path-fact-link"
+					onclick={() => void onOpenInstallPath(install.hconfig)}
+				>
+					<span>hconfig</span><code>{install.hconfig}</code>
+				</button>
+				<button
+					type="button"
+					class="node-action-button icon-action-button"
+					aria-label={`Run hconfig for ${install.label}`}
+					data-tooltip="Run hconfig"
+					onclick={() => void runInstallHconfig()}
+				>
+					<Terminal size={16} strokeWidth={1.8} aria-hidden="true" />
+				</button>
+			</div>
 			<button
 				type="button"
 				class="path-fact"
@@ -636,6 +717,72 @@
 				<span>User package directory</span><code>{install.packageDirectory}</code>
 			</button>
 		</div>
+		{#if hconfigDialogOpen}
+			<div class="issues-dialog-backdrop">
+				<button
+					type="button"
+					class="issues-dialog-dismiss"
+					aria-label="Close hconfig output"
+					onclick={closeHconfigDialog}
+				></button>
+				<dialog open class="issues-dialog hconfig-dialog" aria-labelledby="hconfig-output-title">
+					<div class="issues-dialog-header">
+						<div>
+							<h2 id="hconfig-output-title">hconfig output</h2>
+							<p>{install.label}</p>
+						</div>
+						<div class="hconfig-dialog-actions">
+							<button
+								type="button"
+								class="dialog-close-button dialog-action-button"
+								aria-label={hconfigCopyState === 'formatted'
+									? 'Formatted hconfig output copied'
+									: 'Copy formatted hconfig output'}
+								data-tooltip={hconfigCopyState === 'formatted'
+									? 'Formatted output copied'
+									: 'Copy formatted output'}
+								disabled={hconfigState === 'working' || hconfigOutput === null}
+								onclick={() =>
+									void copyHconfigOutput(formatHconfigOutput(hconfigOutput), 'formatted')}
+								onmouseenter={() => (hconfigCopyState = 'idle')}
+							>
+								{#if hconfigCopyState === 'formatted'}
+									<Check size={18} strokeWidth={1.8} aria-hidden="true" />
+								{:else}
+									<Copy size={18} strokeWidth={1.8} aria-hidden="true" />
+								{/if}
+							</button>
+							<button
+								type="button"
+								class="dialog-close-button dialog-action-button"
+								aria-label={hconfigCopyState === 'raw'
+									? 'Raw hconfig output copied'
+									: 'Copy raw hconfig output'}
+								data-tooltip={hconfigCopyState === 'raw' ? 'Raw output copied' : 'Copy raw output'}
+								disabled={hconfigState === 'working' || hconfigOutput === null}
+								onclick={() => void copyHconfigOutput(hconfigOutput, 'raw')}
+								onmouseenter={() => (hconfigCopyState = 'idle')}
+							>
+								{#if hconfigCopyState === 'raw'}
+									<Check size={18} strokeWidth={1.8} aria-hidden="true" />
+								{:else}
+									<Copy size={18} strokeWidth={1.8} aria-hidden="true" />
+								{/if}
+							</button>
+							<button
+								type="button"
+								class="dialog-close-button"
+								aria-label="Close hconfig output"
+								onclick={closeHconfigDialog}
+							>
+								<X size={18} strokeWidth={1.8} aria-hidden="true" />
+							</button>
+						</div>
+					</div>
+					<pre class="hconfig-output">{formatHconfigOutput(hconfigOutput)}</pre>
+				</dialog>
+			</div>
+		{/if}
 		<div class="package-roots">
 			<span>Scanned package roots</span>
 			{#each install.packageRoots as root (root.path)}
@@ -724,7 +871,7 @@
 <style>
 	.detail-panel {
 		position: relative;
-		z-index: 2;
+		z-index: 10;
 		min-height: 0;
 		overflow-y: auto;
 		padding: 0 24px;
@@ -1692,6 +1839,39 @@
 		cursor: pointer;
 	}
 
+	.path-facts .hconfig-path-fact {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
+	.path-fact-link {
+		display: flex;
+		min-width: 0;
+		flex: 1;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.path-fact-link:hover,
+	.path-fact-link:focus-visible {
+		color: var(--text);
+		outline: none;
+	}
+
+	.hconfig-path-fact > .icon-action-button {
+		align-self: center;
+	}
+
 	.path-fact:hover,
 	.path-fact:focus-visible,
 	.package-root-path:hover,
@@ -1704,6 +1884,8 @@
 
 	.path-fact:hover code,
 	.path-fact:focus-visible code,
+	.path-fact-link:hover code,
+	.path-fact-link:focus-visible code,
 	.package-root-path:hover,
 	.package-root-path:focus-visible {
 		color: #8de0c5;
@@ -1748,6 +1930,108 @@
 		font-size: 12px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
+	}
+
+	.issues-dialog-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 9000;
+		display: grid;
+		place-items: center;
+		padding: 24px;
+		background: rgba(9, 14, 15, 0.72);
+	}
+
+	.issues-dialog-dismiss {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border: 0;
+		background: transparent;
+		cursor: default;
+	}
+
+	.issues-dialog {
+		position: relative;
+		z-index: 1;
+		display: flex;
+		max-height: min(900px, calc(100dvh - 48px));
+		flex-direction: column;
+		overflow: hidden;
+		padding: 22px;
+		border: 1px solid var(--line-strong);
+		border-radius: 8px;
+		background: #182224;
+		box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+	}
+
+	.issues-dialog-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 20px;
+	}
+
+	.issues-dialog-header h2 {
+		margin: 0;
+		font-size: 22px;
+		font-weight: 600;
+	}
+
+	.issues-dialog-header p {
+		margin: 7px 0 0;
+		color: var(--text-muted);
+		font-size: 14px;
+	}
+
+	.hconfig-dialog-actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.dialog-close-button {
+		display: inline-flex;
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		padding: 0;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.dialog-close-button:hover,
+	.dialog-close-button:focus-visible {
+		border-color: #df6d58;
+		color: #ffb09f;
+		outline: none;
+	}
+
+	.dialog-close-button:disabled {
+		cursor: default;
+		opacity: 0.45;
+	}
+
+	.hconfig-output {
+		max-height: min(620px, calc(100dvh - 170px));
+		margin: 20px 0 0;
+		overflow: auto;
+		padding: 12px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.16);
+		color: var(--text);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 14px;
+		line-height: 1.45;
+		white-space: pre-wrap;
+		word-break: break-word;
 	}
 
 	.package-root-path {

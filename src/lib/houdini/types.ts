@@ -154,6 +154,7 @@ export type HoudiniPluginMigrationRequest = {
 
 export type HoudiniPluginAction =
 	| HoudiniPluginMigrationRequest
+	| { action: 'run-hconfig'; installId: string }
 	| { action: 'open-path'; installId: string; path: string }
 	| { action: 'open-config'; pluginId: string; installId: string }
 	| { action: 'get-config'; pluginId: string; installId: string }
@@ -168,6 +169,7 @@ export type HoudiniPluginAction =
 
 export type HoudiniPluginActionResponse = {
 	message: string;
+	output?: string;
 	discovery?: HoudiniDiscoveryResponse;
 	config?: Record<string, unknown>;
 	packagePath?: string;

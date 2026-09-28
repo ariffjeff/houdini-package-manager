@@ -60,7 +60,10 @@ export function houdiniDiscoveryPlugin(): Plugin {
 									await readJsonBody<InstallPluginRequest>(request),
 									abortController.signal
 								)
-							: await runHoudiniPluginAction(await readJsonBody<HoudiniPluginAction>(request));
+							: await runHoudiniPluginAction(
+									await readJsonBody<HoudiniPluginAction>(request),
+									abortController.signal
+								);
 			if (isSnapshotRequest && !result) {
 				response.statusCode = 404;
 				response.setHeader('content-type', 'application/json; charset=utf-8');

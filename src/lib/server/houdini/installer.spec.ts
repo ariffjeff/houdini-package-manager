@@ -106,6 +106,37 @@ it('opens an existing discovered source folder', async () => {
 	);
 });
 
+it('runs hconfig for the selected install and returns its output', async () => {
+	const installId = 'install:19.5';
+	const hfs = path.join(os.tmpdir(), 'houdini-19.5');
+	const hconfig = path.join(hfs, 'bin', 'hconfig.exe');
+	const install = { id: installId, label: 'Houdini 19.5', hfs, hconfig, packageRoots: [] };
+	discoveryMocks.scanHoudiniWorkspace.mockResolvedValue({
+		installs: [install]
+	} as unknown as HoudiniDiscoveryResponse);
+	childProcessMocks.execFile.mockImplementation(
+		(
+			_command: string,
+			_args: string[],
+			_options: object,
+			callback: (error: null, result: { stdout: string; stderr: string }) => void
+		) => {
+			callback(null, { stdout: 'HOUDINI_VERSION = 19.5\n', stderr: 'diagnostic\n' });
+		}
+	);
+
+	const result = await runHoudiniPluginAction({ action: 'run-hconfig', installId });
+
+	expect(result.message).toBe('Ran hconfig for Houdini 19.5.');
+	expect(result.output).toBe('HOUDINI_VERSION = 19.5\n\ndiagnostic\n');
+	expect(childProcessMocks.execFile).toHaveBeenCalledWith(
+		hconfig,
+		[],
+		expect.objectContaining({ cwd: hfs, env: expect.objectContaining({ HFS: hfs }) }),
+		expect.any(Function)
+	);
+});
+
 it('opens the selected install Documents package folder without a package target', async () => {
 	const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-package-folder-'));
 	temporaryDirectories.push(root);

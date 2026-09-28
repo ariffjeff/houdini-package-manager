@@ -92,12 +92,14 @@ export async function installHoudiniPlugin(
 }
 
 export async function runHoudiniPluginAction(
-	request: HoudiniPluginAction
+	request: HoudiniPluginAction,
+	signal?: AbortSignal
 ): Promise<HoudiniPluginActionResponse> {
 	const response = await fetch('/__hpm/houdini/plugin-action', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(request)
+		body: JSON.stringify(request),
+		signal
 	});
 	if (!response.ok) {
 		let message = `Plugin action failed with HTTP ${response.status}.`;

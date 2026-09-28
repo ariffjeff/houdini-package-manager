@@ -72,10 +72,43 @@ export async function installHoudiniPlugin(
 }
 
 export async function runHoudiniPluginAction(
-	request: HoudiniPluginAction
+	request: HoudiniPluginAction,
+	signal?: AbortSignal
 ): Promise<HoudiniPluginActionResponse> {
 	if (request?.action === 'migrate-configs') {
 		return migratePluginConfigs(request);
+	}
+	if (request?.action === 'run-hconfig') {
+		if (typeof request.installId !== 'string' || !request.installId.trim()) {
+			throw new Error('An install id is required.');
+		}
+
+		const current = await scanHoudiniWorkspace({ stage: 'installs' });
+		const install = current.installs.find((candidate) => candidate.id === request.installId);
+		if (!install) throw new Error('The Houdini install was not found.');
+
+		try {
+			const result = await execFileAsync(install.hconfig, [], {
+				cwd: install.hfs,
+				env: { ...process.env, HFS: install.hfs },
+				encoding: 'utf8',
+				maxBuffer: 1024 * 1024,
+				timeout: 10_000,
+				windowsHide: true,
+				signal
+			});
+			return {
+				message: `Ran hconfig for ${install.label}.`,
+				output: [result.stdout, result.stderr].filter(Boolean).join('\n')
+			};
+		} catch (error) {
+			const commandError = error as Error & { stderr?: string; stdout?: string };
+			const output = [commandError.stdout, commandError.stderr].filter(Boolean).join('\n');
+			return {
+				message: `hconfig failed for ${install.label}.`,
+				output: output || commandError.message
+			};
+		}
 	}
 	if (request?.action === 'open-path') {
 		if (typeof request.installId !== 'string' || !request.installId.trim()) {
