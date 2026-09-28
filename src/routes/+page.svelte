@@ -480,7 +480,7 @@
 		}
 	}
 
-	function selectDefaultNode(response: HoudiniDiscoveryResponse) {
+	function reconcileSelectedNode(response: HoudiniDiscoveryResponse) {
 		const selectionStillExists = selectedNodeId
 			? selectedNodeId === OFFICIAL_NODE_ID
 				? response.plugins.some(isOfficialPlugin)
@@ -489,10 +489,8 @@
 			: false;
 		if (selectionStillExists) return;
 
-		const firstUserPlugin = response.plugins.find((plugin) => !isOfficialPlugin(plugin));
-		const firstPlugin = firstUserPlugin ?? response.plugins[0];
-		selectedNodeId = firstPlugin ? `plugin:${firstPlugin.id}` : (response.installs[0]?.id ?? null);
-		persistSelectedNode(selectedNodeId);
+		selectedNodeId = null;
+		persistSelectedNode(null);
 	}
 
 	function restoreSelectedNode() {
@@ -909,7 +907,7 @@
 		activeScan = stage;
 		try {
 			const response = await performScanStage(stage, pluginIds);
-			selectDefaultNode(response);
+			reconcileSelectedNode(response);
 			recordScanActivity(stage, 'success', pluginIds);
 			return true;
 		} catch (error) {
@@ -957,7 +955,7 @@
 				recordScanActivity(stage, 'success');
 			}
 			if (response) {
-				selectDefaultNode(response);
+				reconcileSelectedNode(response);
 			}
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -975,7 +973,7 @@
 			snapshotLoadState = 'ready';
 			if (snapshot) {
 				applyDiscovery(snapshot);
-				selectDefaultNode(snapshot);
+				reconcileSelectedNode(snapshot);
 				recordActivity({
 					kind: 'scan',
 					status: 'success',
@@ -1006,7 +1004,7 @@
 				recordScanActivity(stage, 'success');
 			}
 			if (response) {
-				selectDefaultNode(response);
+				reconcileSelectedNode(response);
 			}
 		} catch (error) {
 			const message = getErrorMessage(error);

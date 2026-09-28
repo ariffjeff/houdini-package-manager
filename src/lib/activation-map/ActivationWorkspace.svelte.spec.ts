@@ -182,6 +182,7 @@ function stubDiscovery(
 	holdPluginAction = false;
 	releasePluginAction = null;
 	holdInstall = false;
+	localStorage.setItem('hpm:last-selected-node', 'plugin:package:mops');
 	vi.stubGlobal(
 		'fetch',
 		vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -745,6 +746,17 @@ it('hydrates a saved snapshot without running automatic scans', async () => {
 		.toBeInTheDocument();
 });
 
+it('does not select a plugin when a scan completes without a saved selection', async () => {
+	stubDiscovery();
+	localStorage.removeItem('hpm:last-selected-node');
+	render(Page);
+
+	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('heading', { name: 'MOPS', exact: true }))
+		.not.toBeInTheDocument();
+});
+
 it('restores activity history across page loads', async () => {
 	localStorage.setItem(
 		'hpm:activity-history',
@@ -776,8 +788,8 @@ it('restores activity history across page loads', async () => {
 });
 
 it('restores the last selected node from local storage', async () => {
-	localStorage.setItem('hpm:last-selected-node', 'plugin:package:qlib');
 	stubDiscovery(discoveryResponse, discoveryResponse);
+	localStorage.setItem('hpm:last-selected-node', 'plugin:package:qlib');
 	render(Page);
 
 	await expect
