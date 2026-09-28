@@ -3,6 +3,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import ActivityConsole from '$lib/activity/ActivityConsole.svelte';
+	import { readActivityEvents, writeActivityEvents } from '$lib/activity/activity-history';
 	import type { ActivityEvent, ActivityEventStatus } from '$lib/activity/types';
 	import ActivationWorkspace from '$lib/activation-map/ActivationWorkspace.svelte';
 	import ActivationDialogs from '$lib/activation-map/ActivationDialogs.svelte';
@@ -41,6 +42,16 @@
 	} from '$lib/activation-map/types';
 	import { targetIssueMessages, targetIssueSummary } from '$lib/houdini/known-issues';
 	import type { HoudiniDiscoveryResponse, HoudiniPluginMigrationRequest } from '$lib/houdini/types';
+	import {
+		responseStageTimestamp,
+		scanStageLabels,
+		scanStages,
+		type ScanAction,
+		type ScanStage,
+		type ScanState,
+		type ScanStatus
+	} from '$lib/houdini/scan';
+	import { createScanOrchestrator } from '$lib/houdini/scan-orchestrator.svelte';
 	import type {
 		InstallDialogOptions,
 		InstallDialogRequest,
@@ -50,45 +61,18 @@
 	import {
 		fetchHoudiniDiscoverySnapshot,
 		installHoudiniPlugin,
-		runHoudiniPluginAction,
-		scanHoudiniWorkspace
+		runHoudiniPluginAction
 	} from '$lib/houdini/client';
+	import Tooltip from '$lib/Tooltip.svelte';
 
 	type ViewMode = 'map' | 'table';
-	type ScanStage = 'installs' | 'plugins' | 'git';
-	type ScanState = 'pending' | 'loading' | 'ready' | 'error';
-	type ScanSource = 'none' | 'saved' | 'live';
-	type ScanStatus = {
-		state: ScanState;
-		error: string;
-		source: ScanSource;
-		scannedAt: string | null;
-	};
-	type ScanAction = ScanStage | 'all';
-	type TooltipState = {
-		text: string;
-		left: number;
-		top: number;
-		placement: 'above' | 'below';
-	};
 	type LiveJsonEditorContext = {
 		plugin: PluginRecord;
 		install: HoudiniInstall;
 		target: ActivationTarget;
 	};
 
-	const scanStages: Array<{ stage: ScanStage; label: string }> = [
-		{ stage: 'installs', label: 'Houdini Installs' },
-		{ stage: 'plugins', label: 'Plugins' },
-		{ stage: 'git', label: 'Git Metadata' }
-	];
-	const scanStageLabels: Record<ScanStage, string> = {
-		installs: 'Houdini Installs',
-		plugins: 'Plugins',
-		git: 'Git Metadata'
-	};
 	const selectedNodeStorageKey = 'hpm:last-selected-node';
-	const activityStorageKey = 'hpm:activity-history';
 
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
@@ -124,7 +108,6 @@
 	let groupIssueBuilds = $state(false);
 	let targetIssueDetails = $state<TargetIssueDetails | null>(null);
 	let liveJsonEditorContext = $state<LiveJsonEditorContext | null>(null);
-	let tooltip = $state<TooltipState | null>(null);
 	let activityEvents = $state<ActivityEvent[]>([]);
 	let activitySequence = 0;
 
@@ -435,13 +418,6 @@
 		});
 	}
 
-	function responseStageTimestamp(response: HoudiniDiscoveryResponse, stage: ScanStage) {
-		return (
-			response.stageScannedAt?.[stage] ??
-			(stage === 'installs' ? response.scannedAt : stage === 'git' ? response.gitSyncedAt : null)
-		);
-	}
-
 	function applyDiscovery(response: HoudiniDiscoveryResponse, liveStage?: ScanAction) {
 		activationPlugins = response.plugins;
 		activationInstalls = response.installs;
@@ -531,37 +507,13 @@
 				timestamp
 			},
 			...activityEvents
-		].slice(0, getActivityHistoryRetention());
+		];
 		persistActivityEvents();
 	}
 
-	function isActivityEvent(value: unknown): value is ActivityEvent {
-		if (!value || typeof value !== 'object') return false;
-
-		const event = value as Partial<ActivityEvent>;
-		return (
-			typeof event.id === 'string' &&
-			typeof event.timestamp === 'string' &&
-			['scan', 'sync', 'plugin', 'hconfig', 'install', 'migration', 'config'].includes(
-				event.kind ?? ''
-			) &&
-			['success', 'error', 'cancelled'].includes(event.status ?? '') &&
-			typeof event.title === 'string' &&
-			typeof event.detail === 'string'
-		);
-	}
-
 	function restoreActivityEvents() {
-		activityEvents = [];
-
 		try {
-			const stored = localStorage.getItem(activityStorageKey);
-			if (!stored) return;
-
-			const parsed: unknown = JSON.parse(stored);
-			if (Array.isArray(parsed)) {
-				activityEvents = parsed.filter(isActivityEvent).slice(0, getActivityHistoryRetention());
-			}
+			activityEvents = readActivityEvents(localStorage, getActivityHistoryRetention());
 		} catch {
 			activityEvents = [];
 		}
@@ -569,8 +521,11 @@
 
 	function persistActivityEvents() {
 		try {
-			activityEvents = activityEvents.slice(0, getActivityHistoryRetention());
-			localStorage.setItem(activityStorageKey, JSON.stringify(activityEvents));
+			activityEvents = writeActivityEvents(
+				localStorage,
+				activityEvents,
+				getActivityHistoryRetention()
+			);
 		} catch {
 			return;
 		}
@@ -798,32 +753,6 @@
 		}
 	}
 
-	function tooltipTarget(target: EventTarget | null) {
-		return target instanceof Element ? target.closest<HTMLElement>('[data-tooltip]') : null;
-	}
-
-	function showTooltip(target: EventTarget | null) {
-		const element = tooltipTarget(target);
-		if (!element) return;
-
-		const text = element.dataset.tooltip;
-		if (!text) return;
-
-		const rect = element.getBoundingClientRect();
-		const placement = rect.bottom + 44 <= window.innerHeight ? 'below' : 'above';
-		tooltip = {
-			text,
-			left: rect.left + rect.width / 2,
-			top: placement === 'below' ? rect.bottom + 8 : rect.top - 8,
-			placement
-		};
-	}
-
-	function hideTooltip(event: MouseEvent | FocusEvent) {
-		if (tooltipTarget(event.relatedTarget)) return;
-		tooltip = null;
-	}
-
 	async function installSelectedPlugin(
 		request: InstallDialogRequest,
 		options: InstallDialogOptions
@@ -914,36 +843,6 @@
 		installController?.abort();
 	}
 
-	async function performScanStage(stage: ScanStage, pluginIds: string[] = []) {
-		setScanStatus(stage, 'loading');
-		const response = await scanHoudiniWorkspace({
-			stage,
-			...(pluginIds.length ? { pluginIds: [...pluginIds] } : {})
-		});
-		applyDiscovery(response, stage);
-		setScanStatus(stage, 'ready');
-		return response;
-	}
-
-	async function runStage(stage: ScanStage, pluginIds: string[] = []): Promise<boolean> {
-		if (activeScan !== null) return false;
-
-		activeScan = stage;
-		try {
-			const response = await performScanStage(stage, pluginIds);
-			reconcileSelectedNode(response);
-			recordScanActivity(stage, 'success', pluginIds);
-			return true;
-		} catch (error) {
-			const message = getErrorMessage(error);
-			setScanStatus(stage, 'error', message);
-			recordScanActivity(stage, 'error', pluginIds, message);
-			return false;
-		} finally {
-			activeScan = null;
-		}
-	}
-
 	async function syncSelectedPluginGit() {
 		const plugin = selectedPlugin;
 		if (!plugin?.repositoryUrl || isScanActive) return;
@@ -959,34 +858,6 @@
 		} else {
 			gitSyncState = 'error';
 			gitSyncMessage = scanStatuses.git.error || 'Git metadata sync failed';
-		}
-	}
-
-	async function runInitialScan() {
-		if (initialScanStarted && activeScan !== null) return;
-
-		initialScanStarted = true;
-		activeScan = 'all';
-		const initialStages: ScanStage[] = ['installs', 'plugins'];
-		for (const stage of initialStages) setScanStatus(stage, 'pending');
-
-		let currentStage: ScanStage = 'installs';
-		try {
-			let response: HoudiniDiscoveryResponse | undefined;
-			for (const stage of initialStages) {
-				currentStage = stage;
-				response = await performScanStage(stage);
-				recordScanActivity(stage, 'success');
-			}
-			if (response) {
-				reconcileSelectedNode(response);
-			}
-		} catch (error) {
-			const message = getErrorMessage(error);
-			setScanStatus(currentStage, 'error', message);
-			recordScanActivity(currentStage, 'error', [], message);
-		} finally {
-			activeScan = null;
 		}
 	}
 
@@ -1013,31 +884,22 @@
 		await runInitialScan();
 	}
 
-	async function runGlobalScan() {
-		if (activeScan !== null) return;
+	const scanOrchestrator = createScanOrchestrator({
+		stages: scanStages.map(({ stage }) => stage),
+		getActiveScan: () => activeScan,
+		setActiveScan: (scan) => (activeScan = scan),
+		getInitialScanStarted: () => initialScanStarted,
+		setInitialScanStarted: (started) => (initialScanStarted = started),
+		setScanStatus,
+		applyDiscovery,
+		reconcileSelectedNode,
+		recordScanActivity,
+		getErrorMessage
+	});
 
-		activeScan = 'all';
-		for (const { stage } of scanStages) setScanStatus(stage, 'pending');
-
-		let currentStage: ScanStage = 'installs';
-		try {
-			let response: HoudiniDiscoveryResponse | undefined;
-			for (const { stage } of scanStages) {
-				currentStage = stage;
-				response = await performScanStage(stage);
-				recordScanActivity(stage, 'success');
-			}
-			if (response) {
-				reconcileSelectedNode(response);
-			}
-		} catch (error) {
-			const message = getErrorMessage(error);
-			setScanStatus(currentStage, 'error', message);
-			recordScanActivity(currentStage, 'error', [], message);
-		} finally {
-			activeScan = null;
-		}
-	}
+	const runStage = scanOrchestrator.runStage;
+	const runInitialScan = scanOrchestrator.runInitialScan;
+	const runGlobalScan = scanOrchestrator.runGlobalScan;
 
 	onMount(() => {
 		initializeActivitySettings();
@@ -1055,15 +917,10 @@
 	/>
 </svelte:head>
 
-<svelte:document
-	onmouseover={(event) => showTooltip(event.target)}
-	onmouseout={hideTooltip}
-	onfocusin={(event) => showTooltip(event.target)}
-	onfocusout={hideTooltip}
-/>
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <div class="page-shell px-3.5 pb-4 sm:px-6 lg:px-10">
+	<Tooltip />
 	<header
 		class="mx-auto flex flex-wrap items-center gap-4.5 border-white/10 py-4.5 lg:flex-nowrap lg:gap-10 lg:py-5.5"
 	>
@@ -1222,16 +1079,6 @@
 		onOpenTargetConfig={handleOpenTargetConfig}
 		onOpenTargetEditor={handleOpenTargetEditor}
 	/>
-	{#if tooltip}
-		<div
-			class={['global-tooltip', `global-tooltip-${tooltip.placement}`]}
-			style:left={`${tooltip.left}px`}
-			style:top={`${tooltip.top}px`}
-			role="tooltip"
-		>
-			{tooltip.text}
-		</div>
-	{/if}
 </div>
 
 <style>
@@ -1290,28 +1137,6 @@
 		.topbar-status span.status-error {
 			background: #df6d58;
 			box-shadow: 0 0 0 4px rgba(223, 109, 88, 0.12);
-		}
-
-		.global-tooltip {
-			position: fixed;
-			z-index: 10000;
-			max-width: min(320px, calc(100vw - 24px));
-			padding: 6px 8px;
-			border: 1px solid rgba(211, 232, 225, 0.18);
-			border-radius: 4px;
-			background: #17221f;
-			box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-			color: var(--text);
-			font-family: 'Cascadia Code', 'Courier New', monospace;
-			font-size: 12px;
-			line-height: 1.35;
-			pointer-events: none;
-			white-space: nowrap;
-			transform: translateX(-50%);
-		}
-
-		.global-tooltip-above {
-			transform: translate(-50%, -100%);
 		}
 
 		@media (max-width: 760px) {
