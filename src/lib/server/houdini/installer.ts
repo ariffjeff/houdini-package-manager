@@ -1,76 +1,25 @@
-import { execFile, spawn } from 'node:child_process';
-import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { discoverHoudiniWorkspace, scanHoudiniWorkspace } from './discovery.js';
+import { discoverHoudiniWorkspace } from './discovery.js';
 import { applyPackageConfigFixes } from '../../houdini/package-config-fixes.js';
+import { runHconfig } from './hconfig.js';
+import { runPluginAction, writableUserPackageDirectory } from './plugin-actions.js';
+import { migratePluginConfigs } from './plugin-migrator.js';
 import type {
 	HoudiniInstall,
 	InstallPluginRequest,
 	InstallPluginResponse,
 	PluginRecord,
 	HoudiniPluginAction,
-	HoudiniPluginActionResponse,
-	HoudiniPluginMigrationRequest
+	HoudiniPluginActionResponse
 } from '../../houdini/types.js';
 
 const execFileAsync = promisify(execFile);
 const commandTimeout = 120_000;
 
-type PathResolver = (path: string) => Promise<string>;
-
-function looksLikePath(value: string) {
-	return /^(?:[A-Za-z]:[\\/]|[\\/]|~[\\/])/.test(value) || value.includes('\\');
-}
-
-function preservePathSeparators(expanded: string, original: string) {
-	return original.includes('/') && !original.includes('\\')
-		? expanded.replaceAll('\\', '/')
-		: expanded;
-}
-
-async function expandPathSegment(value: string, resolvePath: PathResolver) {
-	const trimmed = value.trim();
-	const quote =
-		trimmed[0] === trimmed.at(-1) && (trimmed[0] === "'" || trimmed[0] === '"') ? trimmed[0] : '';
-	const pathValue = quote ? trimmed.slice(1, -1) : trimmed;
-	if (!pathValue || pathValue === '&' || pathValue === '@' || !looksLikePath(pathValue))
-		return value;
-
-	try {
-		const expanded = preservePathSeparators(await resolvePath(pathValue), pathValue);
-		const leadingWhitespace = value.slice(0, value.indexOf(trimmed));
-		const trailingWhitespace = value.slice(value.indexOf(trimmed) + trimmed.length);
-		return `${leadingWhitespace}${quote}${expanded}${quote}${trailingWhitespace}`;
-	} catch {
-		return value;
-	}
-}
-
-export async function expandWindowsShortPaths(
-	output: string,
-	resolvePath: PathResolver = realpath
-): Promise<string> {
-	const lines = await Promise.all(
-		output.split(/(\r?\n)/).map(async (line) => {
-			if (/^\r?\n$/.test(line)) return line;
-			const match = line.match(/^(\s*[A-Za-z_][A-Za-z0-9_]*\s*(?::=|=)\s*)(.*?)(\s*)$/);
-			if (!match) return line;
-
-			const separator = match[2].includes(';') ? ';' : null;
-			if (!separator) {
-				return `${match[1]}${await expandPathSegment(match[2], resolvePath)}${match[3]}`;
-			}
-
-			const expanded = await Promise.all(
-				match[2].split(separator).map((segment) => expandPathSegment(segment, resolvePath))
-			);
-			return `${match[1]}${expanded.join(separator)}${match[3]}`;
-		})
-	);
-
-	return lines.join('');
-}
+export { expandWindowsShortPaths } from './hconfig.js';
 
 export async function installHoudiniPlugin(
 	request: InstallPluginRequest,
@@ -82,9 +31,8 @@ export async function installHoudiniPlugin(
 	const current = await discoverHoudiniWorkspace();
 	const plugin = current.plugins.find((candidate) => candidate.id === request.pluginId);
 	if (!plugin) throw new Error(`Plugin ${request.pluginId} was not found in the discovery scan.`);
-	if (!plugin.repositoryUrl) {
+	if (!plugin.repositoryUrl)
 		throw new Error(`${plugin.name} does not have a discoverable Git repository.`);
-	}
 	if (
 		!(plugin.availableVersions ?? []).includes(request.version) &&
 		plugin.gitCommit !== request.version
@@ -94,7 +42,6 @@ export async function installHoudiniPlugin(
 
 	const installs = selectInstalls(current.installs, request);
 	if (!installs.length) throw new Error('No Houdini install matched the requested scope.');
-
 	const repositoryPath = path.normalize(request.destinationPath);
 	await ensureGitCheckout(plugin.repositoryUrl, request.version, repositoryPath, signal);
 
@@ -130,309 +77,10 @@ export async function runHoudiniPluginAction(
 	request: HoudiniPluginAction,
 	signal?: AbortSignal
 ): Promise<HoudiniPluginActionResponse> {
-	if (request?.action === 'migrate-configs') {
-		return migratePluginConfigs(request);
-	}
-	if (request?.action === 'run-hconfig') {
-		if (typeof request.installId !== 'string' || !request.installId.trim()) {
-			throw new Error('An install id is required.');
-		}
-
-		const current = await scanHoudiniWorkspace({ stage: 'installs' });
-		const install = current.installs.find((candidate) => candidate.id === request.installId);
-		if (!install) throw new Error('The Houdini install was not found.');
-
-		try {
-			const result = await execFileAsync(install.hconfig, [], {
-				cwd: install.hfs,
-				env: { ...process.env, HFS: install.hfs },
-				encoding: 'utf8',
-				maxBuffer: 1024 * 1024,
-				timeout: 10_000,
-				windowsHide: true,
-				signal
-			});
-			const rawOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
-			return {
-				message: `Ran hconfig for ${install.label}.`,
-				output: rawOutput,
-				rawOutput,
-				expandedOutput:
-					request.expandShortPaths === false || process.platform !== 'win32'
-						? undefined
-						: await expandWindowsShortPaths(rawOutput)
-			};
-		} catch (error) {
-			const commandError = error as Error & { stderr?: string; stdout?: string };
-			const output = [commandError.stdout, commandError.stderr].filter(Boolean).join('\n');
-			const rawOutput = output || commandError.message;
-			return {
-				message: `hconfig failed for ${install.label}.`,
-				output: rawOutput,
-				rawOutput,
-				expandedOutput:
-					request.expandShortPaths === false || process.platform !== 'win32'
-						? undefined
-						: await expandWindowsShortPaths(rawOutput)
-			};
-		}
-	}
-	if (request?.action === 'open-path') {
-		if (typeof request.installId !== 'string' || !request.installId.trim()) {
-			throw new Error('An install id is required.');
-		}
-		if (typeof request.path !== 'string' || !request.path.trim()) {
-			throw new Error('A path is required.');
-		}
-
-		const current = await scanHoudiniWorkspace({ stage: 'installs' });
-		const install = current.installs.find((candidate) => candidate.id === request.installId);
-		if (!install) throw new Error('The Houdini install was not found.');
-		const allowedPaths = [
-			install.hfs,
-			install.hconfig,
-			install.userPreferences,
-			install.packageDirectory,
-			...install.packageRoots.map((root) => root.path)
-		];
-		if (!allowedPaths.some((allowedPath) => samePath(allowedPath, request.path))) {
-			throw new Error('That path is not associated with the selected Houdini install.');
-		}
-
-		const pathToOpen = samePath(install.hconfig, request.path)
-			? path.dirname(request.path)
-			: request.path;
-		await openPath(pathToOpen);
-		return { message: `Opened ${path.basename(pathToOpen)}.` };
-	}
-	if (
-		!request ||
-		typeof request !== 'object' ||
-		typeof request.pluginId !== 'string' ||
-		!request.pluginId.trim()
-	) {
-		throw new Error('A plugin id is required.');
-	}
-	if (request.action === 'open-source') {
-		if (typeof request.sourcePath !== 'string' || !request.sourcePath.trim()) {
-			throw new Error('A source path is required.');
-		}
-	} else if (typeof request.installId !== 'string' || !request.installId.trim()) {
-		throw new Error('An install id is required.');
-	}
-
-	const current = await scanHoudiniWorkspace({
-		stage: 'plugins',
-		pluginIds: [request.pluginId]
-	});
-	const plugin = current.plugins.find((candidate) => candidate.id === request.pluginId);
-	if (!plugin) throw new Error(`Plugin ${request.pluginId} was not found in the discovery scan.`);
-
-	if (request.action === 'open-source') {
-		const source = plugin.sources?.find(
-			(candidate) => samePath(candidate.path, request.sourcePath) && candidate.exists
-		);
-		if (!source) throw new Error(`${plugin.name} has no available source folder at that path.`);
-		await openPath(source.path);
-		return { message: `Opened ${plugin.name} source folder.` };
-	}
-
-	if (request.action === 'open-package-folder') {
-		const install = current.installs.find((candidate) => candidate.id === request.installId);
-		if (!install) throw new Error(`${plugin.name} was not found for this Houdini install.`);
-		const packageRoot = documentsPackageRoot(install);
-		if (!packageRoot) {
-			throw new Error(`${plugin.name} has no Documents package folder for this Houdini install.`);
-		}
-		await openPath(packageRoot);
-		return { message: `Opened ${install.label} package folder.` };
-	}
-
-	if (
-		request.action !== 'open-config' &&
-		request.action !== 'get-config' &&
-		request.action !== 'update-config' &&
-		request.action !== 'set-enabled'
-	) {
-		throw new Error('Unknown plugin action.');
-	}
-
-	const target = current.targets.find(
-		(candidate) =>
-			candidate.pluginId === request.pluginId && candidate.installId === request.installId
-	);
-	if (!target?.packagePath) {
-		throw new Error(`${plugin.name} has no discovered package config for this Houdini install.`);
-	}
-
-	if (request.action === 'get-config') {
-		return {
-			message: `Loaded ${target.packageFile}.`,
-			config: await readPackageValue(target.packagePath),
-			packagePath: target.packagePath
-		};
-	}
-
-	if (request.action === 'update-config') {
-		if (
-			request.writeHpath !== false &&
-			request.keepPathAlias !== 'HOUDINI_PATH' &&
-			request.replacePathAlias !== 'HOUDINI_PATH' &&
-			!validHpath(request.hpath)
-		) {
-			throw new Error('A valid local plugin source path is required.');
-		}
-		if (request.keepPathAlias === 'HOUDINI_PATH') {
-			if (target.pathAliasConflict?.hpathUsedAsVariable) {
-				throw new Error('Replace $hpath references before removing hpath.');
-			}
-		} else if (
-			!request.replacePathAlias &&
-			!request.preservePathAliases &&
-			target.pathAliasConflict?.houdiniPathUsedAsVariable
-		) {
-			if (target.pathAliasConflict?.houdiniPathUsedAsVariable) {
-				throw new Error('Replace $HOUDINI_PATH references before removing HOUDINI_PATH.');
-			}
-		}
-		const packageValue = applyPackageConfigFixes(
-			await readPackageValue(target.packagePath),
-			request
-		);
-		await writePackageValue(target.packagePath, packageValue);
-		const discovery = await scanHoudiniWorkspace({
-			stage: 'plugins',
-			pluginIds: [request.pluginId]
-		});
-		return {
-			message: `Updated ${target.packageFile}.`,
-			discovery
-		};
-	}
-
-	if (request.action === 'open-config') {
-		await openPath(target.packagePath);
-		return { message: `Opened ${target.packageFile}.` };
-	}
-
-	if (request.action === 'set-enabled') {
-		await setPackageEnabled(target.packagePath, request.enabled);
-		const discovery = await scanHoudiniWorkspace({
-			stage: 'plugins',
-			pluginIds: [request.pluginId]
-		});
-		return {
-			message: `${plugin.name} ${request.enabled ? 'enabled' : 'disabled'} for the selected Houdini install.`,
-			discovery
-		};
-	}
-
-	throw new Error('Unknown plugin action.');
-}
-
-async function migratePluginConfigs(
-	request: HoudiniPluginMigrationRequest
-): Promise<HoudiniPluginActionResponse> {
-	validatePluginMigrationRequest(request);
-	const pluginIds = request.sources.map(({ pluginId }) => pluginId);
-	const current = await scanHoudiniWorkspace({ stage: 'plugins', pluginIds });
-	const destinationInstall = current.installs.find(
-		(install) => install.id === request.destinationInstallId
-	);
-	if (!destinationInstall) throw new Error('The destination Houdini install was not found.');
-
-	const selectedPlugins = request.sources.map(({ pluginId }) => {
-		const plugin = current.plugins.find((candidate) => candidate.id === pluginId);
-		if (!plugin) throw new Error(`Plugin ${pluginId} was not found in the discovery scan.`);
-		return plugin;
-	});
-
-	let copiedPlugins = 0;
-	for (const [index, plugin] of selectedPlugins.entries()) {
-		const sourceInstallId = request.sources[index].sourceInstallId;
-		const sourceTarget = current.targets.find(
-			(target) => target.pluginId === plugin.id && target.installId === sourceInstallId
-		);
-		if (!sourceTarget?.packagePath) continue;
-
-		const packageValue = await readPackageValue(sourceTarget.packagePath);
-		const packageFile = safePackageFile(sourceTarget.packageFile || plugin.packageFile);
-		const packageDirectory = await writableUserPackageDirectory(destinationInstall);
-		await mkdir(packageDirectory, { recursive: true });
-		await writePackageValue(path.join(packageDirectory, packageFile), packageValue);
-		copiedPlugins += 1;
-	}
-
-	if (!copiedPlugins) {
-		throw new Error('No selected plugins have a package config in the source Houdini install.');
-	}
-
-	const discovery = await scanHoudiniWorkspace({
-		stage: 'plugins',
-		pluginIds
-	});
-	return {
-		message: `Copied ${copiedPlugins} plugin config${copiedPlugins === 1 ? '' : 's'} to ${destinationInstall.label}.`,
-		discovery
-	};
-}
-
-function validatePluginMigrationRequest(request: HoudiniPluginMigrationRequest): void {
-	if (typeof request.destinationInstallId !== 'string' || !request.destinationInstallId.trim()) {
-		throw new Error('A destination Houdini install id is required.');
-	}
-	if (!Array.isArray(request.sources) || !request.sources.length) {
-		throw new Error('At least one plugin source is required.');
-	}
-	if (
-		request.sources.some(
-			(source) =>
-				!source ||
-				typeof source.pluginId !== 'string' ||
-				!source.pluginId.trim() ||
-				typeof source.sourceInstallId !== 'string' ||
-				!source.sourceInstallId.trim()
-		)
-	) {
-		throw new Error('Each plugin source requires a plugin id and install id.');
-	}
-	const pluginIds = request.sources.map(({ pluginId }) => pluginId);
-	if (new Set(pluginIds).size !== pluginIds.length) {
-		throw new Error('Plugin ids must be unique.');
-	}
-}
-
-function safePackageFile(packageFile: string): string {
-	if (!packageFile || packageFile === '.' || packageFile === '..' || /[\\/:\0]/.test(packageFile)) {
-		throw new Error('A discovered plugin package filename is invalid.');
-	}
-	return packageFile;
-}
-
-function validHpath(value: string | undefined): value is string {
-	return typeof value === 'string' && Boolean(value.trim()) && !/[\0\r\n]/.test(value);
-}
-
-function samePath(left: string, right: string): boolean {
-	const normalizedLeft = path.normalize(left);
-	const normalizedRight = path.normalize(right);
-	return process.platform === 'win32'
-		? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
-		: normalizedLeft === normalizedRight;
-}
-
-function documentsPackageRoot(install: HoudiniInstall): string | null {
-	const expectedVersionDirectory = `houdini${install.version}`.toLowerCase();
-	return (
-		install.packageRoots.find(({ path: root, origin }) => {
-			const normalizedRoot = path.normalize(root);
-			return (
-				origin === 'user' &&
-				path.basename(normalizedRoot).toLowerCase() === 'packages' &&
-				path.basename(path.dirname(normalizedRoot)).toLowerCase() === expectedVersionDirectory &&
-				path.basename(path.dirname(path.dirname(normalizedRoot))).toLowerCase() === 'documents'
-			);
-		})?.path ?? null
+	if (request?.action === 'migrate-configs') return migratePluginConfigs(request);
+	if (request?.action === 'run-hconfig') return runHconfig(request, signal);
+	return runPluginAction(
+		request as Exclude<HoudiniPluginAction, { action: 'migrate-configs' | 'run-hconfig' }>
 	);
 }
 
@@ -481,28 +129,6 @@ function selectInstalls(
 		throw new Error('One or more requested Houdini installs were not found.');
 	}
 	return selectedInstalls;
-}
-
-async function writableUserPackageDirectory(install: HoudiniInstall): Promise<string> {
-	const userRoots = install.packageRoots
-		.filter((root) => root.origin === 'user')
-		.map((root) => root.path);
-	const expectedVersionDirectory = `houdini${install.version}`.toLowerCase();
-	const documentsRoot = userRoots.find((root) => {
-		const normalizedRoot = path.normalize(root);
-		return (
-			path.basename(normalizedRoot).toLowerCase() === 'packages' &&
-			path.basename(path.dirname(normalizedRoot)).toLowerCase() === expectedVersionDirectory &&
-			path.basename(path.dirname(path.dirname(normalizedRoot))).toLowerCase() === 'documents'
-		);
-	});
-	if (documentsRoot) return documentsRoot;
-
-	for (const root of userRoots) {
-		if (await isDirectory(root)) return root;
-	}
-
-	return userRoots[0] ?? install.packageDirectory;
 }
 
 async function ensureGitCheckout(
@@ -585,58 +211,6 @@ function hasJsonKey(value: unknown, key: string): boolean {
 		Object.prototype.hasOwnProperty.call(value, key) ||
 		Object.values(value).some((entry) => hasJsonKey(entry, key))
 	);
-}
-
-async function setPackageEnabled(packagePath: string, enabled: boolean): Promise<void> {
-	const packageValue = await readPackageValue(packagePath);
-
-	packageValue.enable = enabled;
-	await writePackageValue(packagePath, packageValue);
-}
-
-async function readPackageValue(packagePath: string): Promise<Record<string, unknown>> {
-	try {
-		const parsed = JSON.parse(await readFile(packagePath, 'utf8')) as unknown;
-		if (!isRecord(parsed)) throw new Error('Package JSON root must be an object.');
-		return parsed;
-	} catch (error) {
-		throw new Error(
-			`Cannot read ${path.basename(packagePath)}: ${error instanceof Error ? error.message : String(error)}`,
-			{ cause: error }
-		);
-	}
-}
-
-async function writePackageValue(
-	packagePath: string,
-	packageValue: Record<string, unknown>
-): Promise<void> {
-	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
-}
-
-async function openPath(target: string): Promise<void> {
-	let targetStats;
-	try {
-		targetStats = await stat(target);
-	} catch (error) {
-		throw new Error(
-			`Cannot open ${target}: ${error instanceof Error ? error.message : String(error)}`,
-			{ cause: error }
-		);
-	}
-
-	const command =
-		process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
-	const normalizedTarget = path.normalize(target);
-	const args =
-		process.platform === 'win32'
-			? targetStats.isDirectory()
-				? ['/d', '/c', 'start', '', '/b', 'explorer.exe', normalizedTarget]
-				: ['/d', '/c', 'start', '', '/b', normalizedTarget]
-			: [normalizedTarget];
-
-	const child = spawn(command, args, { stdio: 'ignore', windowsHide: true });
-	child.unref?.();
 }
 
 async function runGit(cwd: string | undefined, args: string[]): Promise<string> {
