@@ -57,7 +57,8 @@
 		onOpenTargetIssueDetails,
 		onOpenInstallDialog,
 		onOpenInstallPath,
-		onSelectPlugin
+		onSelectPlugin,
+		onHconfigEvent
 	} = $props<{
 		plugin?: PluginRecord;
 		officialPlugins: PluginRecord[];
@@ -84,6 +85,7 @@
 		onOpenInstallDialog: () => void;
 		onOpenInstallPath: (path: string) => void | Promise<void>;
 		onSelectPlugin: (pluginId: string) => void;
+		onHconfigEvent: (event: { status: 'success' | 'error' | 'cancelled'; detail: string }) => void;
 	}>();
 
 	function stopActionPropagation(event: MouseEvent) {
@@ -123,9 +125,14 @@
 				hconfigController.signal
 			);
 			hconfigOutput = result.output ?? result.message;
+			onHconfigEvent({ status: 'success', detail: result.message });
 		} catch (error) {
-			if (!(error instanceof DOMException && error.name === 'AbortError')) {
-				hconfigOutput = error instanceof Error ? error.message : String(error);
+			if (error instanceof DOMException && error.name === 'AbortError') {
+				onHconfigEvent({ status: 'cancelled', detail: 'Hconfig execution cancelled' });
+			} else {
+				const message = error instanceof Error ? error.message : String(error);
+				hconfigOutput = message;
+				onHconfigEvent({ status: 'error', detail: message });
 			}
 		} finally {
 			hconfigController = null;

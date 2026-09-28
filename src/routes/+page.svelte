@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
+	import ActivityConsole from '$lib/activity/ActivityConsole.svelte';
+	import type { ActivityEvent, ActivityEventStatus } from '$lib/activity/types';
 	import ActivationMap from '$lib/activation-map/ActivationMap.svelte';
 	import ActivationTable from '$lib/activation-map/ActivationTable.svelte';
 	import IssueChecker from '$lib/activation-map/IssueChecker.svelte';
@@ -36,7 +38,6 @@
 		ActivationEdge,
 		ActivationNode,
 		ActivationTarget,
-		HoudiniDiscoveryDiagnostic,
 		HoudiniInstall,
 		PluginRecord
 	} from '$lib/activation-map/types';
@@ -105,10 +106,6 @@
 		plugins: { state: 'pending', error: '', source: 'none', scannedAt: null },
 		git: { state: 'pending', error: '', source: 'none', scannedAt: null }
 	});
-	let scannedAt = $state<string | null>(null);
-	let persistedAt = $state<string | null>(null);
-	let discoverySource = $state<'none' | 'saved' | 'live'>('none');
-	let discoveryDiagnostics = $state<HoudiniDiscoveryDiagnostic[]>([]);
 	let activationPlugins = $state<PluginRecord[]>([]);
 	let activationInstalls = $state<HoudiniInstall[]>([]);
 	let activationTargets = $state<ActivationTarget[]>([]);
@@ -129,6 +126,8 @@
 	let targetIssueDetails = $state<TargetIssueDetails | null>(null);
 	let liveJsonEditorContext = $state<LiveJsonEditorContext | null>(null);
 	let tooltip = $state<TooltipState | null>(null);
+	let activityEvents = $state<ActivityEvent[]>([]);
+	let activitySequence = 0;
 
 	let activationGraph = $derived(
 		createActivationGraph(activationPlugins, activationInstalls, activationTargets)
@@ -411,6 +410,45 @@
 		return timestamp ? new Date(timestamp).toLocaleString() : '';
 	}
 
+	function recordScanActivity(
+		stage: ScanStage,
+		status: ActivityEventStatus,
+		pluginIds: string[] = [],
+		message = ''
+	) {
+		const plugin =
+			pluginIds.length === 1
+				? activationPlugins.find((candidate) => candidate.id === pluginIds[0])
+				: undefined;
+		const title =
+			stage === 'git'
+				? plugin
+					? `Git metadata sync ${status === 'success' ? 'complete' : 'failed'} for ${plugin.name}`
+					: `Git metadata sync ${status === 'success' ? 'complete' : 'failed'}`
+				: stage === 'plugins'
+					? plugin
+						? `Plugin config scan ${status === 'success' ? 'complete' : 'failed'} for ${plugin.name}`
+						: `Plugin scan ${status === 'success' ? 'complete' : 'failed'}`
+					: `Houdini install scan ${status === 'success' ? 'complete' : 'failed'}`;
+		const detail =
+			status === 'success'
+				? plugin
+					? plugin.name
+					: stage === 'git'
+						? 'Workspace Git metadata'
+						: stage === 'plugins'
+							? 'Workspace plugin inventory'
+							: 'Detected Houdini installations'
+				: message;
+
+		recordActivity({
+			kind: stage === 'git' ? 'sync' : 'scan',
+			status,
+			title,
+			detail
+		});
+	}
+
 	function responseStageTimestamp(response: HoudiniDiscoveryResponse, stage: ScanStage) {
 		return (
 			response.stageScannedAt?.[stage] ??
@@ -422,10 +460,6 @@
 		activationPlugins = response.plugins;
 		activationInstalls = response.installs;
 		activationTargets = response.targets;
-		discoveryDiagnostics = response.diagnostics;
-		scannedAt = response.scannedAt;
-		persistedAt = response.persistedAt ?? null;
-		discoverySource = response.source ?? 'live';
 		hasDiscoverySnapshot = true;
 
 		for (const { stage } of scanStages) {
@@ -502,6 +536,18 @@
 
 	function getErrorMessage(error: unknown) {
 		return error instanceof Error ? error.message : String(error);
+	}
+
+	function recordActivity(event: Omit<ActivityEvent, 'id' | 'timestamp'>) {
+		const timestamp = new Date().toISOString();
+		activityEvents = [
+			{
+				...event,
+				id: `${timestamp}-${activitySequence++}`,
+				timestamp
+			},
+			...activityEvents
+		].slice(0, 100);
 	}
 
 	function selectNode(id: string | null) {
@@ -607,14 +653,29 @@
 
 		migrationState = 'working';
 		migrationMessage = '';
+		const destination = activationInstalls.find(
+			(install) => install.id === request.destinationInstallId
+		);
 		try {
 			const result = await runHoudiniPluginAction(request);
 			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
 			migrationState = 'success';
 			migrationMessage = result.message;
+			recordActivity({
+				kind: 'migration',
+				status: 'success',
+				title: 'Plugin config migration complete',
+				detail: `${request.sources.length} plugin${request.sources.length === 1 ? '' : 's'} to ${destination?.label ?? 'selected install'}`
+			});
 		} catch (error) {
 			migrationState = 'error';
 			migrationMessage = getErrorMessage(error);
+			recordActivity({
+				kind: 'migration',
+				status: 'error',
+				title: 'Plugin config migration failed',
+				detail: migrationMessage
+			});
 		}
 	}
 
@@ -641,12 +702,32 @@
 		if (!plugin || isScanActive || pluginActionState === 'working') return;
 
 		pluginActionState = 'working';
+		const targetInstall =
+			request.action === 'set-enabled'
+				? activationInstalls.find((install) => install.id === request.installId)
+				: undefined;
 		try {
 			const result = await runHoudiniPluginAction({ pluginId: plugin.id, ...request });
 			if (result.discovery) applyDiscovery(result.discovery, 'plugins');
 			pluginActionState = 'success';
-		} catch {
+			if (request.action === 'set-enabled') {
+				recordActivity({
+					kind: 'plugin',
+					status: 'success',
+					title: `${request.enabled ? 'Enabled' : 'Disabled'} ${plugin.name}`,
+					detail: targetInstall?.label ?? 'Selected Houdini install'
+				});
+			}
+		} catch (error) {
 			pluginActionState = 'error';
+			if (request.action === 'set-enabled') {
+				recordActivity({
+					kind: 'plugin',
+					status: 'error',
+					title: `${request.enabled ? 'Enable' : 'Disable'} ${plugin.name} failed`,
+					detail: getErrorMessage(error)
+				});
+			}
 		}
 	}
 
@@ -693,6 +774,10 @@
 
 		installState = 'working';
 		installMessage = '';
+		const destinationLabels = request.installIds.map(
+			(installId) =>
+				activationInstalls.find((install) => install.id === installId)?.label ?? installId
+		);
 		const controller = new AbortController();
 		installController = controller;
 		try {
@@ -724,6 +809,12 @@
 				}
 			}
 			installMessage = postInstallMessages.join(' ');
+			recordActivity({
+				kind: 'install',
+				status: 'success',
+				title: `Installed ${plugin.name}`,
+				detail: `${request.version} · ${destinationLabels.join(', ')}`
+			});
 		} catch (error) {
 			if (
 				controller.signal.aborted ||
@@ -731,9 +822,21 @@
 			) {
 				installState = 'idle';
 				installMessage = 'Installation cancelled.';
+				recordActivity({
+					kind: 'install',
+					status: 'cancelled',
+					title: `Installation cancelled for ${plugin.name}`,
+					detail: `${request.version} · ${destinationLabels.join(', ')}`
+				});
 			} else {
 				installState = 'error';
 				installMessage = getErrorMessage(error);
+				recordActivity({
+					kind: 'install',
+					status: 'error',
+					title: `Installation failed for ${plugin.name}`,
+					detail: installMessage
+				});
 			}
 		} finally {
 			if (installController === controller) installController = null;
@@ -762,9 +865,12 @@
 		try {
 			const response = await performScanStage(stage, pluginIds);
 			selectDefaultNode(response);
+			recordScanActivity(stage, 'success', pluginIds);
 			return true;
 		} catch (error) {
-			setScanStatus(stage, 'error', getErrorMessage(error));
+			const message = getErrorMessage(error);
+			setScanStatus(stage, 'error', message);
+			recordScanActivity(stage, 'error', pluginIds, message);
 			return false;
 		} finally {
 			activeScan = null;
@@ -803,12 +909,15 @@
 			for (const stage of initialStages) {
 				currentStage = stage;
 				response = await performScanStage(stage);
+				recordScanActivity(stage, 'success');
 			}
 			if (response) {
 				selectDefaultNode(response);
 			}
 		} catch (error) {
-			setScanStatus(currentStage, 'error', getErrorMessage(error));
+			const message = getErrorMessage(error);
+			setScanStatus(currentStage, 'error', message);
+			recordScanActivity(currentStage, 'error', [], message);
 		} finally {
 			activeScan = null;
 		}
@@ -822,6 +931,12 @@
 			if (snapshot) {
 				applyDiscovery(snapshot);
 				selectDefaultNode(snapshot);
+				recordActivity({
+					kind: 'scan',
+					status: 'success',
+					title: 'Discovery snapshot restored',
+					detail: 'Saved workspace snapshot'
+				});
 				return;
 			}
 		} catch {
@@ -843,12 +958,15 @@
 			for (const { stage } of scanStages) {
 				currentStage = stage;
 				response = await performScanStage(stage);
+				recordScanActivity(stage, 'success');
 			}
 			if (response) {
 				selectDefaultNode(response);
 			}
 		} catch (error) {
-			setScanStatus(currentStage, 'error', getErrorMessage(error));
+			const message = getErrorMessage(error);
+			setScanStatus(currentStage, 'error', message);
+			recordScanActivity(currentStage, 'error', [], message);
 		} finally {
 			activeScan = null;
 		}
@@ -1148,6 +1266,20 @@
 						onOpenInstallDialog={openInstallDialog}
 						onOpenInstallPath={openInstallPath}
 						onSelectPlugin={(pluginId) => selectNode(`plugin:${pluginId}`)}
+						onHconfigEvent={(event) => {
+							const installLabel = selectedInstall?.label ?? 'Houdini install';
+							recordActivity({
+								kind: 'hconfig',
+								status: event.status,
+								title:
+									event.status === 'success'
+										? `Hconfig execution complete for ${installLabel}`
+										: event.status === 'cancelled'
+											? `Hconfig execution cancelled for ${installLabel}`
+											: `Hconfig execution failed for ${installLabel}`,
+								detail: event.detail
+							});
+						}}
 					/>
 				</div>
 			{:else}
@@ -1160,23 +1292,7 @@
 				/>
 			{/if}
 		</section>
-		{#if hasDiscoverySnapshot && (discoveryDiagnostics.length || scannedAt)}
-			<div class="scan-footer">
-				<span
-					>{discoveryDiagnostics.length
-						? `${discoveryDiagnostics.length} workspace diagnostics`
-						: 'hconfig scan complete'}</span
-				>
-				<div class="scan-footer-meta">
-					{#if discoverySource === 'saved'}<span>Saved snapshot; may be stale.</span>{/if}
-					{#if persistedAt}
-						<time datetime={persistedAt}>Saved {formatScanTime(persistedAt)}</time>
-					{:else if scannedAt}
-						<time datetime={scannedAt}>Scanned {formatScanTime(scannedAt)}</time>
-					{/if}
-				</div>
-			</div>
-		{/if}
+		<ActivityConsole events={activityEvents} />
 	</main>
 	{#if installDialogOpen && selectedPlugin}
 		<PluginInstallDialog
@@ -1225,7 +1341,17 @@
 			targets={activationTargets}
 			{isScanActive}
 			onClose={closeTargetConfigDialog}
-			onDiscovery={(response) => applyDiscovery(response, 'plugins')}
+			onDiscovery={(response) => {
+				const pluginName = liveJsonEditorContext?.plugin.name ?? 'Plugin';
+				const installLabel = liveJsonEditorContext?.install.label ?? 'Houdini install';
+				applyDiscovery(response, 'plugins');
+				recordActivity({
+					kind: 'config',
+					status: 'success',
+					title: `Updated ${pluginName} config`,
+					detail: installLabel
+				});
+			}}
 		/>
 	{/if}
 	{#if targetIssueDetails}
@@ -1830,26 +1956,6 @@
 
 	.global-tooltip-above {
 		transform: translate(-50%, -100%);
-	}
-
-	.scan-footer-meta {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: flex-end;
-		gap: 10px;
-		text-align: right;
-	}
-
-	.scan-footer {
-		display: flex;
-		justify-content: space-between;
-		gap: 16px;
-		padding: 10px 3px 0;
-		color: var(--text-dim);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 12px;
-		letter-spacing: 0.03em;
-		text-transform: uppercase;
 	}
 
 	@media (max-width: 1100px) {

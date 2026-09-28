@@ -727,8 +727,16 @@ it('hydrates a saved snapshot without running automatic scans', async () => {
 
 	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
 	await expect
-		.element(page.getByText('Saved snapshot; may be stale.', { exact: true }))
+		.element(page.getByRole('button', { name: /Discovery snapshot restored/ }))
 		.toBeInTheDocument();
+	await page.getByRole('button', { name: /Discovery snapshot restored/ }).click();
+	await expect
+		.element(page.getByRole('heading', { name: 'Activity history', exact: true }))
+		.toBeInTheDocument();
+	await expect
+		.element(page.getByText('Saved workspace snapshot', { exact: true }))
+		.toBeInTheDocument();
+	await page.getByRole('dialog').getByRole('button', { name: 'Close activity history' }).click();
 	await expect.poll(() => scanRequests).toEqual([]);
 	await expect
 		.element(page.getByRole('status', { name: 'Houdini installs: Saved' }))
