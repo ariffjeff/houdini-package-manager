@@ -166,6 +166,49 @@ it('opens the selected install Documents package folder without a package target
 	);
 });
 
+it('opens the hconfig containing folder', async () => {
+	const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-hconfig-folder-'));
+	temporaryDirectories.push(root);
+	const hconfigPath = path.join(root, 'bin', 'hconfig');
+	await mkdir(path.dirname(hconfigPath), { recursive: true });
+	await writeFile(hconfigPath, '', 'utf8');
+
+	const installId = 'install:19.5';
+	discoveryMocks.scanHoudiniWorkspace.mockResolvedValue({
+		installs: [
+			{
+				id: installId,
+				hfs: root,
+				hconfig: hconfigPath,
+				userPreferences: root,
+				packageDirectory: root,
+				packageRoots: []
+			}
+		]
+	} as unknown as HoudiniDiscoveryResponse);
+	const child = new EventEmitter() as EventEmitter & { unref: ReturnType<typeof vi.fn> };
+	child.unref = vi.fn();
+	childProcessMocks.spawn.mockImplementation(() => {
+		queueMicrotask(() => child.emit('close', 0, null));
+		return child;
+	});
+
+	const result = await runHoudiniPluginAction({
+		action: 'open-path',
+		installId,
+		path: hconfigPath
+	});
+
+	expect(result.message).toBe('Opened bin.');
+	expect(childProcessMocks.spawn).toHaveBeenCalledWith(
+		process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open',
+		process.platform === 'win32'
+			? ['/d', '/c', 'start', '', '/b', 'explorer.exe', path.normalize(path.dirname(hconfigPath))]
+			: [path.normalize(path.dirname(hconfigPath))],
+		{ stdio: 'ignore', windowsHide: true }
+	);
+});
+
 it('opens a package config through the Windows shell association', async () => {
 	const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-package-config-'));
 	temporaryDirectories.push(root);

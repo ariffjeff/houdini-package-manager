@@ -99,8 +99,11 @@ export async function runHoudiniPluginAction(
 			throw new Error('That path is not associated with the selected Houdini install.');
 		}
 
-		await openPath(request.path);
-		return { message: `Opened ${path.basename(request.path)}.` };
+		const pathToOpen = samePath(install.hconfig, request.path)
+			? path.dirname(request.path)
+			: request.path;
+		await openPath(pathToOpen);
+		return { message: `Opened ${path.basename(pathToOpen)}.` };
 	}
 	if (
 		!request ||
