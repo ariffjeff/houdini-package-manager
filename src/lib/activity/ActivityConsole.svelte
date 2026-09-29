@@ -1,10 +1,29 @@
 <script lang="ts">
-	import { Activity, CheckCircle2, ChevronRight, CircleAlert, Clock3, X } from '@lucide/svelte';
+	import {
+		Activity,
+		CheckCircle2,
+		ChevronRight,
+		CircleAlert,
+		Clock3,
+		Search,
+		X
+	} from '@lucide/svelte';
 	import type { ActivityEvent, ActivityEventKind, ActivityEventStatus } from './types';
 
 	let { events } = $props<{ events: ActivityEvent[] }>();
 	let dialogOpen = $state(false);
+	let searchQuery = $state('');
 	let latestEvent = $derived(events[0]);
+	let filteredEvents = $derived.by(() => {
+		const query = searchQuery.trim().toLowerCase();
+		if (!query) return events;
+
+		return events.filter((event: ActivityEvent) =>
+			[event.title, event.detail, event.kind, event.status].some((value) =>
+				value.toLowerCase().includes(query)
+			)
+		);
+	});
 
 	function formatTime(timestamp: string) {
 		return new Date(timestamp).toLocaleString();
@@ -83,7 +102,12 @@
 			<div class="activity-dialog-header">
 				<div>
 					<h2 id="activity-dialog-title">Activity history</h2>
-					<p>{events.length} recorded event{events.length === 1 ? '' : 's'}</p>
+					<p>
+						{filteredEvents.length}{searchQuery.trim() ? ` of ${events.length}` : ''} recorded event{filteredEvents.length ===
+						1
+							? ''
+							: 's'}
+					</p>
 				</div>
 				<button
 					type="button"
@@ -94,9 +118,32 @@
 					<X size={18} strokeWidth={1.8} aria-hidden="true" />
 				</button>
 			</div>
-			{#if events.length}
+			<div class="activity-filter">
+				<label for="activity-history-search">Search history</label>
+				<div class="activity-search-field">
+					<Search size={16} strokeWidth={1.8} aria-hidden="true" />
+					<input
+						id="activity-history-search"
+						type="search"
+						bind:value={searchQuery}
+						placeholder="Filter events"
+						autocomplete="off"
+					/>
+					{#if searchQuery}
+						<button
+							type="button"
+							class="activity-search-clear"
+							aria-label="Clear activity search"
+							onclick={() => (searchQuery = '')}
+						>
+							<X size={14} strokeWidth={1.8} aria-hidden="true" />
+						</button>
+					{/if}
+				</div>
+			</div>
+			{#if filteredEvents.length}
 				<ol class="activity-list">
-					{#each events as event (event.id)}
+					{#each filteredEvents as event (event.id)}
 						<li class={['activity-entry', `is-${event.status}`]}>
 							<span class="activity-entry-mark" aria-hidden="true">
 								{#if event.status === 'success'}
@@ -118,6 +165,8 @@
 						</li>
 					{/each}
 				</ol>
+			{:else if events.length}
+				<p class="activity-empty">No activity matches your search.</p>
 			{:else}
 				<p class="activity-empty">Actions and scan results will appear here.</p>
 			{/if}
@@ -259,6 +308,70 @@
 	.activity-close-button:focus-visible {
 		border-color: #df6d58;
 		color: #ffb09f;
+		outline: none;
+	}
+
+	.activity-filter {
+		display: grid;
+		gap: 5px;
+		margin-top: 16px;
+	}
+
+	.activity-filter label {
+		color: var(--text-muted);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 11px;
+	}
+
+	.activity-search-field {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-height: 34px;
+		padding: 0 8px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.14);
+		color: var(--text-muted);
+	}
+
+	.activity-search-field:focus-within {
+		border-color: #8bd2bb;
+		box-shadow: 0 0 0 2px rgba(57, 155, 130, 0.12);
+	}
+
+	.activity-search-field input {
+		min-width: 0;
+		flex: 1;
+		padding: 7px 0;
+		border: 0;
+		outline: none;
+		background: transparent;
+		color: var(--text);
+		font: inherit;
+		font-size: 12px;
+	}
+
+	.activity-search-field input::placeholder {
+		color: var(--text-muted);
+	}
+
+	.activity-search-clear {
+		display: inline-flex;
+		width: 24px;
+		height: 24px;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.activity-search-clear:hover,
+	.activity-search-clear:focus-visible {
+		color: var(--text);
 		outline: none;
 	}
 
