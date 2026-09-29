@@ -773,13 +773,6 @@
 			>
 				<span>User preferences</span><code>{install.userPreferences}</code>
 			</button>
-			<button
-				type="button"
-				class="path-fact"
-				onclick={() => void onOpenInstallPath(install.packageDirectory)}
-			>
-				<span>User package directory</span><code>{install.packageDirectory}</code>
-			</button>
 		</div>
 		{#if hconfigDialogOpen}
 			<HconfigDialog
