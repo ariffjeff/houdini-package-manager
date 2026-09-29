@@ -632,7 +632,6 @@
 
 	.version-select-menu {
 		position: absolute;
-		top: calc(100% + 4px);
 		right: 0;
 		left: 0;
 		z-index: 4;
