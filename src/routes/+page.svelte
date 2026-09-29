@@ -27,6 +27,16 @@
 		type PluginDetailActionState
 	} from '$lib/activation-map/plugin-detail';
 	import {
+		createPluginUpdateItems,
+		pinPluginUpdate,
+		readPinnedPluginUpdates,
+		unpinPluginUpdate,
+		updatePreferenceKey,
+		writePinnedPluginUpdates,
+		type PinnedPluginUpdates,
+		type PluginUpdateItem
+	} from '$lib/activation-map/update-checker';
+	import {
 		createIssueConfigOptions,
 		createIssueItems,
 		issueFilterForTarget,
@@ -72,6 +82,7 @@
 	};
 
 	const selectedNodeStorageKey = 'hpm:last-selected-node';
+	const pinnedPluginUpdatesStorageKey = 'hpm:pinned-plugin-updates';
 
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
@@ -103,7 +114,9 @@
 	let pluginScanState = $state<PluginDetailActionState>('idle');
 	let pluginActionState = $state<PluginDetailActionState>('idle');
 	let issuesDialogOpen = $state(false);
+	let updatesDialogOpen = $state(false);
 	let issueCheckerFilterId = $state('all');
+	let pinnedPluginUpdates = $state<PinnedPluginUpdates>({});
 	let groupIssueBuilds = $state(false);
 	let targetIssueDetails = $state<TargetIssueDetails | null>(null);
 	let liveJsonEditorContext = $state<LiveJsonEditorContext | null>(null);
@@ -140,6 +153,16 @@
 		createIssueItems(activationTargets, activationPlugins, activationInstalls)
 	);
 	let attentionCount = $derived(issueItems.length);
+	let allPluginUpdateItems = $derived(
+		createPluginUpdateItems(activationTargets, activationPlugins, activationInstalls)
+	);
+	let pluginUpdateItems = $derived(
+		allPluginUpdateItems.filter((update) => !pinnedPluginUpdates[updatePreferenceKey(update)])
+	);
+	let pinnedPluginUpdateItems = $derived(
+		allPluginUpdateItems.filter((update) => pinnedPluginUpdates[updatePreferenceKey(update)])
+	);
+	let updateCount = $derived(pluginUpdateItems.length);
 	let issueConfigOptions = $derived(
 		createIssueConfigOptions(activationTargets, activationInstalls)
 	);
@@ -196,7 +219,13 @@
 			.map((option, index) => ({ ...option, isLatest: index === 0 }))
 	);
 	let selectedPluginUpdates = $derived(
-		selectedPlugin ? availablePluginUpdates(selectedPlugin) : []
+		selectedPlugin
+			? availablePluginUpdates(selectedPlugin).filter((version) =>
+					pluginUpdateItems.some(
+						(update) => update.pluginId === selectedPlugin.id && update.latestVersion === version
+					)
+				)
+			: []
 	);
 	let remoteSourceOptions = $derived.by(() => {
 		const sourcePaths = (selectedPlugin?.sources ?? [])
@@ -474,6 +503,10 @@
 		}
 	}
 
+	function restorePinnedPluginUpdates() {
+		pinnedPluginUpdates = readPinnedPluginUpdates(localStorage, pinnedPluginUpdatesStorageKey);
+	}
+
 	function setScanStatus(
 		stage: ScanStage,
 		state: ScanState,
@@ -550,6 +583,42 @@
 	function closeIssuesDialog() {
 		issuesDialogOpen = false;
 		issueCheckerFilterId = 'all';
+	}
+
+	function openUpdatesDialog() {
+		if (pluginUpdateItems.length) updatesDialogOpen = true;
+	}
+
+	function closeUpdatesDialog() {
+		updatesDialogOpen = false;
+	}
+
+	function keepCurrentPluginVersion(update: PluginUpdateItem) {
+		pinnedPluginUpdates = pinPluginUpdate(pinnedPluginUpdates, update);
+		writePinnedPluginUpdates(localStorage, pinnedPluginUpdatesStorageKey, pinnedPluginUpdates);
+		recordActivity({
+			kind: 'plugin',
+			status: 'success',
+			title: 'Plugin update pinned',
+			detail: `${update.pluginName} ${update.currentVersion} pinned for ${update.installLabel}; latest available is ${update.latestVersion}`
+		});
+	}
+
+	function unpinPluginVersion(update: PluginUpdateItem) {
+		pinnedPluginUpdates = unpinPluginUpdate(pinnedPluginUpdates, update);
+		writePinnedPluginUpdates(localStorage, pinnedPluginUpdatesStorageKey, pinnedPluginUpdates);
+		recordActivity({
+			kind: 'plugin',
+			status: 'success',
+			title: 'Plugin update unpinned',
+			detail: `${update.pluginName} on ${update.installLabel} can receive updates again`
+		});
+	}
+
+	function selectPluginUpdate(update: PluginUpdateItem) {
+		closeUpdatesDialog();
+		view = 'map';
+		selectNode(`plugin:${update.pluginId}`);
 	}
 
 	function selectIssue(issue: IssueItem, target: ActivationTarget) {
@@ -655,6 +724,7 @@
 			return;
 		}
 		if (issuesDialogOpen) closeIssuesDialog();
+		if (updatesDialogOpen) closeUpdatesDialog();
 		if (targetIssueDetails) closeTargetIssueDetails();
 		if (liveJsonEditorContext) closeTargetConfigDialog();
 		if (installDialogOpen && installState !== 'working') closeInstallDialog();
@@ -896,6 +966,7 @@
 	onMount(() => {
 		initializeActivitySettings();
 		restoreSelectedNode();
+		restorePinnedPluginUpdates();
 		restoreActivityEvents();
 		void loadInitialDiscovery();
 	});
@@ -971,8 +1042,10 @@
 			{pluginCount}
 			{enabledCount}
 			{attentionCount}
+			{updateCount}
 			{issueItems}
 			{issuesDialogOpen}
+			{updatesDialogOpen}
 			{pluginMigratorOpen}
 			{filterButtonIsActive}
 			{pluginScanState}
@@ -987,6 +1060,7 @@
 			onInitialScan={() => void runInitialScan()}
 			onRunPluginMigrator={openPluginMigrator}
 			onOpenIssues={() => openIssuesDialog()}
+			onOpenUpdates={openUpdatesDialog}
 			onToggleConnectionFilter={toggleConnectionFilter}
 			onClearSearch={() => (searchQuery = '')}
 			onSearchQueryChange={(value) => (searchQuery = value)}
@@ -1035,7 +1109,10 @@
 		{migrationState}
 		{migrationMessage}
 		{issuesDialogOpen}
+		{updatesDialogOpen}
 		{issueItems}
+		{pluginUpdateItems}
+		{pinnedPluginUpdateItems}
 		{issueConfigOptions}
 		{issueCheckerFilterId}
 		{groupIssueBuilds}
@@ -1051,6 +1128,10 @@
 		onClosePluginMigrator={closePluginMigrator}
 		onMigrate={(request) => void migratePlugins(request)}
 		onCloseIssues={closeIssuesDialog}
+		onCloseUpdates={closeUpdatesDialog}
+		onKeepCurrentUpdate={keepCurrentPluginVersion}
+		onUnpinUpdate={unpinPluginVersion}
+		onSelectUpdate={selectPluginUpdate}
 		onFilterChange={handleIssueFilterChange}
 		onGroupBuildsChange={handleGroupIssueBuildsChange}
 		onSelectIssue={selectIssue}

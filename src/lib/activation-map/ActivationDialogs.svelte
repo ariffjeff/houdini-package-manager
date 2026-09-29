@@ -1,8 +1,10 @@
 <script lang="ts">
 	import IssueChecker from './IssueChecker.svelte';
+	import PluginUpdatesDialog from './PluginUpdatesDialog.svelte';
 	import TargetIssueDialog from './TargetIssueDialog.svelte';
 	import type { TargetIssueDetails } from './target-issue-dialog';
 	import type { IssueConfigOption, IssueItem } from './issue-checker';
+	import type { PluginUpdateItem } from './update-checker';
 	import LiveJsonEditor from '$lib/live-json-editor/LiveJsonEditor.svelte';
 	import type { ActivationTarget, HoudiniInstall, PluginRecord } from './types';
 	import type { HoudiniDiscoveryResponse, HoudiniPluginMigrationRequest } from '$lib/houdini/types';
@@ -39,7 +41,10 @@
 		migrationState,
 		migrationMessage,
 		issuesDialogOpen,
+		updatesDialogOpen,
 		issueItems,
+		pluginUpdateItems,
+		pinnedPluginUpdateItems,
 		issueConfigOptions,
 		issueCheckerFilterId,
 		groupIssueBuilds,
@@ -55,6 +60,10 @@
 		onClosePluginMigrator,
 		onMigrate,
 		onCloseIssues,
+		onCloseUpdates,
+		onKeepCurrentUpdate,
+		onUnpinUpdate,
+		onSelectUpdate,
 		onFilterChange,
 		onGroupBuildsChange,
 		onSelectIssue,
@@ -79,7 +88,10 @@
 		migrationState: MigrationState;
 		migrationMessage: string;
 		issuesDialogOpen: boolean;
+		updatesDialogOpen: boolean;
 		issueItems: IssueItem[];
+		pluginUpdateItems: PluginUpdateItem[];
+		pinnedPluginUpdateItems: PluginUpdateItem[];
 		issueConfigOptions: IssueConfigOption[];
 		issueCheckerFilterId: string;
 		groupIssueBuilds: boolean;
@@ -98,6 +110,10 @@
 		onClosePluginMigrator: () => void;
 		onMigrate: (request: HoudiniPluginMigrationRequest) => void;
 		onCloseIssues: () => void;
+		onCloseUpdates: () => void;
+		onKeepCurrentUpdate: (update: PluginUpdateItem) => void;
+		onUnpinUpdate: (update: PluginUpdateItem) => void;
+		onSelectUpdate: (update: PluginUpdateItem) => void;
 		onFilterChange: (filterId: string) => void;
 		onGroupBuildsChange: (value: boolean) => void;
 		onSelectIssue: (issue: IssueItem, target: ActivationTarget) => void;
@@ -159,6 +175,16 @@
 		{onFilterChange}
 		{onGroupBuildsChange}
 		{onSelectIssue}
+	/>
+{/if}
+{#if updatesDialogOpen}
+	<PluginUpdatesDialog
+		updates={pluginUpdateItems}
+		pinnedUpdates={pinnedPluginUpdateItems}
+		onClose={onCloseUpdates}
+		onKeepCurrent={onKeepCurrentUpdate}
+		onUnpin={onUnpinUpdate}
+		{onSelectUpdate}
 	/>
 {/if}
 {#if liveJsonEditorContext}

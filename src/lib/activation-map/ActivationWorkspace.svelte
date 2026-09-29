@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		ArrowRightLeft,
-		CloudDownload,
-		Filter,
-		FunnelX,
-		Play,
-		Search,
-		X
-	} from '@lucide/svelte';
+	import { ArrowRightLeft, CloudDownload, Filter, FunnelX, Play, Search, X } from '@lucide/svelte';
 	import ActivationMap from './ActivationMap.svelte';
 	import ActivationTable from './ActivationTable.svelte';
 	import PluginDetailPanel from './PluginDetailPanel.svelte';
@@ -70,8 +62,10 @@
 		pluginCount,
 		enabledCount,
 		attentionCount,
+		updateCount,
 		issueItems,
 		issuesDialogOpen,
+		updatesDialogOpen,
 		pluginMigratorOpen,
 		filterButtonIsActive,
 		pluginScanState,
@@ -86,6 +80,7 @@
 		onInitialScan,
 		onRunPluginMigrator,
 		onOpenIssues,
+		onOpenUpdates,
 		onToggleConnectionFilter,
 		onClearSearch,
 		onSearchQueryChange,
@@ -133,8 +128,10 @@
 		pluginCount: number;
 		enabledCount: number;
 		attentionCount: number;
+		updateCount: number;
 		issueItems: unknown[];
 		issuesDialogOpen: boolean;
+		updatesDialogOpen: boolean;
 		pluginMigratorOpen: boolean;
 		filterButtonIsActive: boolean;
 		pluginScanState: PluginDetailActionState;
@@ -149,6 +146,7 @@
 		onInitialScan: () => void | Promise<void>;
 		onRunPluginMigrator: () => void;
 		onOpenIssues: () => void;
+		onOpenUpdates: () => void;
 		onToggleConnectionFilter: () => void;
 		onClearSearch: () => void;
 		onSearchQueryChange: (value: string) => void;
@@ -269,6 +267,16 @@
 					onclick={onOpenIssues}
 				>
 					<strong>{attentionCount}</strong><span>Issues</span>
+				</button>
+				<button
+					type="button"
+					class="attention-stat update-stat"
+					aria-haspopup="dialog"
+					aria-expanded={updatesDialogOpen}
+					disabled={!updateCount}
+					onclick={onOpenUpdates}
+				>
+					<strong>{updateCount}</strong><span>Updates</span>
 				</button>
 			</div>
 			<div class="workspace-actions flex w-full flex-wrap items-center gap-3 lg:w-auto">
@@ -606,6 +614,9 @@
 	.intro-stats .attention-stat strong {
 		color: #f07b67;
 	}
+	.intro-stats .update-stat strong {
+		color: #f1841e;
+	}
 	.issue-stat {
 		color: inherit;
 		cursor: pointer;
@@ -629,6 +640,32 @@
 		outline-offset: 4px;
 	}
 	.issue-stat:disabled {
+		cursor: default;
+		opacity: 0.72;
+	}
+	.update-stat {
+		color: inherit;
+		cursor: pointer;
+		transition: color 120ms ease;
+	}
+	.update-stat:hover:not(:disabled),
+	.update-stat:focus-visible:not(:disabled) {
+		border-left-color: rgba(241, 132, 30, 0.7);
+		background: rgba(241, 132, 30, 0.08);
+		color: #ffb15c;
+		outline: none;
+	}
+	.update-stat:hover:not(:disabled) strong,
+	.update-stat:focus-visible:not(:disabled) strong,
+	.update-stat:hover:not(:disabled) span,
+	.update-stat:focus-visible:not(:disabled) span {
+		color: #ffb15c;
+	}
+	.update-stat:focus-visible:not(:disabled) {
+		outline: 2px solid #f1841e;
+		outline-offset: 4px;
+	}
+	.update-stat:disabled {
 		cursor: default;
 		opacity: 0.72;
 	}
