@@ -274,6 +274,9 @@
 								<Tag size={14} strokeWidth={1.8} aria-hidden="true" />
 							{/if}
 							{selectedVersion?.label ?? selectedVersion?.value ?? 'Choose a version'}
+							{#if selectedVersion?.isLatest}
+								<span class="version-latest-marker">Latest</span>
+							{/if}
 						</span>
 						<ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" />
 					</button>
