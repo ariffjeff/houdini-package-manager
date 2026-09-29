@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { ChevronDown, Tag, X } from '@lucide/svelte';
+	import { ChevronDown, Tag, TriangleAlert, X } from '@lucide/svelte';
 	import type { ActivationTarget } from '$lib/activation-map/types';
+	import { compareVersionLabels } from '$lib/activation-map/plugin-detail';
 	import type { HoudiniInstall, PluginRecord } from '$lib/houdini/types';
 	import type {
 		InstallDialogOptions,
@@ -198,6 +199,15 @@
 		return target.artifactVersion ?? 'Installed, version unknown';
 	}
 
+	function isSameVersion(installId: string) {
+		const currentVersion = targetForInstall(installId)?.artifactVersion;
+		return Boolean(
+			currentVersion &&
+			requestedVersion &&
+			compareVersionLabels(currentVersion, requestedVersion) === 0
+		);
+	}
+
 	function submitInstall() {
 		if (!canInstall) return;
 
@@ -366,6 +376,15 @@
 										<span class="install-version-next">
 											{requestedVersion || 'Choose a version'}
 										</span>
+										{#if isSameVersion(install.id)}
+											<TriangleAlert
+												size={18}
+												strokeWidth={2}
+												class="install-version-warning"
+												aria-label="Selected version is already installed"
+												data-tooltip="Selected version is already installed"
+											/>
+										{/if}
 									{/if}
 								</span>
 							</span>
@@ -867,6 +886,11 @@
 
 	.install-version-next {
 		color: #55c4a5;
+	}
+
+	:global(.install-version-warning) {
+		flex: 0 0 auto;
+		color: #f08a24;
 	}
 
 	.install-destination-option,
