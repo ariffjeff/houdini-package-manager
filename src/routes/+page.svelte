@@ -44,7 +44,6 @@
 	import type { HoudiniDiscoveryResponse, HoudiniPluginMigrationRequest } from '$lib/houdini/types';
 	import {
 		responseStageTimestamp,
-		scanStageLabels,
 		scanStages,
 		type ScanAction,
 		type ScanStage,
@@ -129,15 +128,6 @@
 				: 'ready'
 	);
 	let isScanActive = $derived(activeScan !== null);
-	let activeScanLabel = $derived(
-		snapshotLoadState === 'loading' && !hasDiscoverySnapshot
-			? 'Loading saved snapshot'
-			: activeScan === 'all'
-				? 'Scanning workspace'
-				: activeScan
-					? `Scanning ${scanStageLabels[activeScan]}`
-					: ''
-	);
 	let enabledCount = $derived(
 		activationTargets.filter((target) => target.status === 'enabled').length
 	);
@@ -935,8 +925,6 @@
 		>
 			<a class="active" href="#library">Library</a>
 			<a href="#discover">Discover</a>
-			<a href="#installs">Houdini installs</a>
-			<a href="#activity">Activity</a>
 			<a
 				href={resolve('/settings')}
 				aria-haspopup="dialog"
@@ -947,16 +935,6 @@
 				}}>Settings</a
 			>
 		</nav>
-		<div class="topbar-status ml-auto lg:ml-0">
-			<span class:status-error={Boolean(scanError)}></span>
-			{#if isScanActive}
-				{activeScanLabel}
-			{:else if scanError}
-				Scan needs attention
-			{:else}
-				{activationInstalls.length} installs scanned
-			{/if}
-		</div>
 	</header>
 
 	<main class="page-main mx-auto">
