@@ -1,6 +1,6 @@
 import { scanHoudiniWorkspace } from './client';
 import type { HoudiniDiscoveryResponse } from './types';
-import type { ScanAction, ScanStage, ScanState } from './scan';
+import type { ScanAction, ScanStage, ScanState, ScanStatus } from './scan';
 
 type ScanOrchestratorOptions = {
 	stages: readonly ScanStage[];
@@ -8,6 +8,7 @@ type ScanOrchestratorOptions = {
 	setActiveScan: (scan: ScanAction | null) => void;
 	getInitialScanStarted: () => boolean;
 	setInitialScanStarted: (started: boolean) => void;
+	getScanStatus: (stage: ScanStage) => ScanStatus;
 	setScanStatus: (stage: ScanStage, state: ScanState, error?: string) => void;
 	applyDiscovery: (response: HoudiniDiscoveryResponse, liveStage?: ScanAction) => void;
 	reconcileSelectedNode: (response: HoudiniDiscoveryResponse) => void;
@@ -21,12 +22,17 @@ type ScanOrchestratorOptions = {
 };
 
 export function createScanOrchestrator(options: ScanOrchestratorOptions) {
+	let activeController: AbortController | null = null;
+
 	async function performScanStage(stage: ScanStage, pluginIds: string[] = []) {
 		options.setScanStatus(stage, 'loading');
-		const response = await scanHoudiniWorkspace({
-			stage,
-			...(pluginIds.length ? { pluginIds: [...pluginIds] } : {})
-		});
+		const response = await scanHoudiniWorkspace(
+			{
+				stage,
+				...(pluginIds.length ? { pluginIds: [...pluginIds] } : {})
+			},
+			activeController?.signal
+		);
 		options.applyDiscovery(response, stage);
 		options.setScanStatus(stage, 'ready');
 		return response;
@@ -35,19 +41,26 @@ export function createScanOrchestrator(options: ScanOrchestratorOptions) {
 	async function runStage(stage: ScanStage, pluginIds: string[] = []): Promise<boolean> {
 		if (options.getActiveScan() !== null) return false;
 
+		const previousStatus = options.getScanStatus(stage);
 		options.setActiveScan(stage);
+		activeController = new AbortController();
 		try {
 			const response = await performScanStage(stage, pluginIds);
 			options.reconcileSelectedNode(response);
 			options.recordScanActivity(stage, 'success', pluginIds);
 			return true;
 		} catch (error) {
+			if (isAbortError(error)) {
+				options.setScanStatus(stage, previousStatus.state, previousStatus.error);
+				return false;
+			}
 			const message = options.getErrorMessage(error);
 			options.setScanStatus(stage, 'error', message);
 			options.recordScanActivity(stage, 'error', pluginIds, message);
 			return false;
 		} finally {
 			options.setActiveScan(null);
+			activeController = null;
 		}
 	}
 
@@ -55,6 +68,9 @@ export function createScanOrchestrator(options: ScanOrchestratorOptions) {
 		if (!allowActiveScan && options.getActiveScan() !== null) return;
 
 		options.setActiveScan('all');
+		activeController = new AbortController();
+		const previousStatuses: Partial<Record<ScanStage, ScanStatus>> = {};
+		for (const stage of stages) previousStatuses[stage] = options.getScanStatus(stage);
 		for (const stage of stages) options.setScanStatus(stage, 'pending');
 
 		let currentStage = stages[0];
@@ -67,16 +83,31 @@ export function createScanOrchestrator(options: ScanOrchestratorOptions) {
 			}
 			if (response) options.reconcileSelectedNode(response);
 		} catch (error) {
+			if (isAbortError(error)) {
+				const currentStageIndex = stages.indexOf(currentStage);
+				for (const stage of stages.slice(currentStageIndex)) {
+					const previousStatus = previousStatuses[stage];
+					if (previousStatus)
+						options.setScanStatus(stage, previousStatus.state, previousStatus.error);
+				}
+				return;
+			}
 			const message = options.getErrorMessage(error);
 			options.setScanStatus(currentStage, 'error', message);
 			options.recordScanActivity(currentStage, 'error', [], message);
 		} finally {
 			options.setActiveScan(null);
+			activeController = null;
 		}
+	}
+
+	function cancelScan(): void {
+		activeController?.abort();
 	}
 
 	return {
 		runStage,
+		cancelScan,
 		runInitialScan: async () => {
 			if (options.getInitialScanStarted() && options.getActiveScan() !== null) return;
 			options.setInitialScanStarted(true);
@@ -84,4 +115,8 @@ export function createScanOrchestrator(options: ScanOrchestratorOptions) {
 		},
 		runGlobalScan: () => runStages(options.stages)
 	};
+}
+
+function isAbortError(error: unknown): boolean {
+	return error instanceof DOMException && error.name === 'AbortError';
 }

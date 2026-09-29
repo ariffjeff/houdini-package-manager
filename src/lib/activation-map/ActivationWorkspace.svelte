@@ -1,5 +1,13 @@
 <script lang="ts">
-	import { ArrowRightLeft, CloudDownload, Filter, FunnelX, Play, Search } from '@lucide/svelte';
+	import {
+		ArrowRightLeft,
+		CloudDownload,
+		Filter,
+		FunnelX,
+		Play,
+		Search,
+		X
+	} from '@lucide/svelte';
 	import ActivationMap from './ActivationMap.svelte';
 	import ActivationTable from './ActivationTable.svelte';
 	import PluginDetailPanel from './PluginDetailPanel.svelte';
@@ -73,6 +81,7 @@
 		installState,
 		installMessage,
 		onGlobalScan,
+		onCancelScan,
 		onScanStage,
 		onInitialScan,
 		onRunPluginMigrator,
@@ -135,6 +144,7 @@
 		installState: InstallDialogState;
 		installMessage: string;
 		onGlobalScan: () => void | Promise<void>;
+		onCancelScan: () => void;
 		onScanStage: (stage: ScanStage) => void | Promise<void>;
 		onInitialScan: () => void | Promise<void>;
 		onRunPluginMigrator: () => void;
@@ -180,12 +190,12 @@
 			<button
 				type="button"
 				class="rescan-button p-2"
-				aria-label="Rescan all"
-				disabled={isScanActive}
-				onclick={() => void onGlobalScan()}
-				data-tooltip="Run all discovery stages"
+				aria-label={isScanActive ? 'Cancel active scan' : 'Rescan all'}
+				disabled={false}
+				onclick={() => (isScanActive ? onCancelScan() : void onGlobalScan())}
+				data-tooltip={isScanActive ? 'Cancel active scan' : 'Run all discovery stages'}
 			>
-				<Play />
+				{#if isScanActive}<X />{:else}<Play />{/if}
 			</button>
 			<div class="flex gap-1.5">
 				{#each scanStages as scan (scan.stage)}

@@ -45,13 +45,15 @@ export async function fetchHoudiniDiscoverySnapshot(): Promise<HoudiniDiscoveryR
 }
 
 export async function scanHoudiniWorkspace(
-	request: HoudiniScanRequest
+	request: HoudiniScanRequest,
+	signal?: AbortSignal
 ): Promise<HoudiniDiscoveryResponse> {
 	const response = await fetch(scanEndpoint, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(request),
-		cache: 'no-store'
+		cache: 'no-store',
+		signal
 	});
 	if (!response.ok) {
 		let message = `Houdini ${request.stage} scan failed with HTTP ${response.status}.`;

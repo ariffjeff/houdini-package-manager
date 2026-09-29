@@ -890,6 +890,7 @@
 		setActiveScan: (scan) => (activeScan = scan),
 		getInitialScanStarted: () => initialScanStarted,
 		setInitialScanStarted: (started) => (initialScanStarted = started),
+		getScanStatus: (stage) => scanStatuses[stage],
 		setScanStatus,
 		applyDiscovery,
 		reconcileSelectedNode,
@@ -898,6 +899,7 @@
 	});
 
 	const runStage = scanOrchestrator.runStage;
+	const cancelScan = scanOrchestrator.cancelScan;
 	const runInitialScan = scanOrchestrator.runInitialScan;
 	const runGlobalScan = scanOrchestrator.runGlobalScan;
 
@@ -1002,6 +1004,7 @@
 			{installState}
 			{installMessage}
 			onGlobalScan={() => void runGlobalScan()}
+			onCancelScan={cancelScan}
 			onScanStage={(stage) => void runStage(stage)}
 			onInitialScan={() => void runInitialScan()}
 			onRunPluginMigrator={openPluginMigrator}
