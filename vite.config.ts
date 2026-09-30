@@ -6,6 +6,8 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { houdiniDiscoveryPlugin } from './src/lib/server/houdini/vite-plugin.js';
 
+process.env.LAUNCH_EDITOR ??= 'code';
+
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
