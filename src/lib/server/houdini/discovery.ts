@@ -5,6 +5,7 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/p
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { expandWindowsShortPaths } from './hconfig-paths.js';
 import type {
 	HoudiniDiscoveryDiagnostic,
 	HoudiniDiscoveryResponse,
@@ -743,6 +744,7 @@ async function scanInstall(
 	let variables: Record<string, string>;
 	let hconfigVariableNames: string[];
 	let hconfigOutput: string;
+	let hconfigExpandedOutput: string | undefined;
 	let health: InstallHealth = 'ready';
 
 	try {
@@ -755,6 +757,8 @@ async function scanInstall(
 			windowsHide: true
 		});
 		hconfigOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
+		hconfigExpandedOutput =
+			process.platform === 'win32' ? await expandWindowsShortPaths(hconfigOutput) : undefined;
 		variables = parseHconfigOutput(result.stdout);
 		hconfigVariableNames = parseHconfigVariableNames(result.stdout);
 		if (result.stderr.trim()) diagnostics.push(result.stderr.trim());
@@ -763,6 +767,8 @@ async function scanInstall(
 		const output = commandError.stdout ?? '';
 		hconfigOutput =
 			[output, commandError.stderr].filter(Boolean).join('\n') || commandError.message;
+		hconfigExpandedOutput =
+			process.platform === 'win32' ? await expandWindowsShortPaths(hconfigOutput) : undefined;
 		variables = parseHconfigOutput(output);
 		hconfigVariableNames = parseHconfigVariableNames(output);
 		diagnostics.push(commandError.stderr?.trim() || commandError.message);
@@ -807,6 +813,7 @@ async function scanInstall(
 		houdiniPath: splitHoudiniPath(variables.HOUDINI_PATH, variables),
 		variables,
 		hconfigOutput,
+		hconfigExpandedOutput,
 		hconfigOutputCapturedAt: scannedAt,
 		health,
 		diagnostics,

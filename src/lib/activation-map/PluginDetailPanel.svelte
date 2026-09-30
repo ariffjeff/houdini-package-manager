@@ -120,7 +120,7 @@
 			? {
 					installId: install.id,
 					raw: install.hconfigOutput,
-					expanded: null,
+					expanded: install.hconfigExpandedOutput ?? null,
 					capturedAt: install.hconfigOutputCapturedAt ?? install.scannedAt
 				}
 			: null
@@ -199,8 +199,12 @@
 		if (!install) return;
 		hconfigDialogOpen = true;
 		hconfigFreshForOpen = false;
-		if (hconfigOutput?.installId !== install.id && install.hconfigOutput === undefined) {
-			void runInstallHconfig();
+		if (hconfigOutput?.installId !== install.id) {
+			if (stagedHconfigOutput?.installId === install.id) {
+				hconfigOutput = stagedHconfigOutput;
+			} else {
+				void runInstallHconfig();
+			}
 		}
 	}
 
