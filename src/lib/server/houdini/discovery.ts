@@ -748,9 +748,11 @@ async function scanInstall(
 	let health: InstallHealth = 'ready';
 
 	try {
+		const environment: NodeJS.ProcessEnv = { ...process.env, HFS: root };
+		delete environment.EDITOR;
 		const result = await execFileAsync(hconfig, [], {
 			cwd: root,
-			env: { ...process.env, HFS: root },
+			env: environment,
 			encoding: 'utf8',
 			maxBuffer: 1024 * 1024,
 			timeout: 10000,

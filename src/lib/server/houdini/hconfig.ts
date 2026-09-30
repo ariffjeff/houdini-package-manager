@@ -20,9 +20,11 @@ export async function runHconfig(
 	if (!install) throw new Error('The Houdini install was not found.');
 
 	try {
+		const environment: NodeJS.ProcessEnv = { ...process.env, HFS: install.hfs };
+		delete environment.EDITOR;
 		const result = await execFileAsync(install.hconfig, [], {
 			cwd: install.hfs,
-			env: { ...process.env, HFS: install.hfs },
+			env: environment,
 			encoding: 'utf8',
 			maxBuffer: 1024 * 1024,
 			timeout: 10_000,
