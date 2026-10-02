@@ -17,6 +17,7 @@
 	} from '$lib/plugin-install/types';
 	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
 	import SettingsPanel from '$lib/settings/SettingsPanel.svelte';
+	import type { HpmLocalDataKind } from '$lib/settings/local-storage';
 
 	type MigrationState = 'idle' | 'working' | 'success' | 'error';
 	type LiveJsonEditorContext = {
@@ -71,7 +72,8 @@
 		onLiveJsonDiscovery,
 		onCloseTargetIssue,
 		onOpenTargetConfig,
-		onOpenTargetEditor
+		onOpenTargetEditor,
+		onClearLocalData
 	} = $props<{
 		settingsDialogOpen: boolean;
 		installDialogOpen: boolean;
@@ -122,6 +124,7 @@
 		onCloseTargetIssue: () => void;
 		onOpenTargetConfig: (installId: string) => void;
 		onOpenTargetEditor: (installId: string, target: ActivationTarget) => void;
+		onClearLocalData: (kind: HpmLocalDataKind | 'discovery-cache') => void | Promise<void>;
 	}>();
 </script>
 
@@ -134,7 +137,7 @@
 			onclick={onCloseSettings}
 		></button>
 		<dialog open class="settings-dialog" aria-labelledby="settings-dialog-title">
-			<SettingsPanel onClose={onCloseSettings} {onActivitySettingsSaved} />
+			<SettingsPanel onClose={onCloseSettings} {onActivitySettingsSaved} {onClearLocalData} />
 		</dialog>
 	</div>
 {/if}

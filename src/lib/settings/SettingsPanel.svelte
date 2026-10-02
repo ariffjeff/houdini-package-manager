@@ -20,16 +20,25 @@
 		recordActivitySettingsSaved,
 		setActivityHistoryRetention
 	} from '$lib/settings/activity-settings.svelte';
+	import type { HpmLocalDataKind } from '$lib/settings/local-storage';
 
-	let { onClose = null, onActivitySettingsSaved = null } = $props<{
+	let {
+		onClose = null,
+		onActivitySettingsSaved = null,
+		onClearLocalData = null
+	} = $props<{
 		onClose?: (() => void) | null;
 		onActivitySettingsSaved?: (() => void) | null;
+		onClearLocalData?:
+			((kind: HpmLocalDataKind | 'discovery-cache') => void | Promise<void>) | null;
 	}>();
 
 	let activityHistoryRetention = $state(DEFAULT_ACTIVITY_HISTORY_RETENTION);
 	let editingRetention = $state(false);
 	let retentionDraft = $state(String(DEFAULT_ACTIVITY_HISTORY_RETENTION));
 	let changesSaved = $state(false);
+	let isClearingLocalData = $state(false);
+	let clearLocalDataError = $state('');
 	let hasUnsavedChanges = $derived(
 		normalizeActivityHistoryRetention(Number(retentionDraft)) !== activityHistoryRetention
 	);
@@ -104,6 +113,21 @@
 		} else if (event.key === 'Escape') {
 			event.preventDefault();
 			cancelRetention();
+		}
+	}
+
+	async function clearLocalData(kind: HpmLocalDataKind | 'discovery-cache', label: string) {
+		if (!onClearLocalData || isClearingLocalData) return;
+		if (!window.confirm(`Clear ${label}? This cannot be undone.`)) return;
+
+		isClearingLocalData = true;
+		clearLocalDataError = '';
+		try {
+			await onClearLocalData(kind);
+		} catch (error) {
+			clearLocalDataError = error instanceof Error ? error.message : String(error);
+		} finally {
+			isClearingLocalData = false;
 		}
 	}
 </script>
@@ -238,6 +262,57 @@
 				</div>
 			</div>
 		</section>
+
+		<section class="settings-section danger-section" aria-labelledby="local-data-title">
+			<div class="section-heading">
+				<div>
+					<h2 id="local-data-title">Cache and local data</h2>
+				</div>
+			</div>
+			<div class="setting-control local-data-control">
+				<p>
+					Clear individual HPM data categories, or remove everything and start with a clean
+					workspace.
+				</p>
+				<div class="clear-data-actions">
+					<button
+						type="button"
+						class="clear-data-button"
+						disabled={!onClearLocalData || isClearingLocalData}
+						onclick={() => void clearLocalData('activity', 'activity history and preferences')}
+					>
+						Activity history
+					</button>
+					<button
+						type="button"
+						class="clear-data-button"
+						disabled={!onClearLocalData || isClearingLocalData}
+						onclick={() => void clearLocalData('pinned-updates', 'pinned update decisions')}
+					>
+						Pinned updates
+					</button>
+					<button
+						type="button"
+						class="clear-data-button"
+						disabled={!onClearLocalData || isClearingLocalData}
+						onclick={() => void clearLocalData('discovery-cache', 'the saved discovery snapshot')}
+					>
+						Discovery cache
+					</button>
+					<button
+						type="button"
+						class="clear-data-button clear-all-data-button"
+						disabled={!onClearLocalData || isClearingLocalData}
+						onclick={() => void clearLocalData('all', 'all HPM cache and local data')}
+					>
+						{isClearingLocalData ? 'Clearing...' : 'Clear all'}
+					</button>
+					{#if clearLocalDataError}
+						<p class="clear-data-error" role="alert">{clearLocalDataError}</p>
+					{/if}
+				</div>
+			</div>
+		</section>
 	</main>
 </div>
 
@@ -307,6 +382,10 @@
 		background: linear-gradient(135deg, rgba(29, 53, 51, 0.72), rgba(22, 31, 34, 0.78));
 		box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2);
 	}
+	.danger-section {
+		margin-top: 16px;
+		border-color: rgba(223, 109, 88, 0.42);
+	}
 	.section-heading,
 	.setting-control {
 		display: flex;
@@ -364,6 +443,50 @@
 		color: var(--text-muted);
 		font-size: 14px;
 		line-height: 1.6;
+	}
+	.local-data-control {
+		align-items: flex-start;
+	}
+	.clear-data-actions {
+		display: flex;
+		max-width: 430px;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+	.clear-data-button {
+		min-height: 36px;
+		padding: 8px 13px;
+		border: 1px solid rgba(223, 109, 88, 0.72);
+		border-radius: 5px;
+		background: rgba(223, 109, 88, 0.1);
+		color: #ffb09f;
+		font-size: 13px;
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.clear-data-button:hover,
+	.clear-data-button:focus-visible {
+		background: rgba(223, 109, 88, 0.2);
+		color: #ffd0c7;
+		outline: none;
+	}
+	.clear-data-button:disabled {
+		border-color: var(--line);
+		background: rgba(255, 255, 255, 0.04);
+		color: var(--text-dim);
+		cursor: not-allowed;
+	}
+	.clear-all-data-button {
+		border-color: #df6d58;
+		background: rgba(223, 109, 88, 0.2);
+	}
+	.clear-data-error {
+		max-width: 220px !important;
+		margin: 8px 0 0 !important;
+		color: #ffb09f !important;
+		font-size: 12px !important;
 	}
 	.settings-actions {
 		display: flex;
@@ -534,6 +657,16 @@
 		}
 		.setting-control {
 			flex-direction: column;
+		}
+		.local-data-control > div {
+			width: 100%;
+		}
+		.clear-data-actions {
+			max-width: none;
+			justify-content: stretch;
+		}
+		.clear-data-button {
+			width: 100%;
 		}
 		.retention-control {
 			width: 100%;

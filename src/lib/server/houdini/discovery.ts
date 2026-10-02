@@ -171,6 +171,11 @@ export async function loadHoudiniDiscoverySnapshot(): Promise<HoudiniDiscoveryRe
 	return buildDiscoveryResponse(discoveryCache, 'saved');
 }
 
+export async function clearHoudiniDiscoveryCache() {
+	discoveryCache = null;
+	await rm(discoverySnapshotPath(), { force: true });
+}
+
 export async function scanHoudiniWorkspace(
 	request: HoudiniScanRequest
 ): Promise<HoudiniDiscoveryResponse> {

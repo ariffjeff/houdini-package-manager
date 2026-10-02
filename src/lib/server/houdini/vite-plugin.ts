@@ -6,6 +6,7 @@ import type {
 	InstallPluginRequest
 } from '../../houdini/types.js';
 import {
+	clearHoudiniDiscoveryCache,
 	discoverHoudiniWorkspace,
 	loadHoudiniDiscoverySnapshot,
 	scanHoudiniWorkspace
@@ -14,6 +15,7 @@ import { installHoudiniPlugin, runHoudiniPluginAction } from './installer.js';
 
 const endpoint = '/__hpm/houdini/installs';
 const snapshotEndpoint = '/__hpm/houdini/snapshot';
+const clearCacheEndpoint = '/__hpm/houdini/clear-cache';
 const scanEndpoint = '/__hpm/houdini/scan';
 const installEndpoint = '/__hpm/houdini/install';
 const pluginActionEndpoint = '/__hpm/houdini/plugin-action';
@@ -27,6 +29,7 @@ export function houdiniDiscoveryPlugin(): Plugin {
 		const url = new URL(request.url ?? '/', 'http://localhost');
 		const isDiscoveryRequest = request.method === 'GET' && url.pathname === endpoint;
 		const isSnapshotRequest = request.method === 'GET' && url.pathname === snapshotEndpoint;
+		const isClearCacheRequest = request.method === 'POST' && url.pathname === clearCacheEndpoint;
 		const isScanRequest = request.method === 'POST' && url.pathname === scanEndpoint;
 		const isInstallRequest = request.method === 'POST' && url.pathname === installEndpoint;
 		const isPluginActionRequest =
@@ -34,6 +37,7 @@ export function houdiniDiscoveryPlugin(): Plugin {
 		if (
 			!isDiscoveryRequest &&
 			!isSnapshotRequest &&
+			!isClearCacheRequest &&
 			!isScanRequest &&
 			!isInstallRequest &&
 			!isPluginActionRequest
@@ -53,17 +57,19 @@ export function houdiniDiscoveryPlugin(): Plugin {
 				? await discoverHoudiniWorkspace()
 				: isSnapshotRequest
 					? await loadHoudiniDiscoverySnapshot()
-					: isScanRequest
-						? await scanHoudiniWorkspace(await readJsonBody<HoudiniScanRequest>(request))
-						: isInstallRequest
-							? await installHoudiniPlugin(
-									await readJsonBody<InstallPluginRequest>(request),
-									abortController.signal
-								)
-							: await runHoudiniPluginAction(
-									await readJsonBody<HoudiniPluginAction>(request),
-									abortController.signal
-								);
+					: isClearCacheRequest
+						? await clearHoudiniDiscoveryCache()
+						: isScanRequest
+							? await scanHoudiniWorkspace(await readJsonBody<HoudiniScanRequest>(request))
+							: isInstallRequest
+								? await installHoudiniPlugin(
+										await readJsonBody<InstallPluginRequest>(request),
+										abortController.signal
+									)
+								: await runHoudiniPluginAction(
+										await readJsonBody<HoudiniPluginAction>(request),
+										abortController.signal
+									);
 			if (isSnapshotRequest && !result) {
 				response.statusCode = 404;
 				response.setHeader('content-type', 'application/json; charset=utf-8');
@@ -73,7 +79,7 @@ export function houdiniDiscoveryPlugin(): Plugin {
 			response.statusCode = 200;
 			response.setHeader('content-type', 'application/json; charset=utf-8');
 			response.setHeader('cache-control', 'no-store');
-			response.end(JSON.stringify(result));
+			response.end(JSON.stringify(isClearCacheRequest ? { cleared: true } : result));
 		} catch (error) {
 			response.statusCode = 500;
 			response.setHeader('content-type', 'application/json; charset=utf-8');

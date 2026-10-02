@@ -9,6 +9,7 @@ import type {
 
 const discoveryEndpoint = '/__hpm/houdini/installs';
 const snapshotEndpoint = '/__hpm/houdini/snapshot';
+const clearCacheEndpoint = '/__hpm/houdini/clear-cache';
 const scanEndpoint = '/__hpm/houdini/scan';
 
 export async function fetchHoudiniDiscovery(): Promise<HoudiniDiscoveryResponse> {
@@ -42,6 +43,20 @@ export async function fetchHoudiniDiscoverySnapshot(): Promise<HoudiniDiscoveryR
 	}
 
 	return (await response.json()) as HoudiniDiscoveryResponse;
+}
+
+export async function clearHoudiniDiscoveryCache(): Promise<void> {
+	const response = await fetch(clearCacheEndpoint, { method: 'POST', cache: 'no-store' });
+	if (!response.ok) {
+		let message = `Houdini cache clearing failed with HTTP ${response.status}.`;
+		try {
+			const body = (await response.json()) as { error?: string };
+			if (body.error) message = body.error;
+		} catch {
+			// Keep the HTTP error when the bridge did not return JSON.
+		}
+		throw new Error(message);
+	}
 }
 
 export async function scanHoudiniWorkspace(

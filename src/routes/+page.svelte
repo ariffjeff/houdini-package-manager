@@ -68,10 +68,16 @@
 	} from '$lib/plugin-install/types';
 	import logo from '$lib/assets/hpm.svg';
 	import {
+		clearHoudiniDiscoveryCache,
 		fetchHoudiniDiscoverySnapshot,
 		installHoudiniPlugin,
 		runHoudiniPluginAction
 	} from '$lib/houdini/client';
+	import {
+		clearHpmLocalData,
+		HPM_STORAGE_KEYS,
+		type HpmLocalDataKind
+	} from '$lib/settings/local-storage';
 	import Tooltip from '$lib/Tooltip.svelte';
 
 	type ViewMode = 'map' | 'table';
@@ -81,8 +87,8 @@
 		target: ActivationTarget;
 	};
 
-	const selectedNodeStorageKey = 'hpm:last-selected-node';
-	const pinnedPluginUpdatesStorageKey = 'hpm:pinned-plugin-updates';
+	const selectedNodeStorageKey = HPM_STORAGE_KEYS.lastSelectedNode;
+	const pinnedPluginUpdatesStorageKey = HPM_STORAGE_KEYS.pinnedPluginUpdates;
 
 	let view = $state<ViewMode>('map');
 	let searchQuery = $state('');
@@ -505,6 +511,12 @@
 
 	function restorePinnedPluginUpdates() {
 		pinnedPluginUpdates = readPinnedPluginUpdates(localStorage, pinnedPluginUpdatesStorageKey);
+	}
+
+	async function clearLocalData(kind: HpmLocalDataKind | 'discovery-cache') {
+		if (kind === 'discovery-cache' || kind === 'all') await clearHoudiniDiscoveryCache();
+		if (kind !== 'discovery-cache') clearHpmLocalData(localStorage, kind);
+		window.location.reload();
 	}
 
 	function setScanStatus(
@@ -1122,6 +1134,7 @@
 		{pluginActionState}
 		onCloseSettings={closeSettingsDialog}
 		onActivitySettingsSaved={restoreActivityEvents}
+		onClearLocalData={clearLocalData}
 		onCloseInstall={closeInstallDialog}
 		onCancelInstall={cancelInstall}
 		onInstall={(request, options) => void installSelectedPlugin(request, options)}
