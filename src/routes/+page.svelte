@@ -66,7 +66,8 @@
 		InstallDialogRequest,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
-	import logo from '$lib/assets/hpm.svg';
+	import GithubLogo from '$lib/assets/GithubLogo.svelte';
+	import HpmLogo from '$lib/assets/HpmLogo.svelte';
 	import {
 		clearHoudiniDiscoveryCache,
 		fetchHoudiniDiscoverySnapshot,
@@ -79,6 +80,7 @@
 		type HpmLocalDataKind
 	} from '$lib/settings/local-storage';
 	import Tooltip from '$lib/Tooltip.svelte';
+	import { BookOpen } from '@lucide/svelte';
 
 	type ViewMode = 'map' | 'table';
 	type LiveJsonEditorContext = {
@@ -996,16 +998,11 @@
 
 <div class="page-shell px-3.5 pb-4 sm:px-6 lg:px-10">
 	<Tooltip />
-	<header
-		class="mx-auto flex flex-wrap items-center gap-4.5 border-white/10 py-4.5 lg:flex-nowrap lg:gap-10 lg:py-5.5"
-	>
-		<a class="flex items-center" href={resolve('/')} aria-label="HPM home">
-			<img class="h-7.5 w-auto" src={logo} alt="HPM logo" />
+	<header class="app-header mx-auto border-white/10 py-4.5 lg:py-5.5">
+		<a class="app-logo flex items-center" href={resolve('/')} aria-label="HPM home">
+			<HpmLogo class="h-7.5 w-auto" color="var(--accent-orange)" aria-hidden="true" />
 		</a>
-		<nav
-			class="order-3 flex w-full items-center justify-between gap-2 overflow-x-auto lg:order-0 lg:mr-auto lg:w-auto lg:justify-start lg:gap-6.5"
-			aria-label="Primary navigation"
-		>
+		<nav class="app-nav flex items-center gap-6.5 overflow-x-auto" aria-label="Primary navigation">
 			<a class="active" href="#library">Library</a>
 			<a href="#discover">Discover</a>
 			<a
@@ -1018,6 +1015,41 @@
 				}}>Settings</a
 			>
 		</nav>
+		<ul class="header-resource-links flex flex-row gap-4" aria-label="Resources">
+			<li>
+				<a
+					href="https://houpm.com"
+					target="_blank"
+					rel="noopener noreferrer"
+					title="houpm.com"
+					aria-label="houpm.com"
+				>
+					<HpmLogo class="resource-hpm-logo" color="var(--text-muted)" aria-hidden="true" />
+				</a>
+			</li>
+			<li>
+				<a
+					href="https://github.com/ariffjeff/houdini-package-manager"
+					target="_blank"
+					rel="noopener noreferrer"
+					title="HPM GitHub repo"
+					aria-label="HPM GitHub repo"
+				>
+					<GithubLogo class="resource-github-logo" color="var(--text-muted)" aria-hidden="true" />
+				</a>
+			</li>
+			<li>
+				<a
+					href="https://www.sidefx.com/docs/houdini/ref/plugins.html"
+					target="_blank"
+					rel="noopener noreferrer"
+					title="Houdini package docs"
+					aria-label="Houdini package docs"
+				>
+					<BookOpen size={18} strokeWidth={1.8} aria-hidden="true" />
+				</a>
+			</li>
+		</ul>
 	</header>
 
 	<main class="page-main mx-auto">
@@ -1171,6 +1203,75 @@
 		flex: 1;
 		width: 100%;
 		flex-direction: column;
+	}
+
+	.app-header {
+		display: grid;
+		width: 100%;
+		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		align-items: center;
+		gap: 24px;
+	}
+
+	.app-logo {
+		justify-self: start;
+	}
+
+	.app-nav {
+		justify-self: center;
+		justify-content: center;
+	}
+
+	.header-resource-links {
+		justify-self: end;
+		align-items: center;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.header-resource-links a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 6px;
+		border-radius: 4px;
+		color: var(--text-muted);
+	}
+
+	.header-resource-links a:hover,
+	.header-resource-links a:focus-visible {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text);
+		outline: none;
+	}
+
+	.header-resource-links :global(.resource-hpm-logo) {
+		width: 30px;
+		height: 30px;
+	}
+
+	.header-resource-links :global(.resource-github-logo) {
+		width: 22px;
+		height: 22px;
+	}
+
+	.header-resource-links :global(svg) {
+		display: block;
+	}
+
+	@media (max-width: 760px) {
+		.app-header {
+			grid-template-columns: minmax(0, 1fr) auto;
+			gap: 12px;
+		}
+
+		.app-nav {
+			grid-column: 1 / -1;
+			grid-row: 2;
+			width: 100%;
+			justify-content: center;
+		}
 	}
 
 	:global {
