@@ -64,4 +64,21 @@ describe('plugin repository discovery', () => {
 		expect(response.results).toHaveLength(2);
 		expect(response.results[1].error).toContain('Only public github.com');
 	});
+
+	it('keeps resolving after a private repository failure', async () => {
+		const fetcher = async (input: RequestInfo | URL) => {
+			if (input.toString().endsWith('/repos/private/hidden')) {
+				return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+			}
+			return githubFetcher(input);
+		};
+
+		const response = await resolvePluginRepositories(
+			['https://github.com/private/hidden', 'https://github.com/example/toolkit'],
+			fetcher
+		);
+
+		expect(response.results[0].error).toBe('The GitHub repository was not found or is not public.');
+		expect(response.results[1].candidate?.packageFile).toBe('toolkit.json');
+	});
 });

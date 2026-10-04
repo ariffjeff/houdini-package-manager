@@ -81,22 +81,22 @@ export async function resolveGithubRepository(
 	const cached = metadataCache.get(repository.url);
 	if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-	const [metadata, tags, tree] = await Promise.all([
-		requestGithub<GithubRepositoryResponse>(`${githubApiBase}${repository.apiPath}`, fetcher),
+	const metadata = await requestGithub<GithubRepositoryResponse>(
+		`${githubApiBase}${repository.apiPath}`,
+		fetcher
+	);
+	const defaultBranchName = readString(metadata.default_branch) || 'main';
+	const [tags, tree] = await Promise.all([
 		requestGithub<GithubTagResponse[]>(
 			`${githubApiBase}${repository.apiPath}/tags?per_page=50`,
 			fetcher
 		),
 		requestGithub<GithubTreeResponse>(
-			`${githubApiBase}${repository.apiPath}/git/trees/${encodeURIComponent(
-				await defaultBranch(repository, fetcher)
-			)}?recursive=1`,
+			`${githubApiBase}${repository.apiPath}/git/trees/${encodeURIComponent(defaultBranchName)}?recursive=1`,
 			fetcher
 		)
 	]);
 
-	const defaultBranchName =
-		readString(metadata.default_branch) || (await defaultBranch(repository, fetcher));
 	const versions = createVersions(tags, defaultBranchName);
 	const packageFiles = (tree.tree ?? [])
 		.filter((entry) => entry.type === 'blob' && typeof entry.path === 'string')
@@ -143,14 +143,6 @@ export function clearGithubRepositoryCache(): void {
 	metadataCache.clear();
 }
 
-async function defaultBranch(repository: GithubRepository, fetcher: typeof fetch): Promise<string> {
-	const metadata = await requestGithub<GithubRepositoryResponse>(
-		`${githubApiBase}${repository.apiPath}`,
-		fetcher
-	);
-	return readString(metadata.default_branch) || 'main';
-}
-
 async function requestGithub<T>(url: string, fetcher: typeof fetch): Promise<T> {
 	let response: Response;
 	try {
@@ -162,9 +154,8 @@ async function requestGithub<T>(url: string, fetcher: typeof fetch): Promise<T> 
 			signal: AbortSignal.timeout(requestTimeout)
 		});
 	} catch (error) {
-		throw new Error(
-			`GitHub could not be reached: ${error instanceof Error ? error.message : String(error)}`
-		);
+		const cause = error instanceof Error ? error : new Error(String(error));
+		throw new Error(`GitHub could not be reached: ${cause.message}`, { cause: error });
 	}
 
 	if (!response.ok) {
