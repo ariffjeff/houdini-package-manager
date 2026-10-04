@@ -3,24 +3,15 @@
 	import { BookOpen } from '@lucide/svelte';
 	import GithubLogo from '$lib/assets/GithubLogo.svelte';
 	import HpmLogo from '$lib/assets/HpmLogo.svelte';
+	import { openSettingsDialog, settingsDialogState } from '$lib/settings/settings-dialog.svelte';
 
 	type AppSection = 'library' | 'discover';
 
-	let {
-		activeSection,
-		settingsDialogOpen = false,
-		onOpenSettings = null
-	} = $props<{
-		activeSection: AppSection;
-		settingsDialogOpen?: boolean;
-		onOpenSettings?: (() => void) | null;
-	}>();
+	let { activeSection } = $props<{ activeSection: AppSection }>();
 
 	function handleSettingsClick(event: MouseEvent) {
-		if (activeSection !== 'library') return;
-
 		event.preventDefault();
-		onOpenSettings?.();
+		openSettingsDialog();
 	}
 </script>
 
@@ -33,8 +24,8 @@
 		<a class:active={activeSection === 'discover'} href={resolve('/discover')}>Discover</a>
 		<a
 			href={resolve('/settings')}
-			aria-haspopup={activeSection === 'library' ? 'dialog' : undefined}
-			aria-expanded={activeSection === 'library' ? settingsDialogOpen : undefined}
+			aria-haspopup="dialog"
+			aria-expanded={settingsDialogState.open}
 			onclick={handleSettingsClick}>Settings</a
 		>
 	</nav>

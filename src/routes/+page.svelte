@@ -68,16 +68,11 @@
 	} from '$lib/plugin-install/types';
 	import AppHeader from '$lib/AppHeader.svelte';
 	import {
-		clearHoudiniDiscoveryCache,
 		fetchHoudiniDiscoverySnapshot,
 		installHoudiniPlugin,
 		runHoudiniPluginAction
 	} from '$lib/houdini/client';
-	import {
-		clearHpmLocalData,
-		HPM_STORAGE_KEYS,
-		type HpmLocalDataKind
-	} from '$lib/settings/local-storage';
+	import { HPM_STORAGE_KEYS } from '$lib/settings/local-storage';
 	import Tooltip from '$lib/Tooltip.svelte';
 
 	type ViewMode = 'map' | 'table';
@@ -112,7 +107,6 @@
 	let installMessage = $state('');
 	let installController: AbortController | null = null;
 	let pluginMigratorOpen = $state(false);
-	let settingsDialogOpen = $state(false);
 	let migrationState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let migrationMessage = $state('');
 	let gitSyncState = $state<PluginDetailActionState>('idle');
@@ -517,12 +511,6 @@
 		pinnedPluginUpdates = readPinnedPluginUpdates(localStorage, pinnedPluginUpdatesStorageKey);
 	}
 
-	async function clearLocalData(kind: HpmLocalDataKind | 'discovery-cache') {
-		if (kind === 'discovery-cache' || kind === 'all') await clearHoudiniDiscoveryCache();
-		if (kind !== 'discovery-cache') clearHpmLocalData(localStorage, kind);
-		window.location.reload();
-	}
-
 	function setScanStatus(
 		stage: ScanStage,
 		state: ScanState,
@@ -721,20 +709,8 @@
 		pluginMigratorOpen = false;
 	}
 
-	function openSettingsDialog() {
-		settingsDialogOpen = true;
-	}
-
-	function closeSettingsDialog() {
-		settingsDialogOpen = false;
-	}
-
 	function handleWindowKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape') return;
-		if (settingsDialogOpen) {
-			closeSettingsDialog();
-			return;
-		}
 		if (pluginMigratorOpen && migrationState !== 'working') {
 			closePluginMigrator();
 			return;
@@ -1003,7 +979,7 @@
 
 <div class="page-shell px-3.5 pb-4 sm:px-6 lg:px-10">
 	<Tooltip />
-	<AppHeader activeSection="library" {settingsDialogOpen} onOpenSettings={openSettingsDialog} />
+	<AppHeader activeSection="library" />
 
 	<main class="page-main mx-auto">
 		<ActivationWorkspace
@@ -1091,7 +1067,6 @@
 		<ActivityConsole events={activityEvents} />
 	</main>
 	<ActivationDialogs
-		{settingsDialogOpen}
 		{installDialogOpen}
 		{installPlugin}
 		{installVersionOptions}
@@ -1117,9 +1092,6 @@
 		{isScanActive}
 		{targetIssueDetails}
 		{pluginActionState}
-		onCloseSettings={closeSettingsDialog}
-		onActivitySettingsSaved={restoreActivityEvents}
-		onClearLocalData={clearLocalData}
 		onCloseInstall={closeInstallDialog}
 		onCancelInstall={cancelInstall}
 		onInstall={(request, options) => void installSelectedPlugin(request, options)}

@@ -17,8 +17,6 @@
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
 	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
-	import SettingsPanel from '$lib/settings/SettingsPanel.svelte';
-	import type { HpmLocalDataKind } from '$lib/settings/local-storage';
 
 	type MigrationState = 'idle' | 'working' | 'success' | 'error';
 	type LiveJsonEditorContext = {
@@ -28,7 +26,6 @@
 	};
 
 	let {
-		settingsDialogOpen,
 		installDialogOpen,
 		installPlugin,
 		installVersionOptions,
@@ -54,8 +51,6 @@
 		isScanActive,
 		targetIssueDetails,
 		pluginActionState,
-		onCloseSettings,
-		onActivitySettingsSaved,
 		onCloseInstall,
 		onCancelInstall,
 		onInstall,
@@ -73,10 +68,8 @@
 		onLiveJsonDiscovery,
 		onCloseTargetIssue,
 		onOpenTargetConfig,
-		onOpenTargetEditor,
-		onClearLocalData
+		onOpenTargetEditor
 	} = $props<{
-		settingsDialogOpen: boolean;
 		installDialogOpen: boolean;
 		installPlugin: InstallDialogPlugin | undefined;
 		installVersionOptions: InstallVersionOption[];
@@ -102,8 +95,6 @@
 		isScanActive: boolean;
 		targetIssueDetails: TargetIssueDetails | null;
 		pluginActionState: 'idle' | 'working' | 'success' | 'error';
-		onCloseSettings: () => void;
-		onActivitySettingsSaved: () => void;
 		onCloseInstall: () => void;
 		onCancelInstall: () => void;
 		onInstall: (
@@ -125,23 +116,9 @@
 		onCloseTargetIssue: () => void;
 		onOpenTargetConfig: (installId: string) => void;
 		onOpenTargetEditor: (installId: string, target: ActivationTarget) => void;
-		onClearLocalData: (kind: HpmLocalDataKind | 'discovery-cache') => void | Promise<void>;
 	}>();
 </script>
 
-{#if settingsDialogOpen}
-	<div class="settings-dialog-backdrop">
-		<button
-			type="button"
-			class="settings-dialog-dismiss"
-			aria-label="Close settings dialog"
-			onclick={onCloseSettings}
-		></button>
-		<dialog open class="settings-dialog" aria-labelledby="settings-dialog-title">
-			<SettingsPanel onClose={onCloseSettings} {onActivitySettingsSaved} {onClearLocalData} />
-		</dialog>
-	</div>
-{/if}
 {#if installDialogOpen && installPlugin}
 	<PluginInstallDialog
 		plugin={installPlugin}
@@ -211,39 +188,3 @@
 		onOpenEditor={onOpenTargetEditor}
 	/>
 {/if}
-
-<style>
-	.settings-dialog-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 9000;
-		display: grid;
-		place-items: center;
-		padding: 24px;
-		background: rgba(9, 14, 15, 0.72);
-	}
-
-	.settings-dialog-dismiss {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		border: 0;
-		background: transparent;
-		cursor: default;
-	}
-
-	.settings-dialog {
-		position: relative;
-		z-index: 1;
-		width: min(980px, 100%);
-		max-height: calc(100dvh - 48px);
-		margin: 0;
-		padding: 0;
-		overflow: auto;
-		border: 1px solid var(--line-strong);
-		border-radius: 8px;
-		background: #182224;
-		box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
-	}
-</style>
