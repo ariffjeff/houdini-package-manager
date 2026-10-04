@@ -290,7 +290,7 @@
 												{/each}
 											</select>
 										{:else}
-											<p class="muted-control">No refs available</p>
+											<p class="muted-control">No versions available</p>
 										{/if}
 									</div>
 									<button
