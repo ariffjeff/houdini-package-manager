@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
-		AlertTriangle,
-		Check,
-		ExternalLink,
+		TriangleAlert,
+		ChevronLeft,
+		ChevronRight,
 		LoaderCircle,
 		Package,
-		Search
+		Plus,
+		Search,
+		X
 	} from '@lucide/svelte';
 	import GithubLogo from '$lib/assets/GithubLogo.svelte';
 	import type { HoudiniInstall } from '$lib/houdini/types';
@@ -35,8 +37,39 @@
 	let resolveState = $state<ResolveState>('idle');
 	let resolveError = $state('');
 	let selectedVersions = $state<Record<string, string>>({});
+	let catalogSearch = $state('');
+	let catalogPage = $state(1);
+	const catalogPageSize = 40;
 	let resolveController: AbortController | null = null;
 	let resolveRequestId = 0;
+
+	let filteredCatalog = $derived.by(() => {
+		const query = catalogSearch.trim().toLocaleLowerCase();
+		if (!query) return catalog;
+
+		return catalog.filter((entry) =>
+			[
+				entry.name,
+				entry.description,
+				entry.author,
+				entry.license,
+				entry.packageFile,
+				...entry.tags,
+				entry.repositoryUrl
+			]
+				.join(' ')
+				.toLocaleLowerCase()
+				.includes(query)
+		);
+	});
+	let catalogPageCount = $derived(Math.max(1, Math.ceil(filteredCatalog.length / catalogPageSize)));
+	let currentCatalogPage = $derived(Math.min(catalogPage, catalogPageCount));
+	let visibleCatalog = $derived(
+		filteredCatalog.slice(
+			(currentCatalogPage - 1) * catalogPageSize,
+			currentCatalogPage * catalogPageSize
+		)
+	);
 
 	onMount(() => {
 		let active = true;
@@ -123,6 +156,16 @@
 		}
 	}
 
+	function clearCandidates() {
+		resolveController?.abort();
+		resolveController = null;
+		resolveRequestId += 1;
+		results = [];
+		selectedVersions = {};
+		resolveError = '';
+		resolveState = 'idle';
+	}
+
 	function selectVersion(candidateId: string, event: Event) {
 		selectedVersions[candidateId] = (event.currentTarget as HTMLSelectElement).value;
 	}
@@ -148,92 +191,41 @@
 		if (!urls.includes(repositoryUrl)) urls.push(repositoryUrl);
 		repositoryInput = urls.join('\n');
 	}
+
+	function resetCatalogSearch() {
+		catalogPage = 1;
+	}
+
+	function previousCatalogPage() {
+		catalogPage = Math.max(1, currentCatalogPage - 1);
+	}
+
+	function nextCatalogPage() {
+		catalogPage = Math.min(catalogPageCount, currentCatalogPage + 1);
+	}
 </script>
 
 <section id="discover" class="discovery-section" aria-labelledby="plugin-discovery-title">
 	<header class="discovery-heading">
 		<div>
-			<p class="section-kicker">Plugin discovery</p>
-			<h2 id="plugin-discovery-title">Find Houdini packages</h2>
+			<h2 id="plugin-discovery-title">Plugin Discovery</h2>
 		</div>
-		<p class="section-summary">
-			Browse the curated catalog or resolve public GitHub repositories into install candidates.
-		</p>
 	</header>
-
-	<section class="catalog-panel" aria-labelledby="curated-catalog-title">
-		<div class="panel-heading">
-			<div>
-				<p class="section-kicker">Curated</p>
-				<h3 id="curated-catalog-title">Recommended packages</h3>
-			</div>
-			{#if catalogState === 'ready'}
-				<span class="count-label">{catalog.length} package{catalog.length === 1 ? '' : 's'}</span>
-			{/if}
-		</div>
-
-		{#if catalogState === 'loading'}
-			<p class="state-message" role="status">
-				<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Loading curated packages...
-			</p>
-		{:else if catalogState === 'error'}
-			<p class="state-message error-message" role="alert">
-				<AlertTriangle size={16} strokeWidth={1.8} aria-hidden="true" />
-				{catalogError}
-			</p>
-		{:else if catalog.length === 0}
-			<p class="state-message">The curated catalog is empty.</p>
-		{:else}
-			<div class="catalog-grid">
-				{#each catalog as entry (entry.id)}
-					<article class="catalog-card">
-						<div class="card-heading">
-							<div>
-								<h4>{entry.name}</h4>
-								<p>{entry.description}</p>
-							</div>
-							<Package size={18} strokeWidth={1.7} aria-hidden="true" />
-						</div>
-						<div class="metadata-line">
-							<span>{entry.author}</span>
-							<span>{entry.license}</span>
-							<code>{entry.packageFile}</code>
-						</div>
-						{#if entry.tags.length}
-							<div class="tag-list" aria-label={`${entry.name} tags`}>
-								{#each entry.tags as tag (tag)}<span>{tag}</span>{/each}
-							</div>
-						{/if}
-						<div class="card-actions">
-							<a href={entry.repositoryUrl} target="_blank" rel="external noopener noreferrer">
-								<GithubLogo width={15} height={15} color="currentColor" aria-hidden="true" /> Repository
-							</a>
-							<button type="button" onclick={() => addCatalogRepository(entry.repositoryUrl)}>
-								<Search size={15} strokeWidth={1.8} aria-hidden="true" /> Add to resolver
-							</button>
-						</div>
-					</article>
-				{/each}
-			</div>
-		{/if}
-	</section>
 
 	<section class="resolver-panel" aria-labelledby="repository-resolver-title">
 		<div class="panel-heading">
 			<div>
-				<p class="section-kicker">Public sources</p>
-				<h3 id="repository-resolver-title">Resolve GitHub repositories</h3>
+				<h3 id="repository-resolver-title">Resolve GitHub Repositories</h3>
 			</div>
 			<span class="count-label">One URL per line</span>
 		</div>
-		<label for="repository-input">Repository URLs</label>
+		<label for="repository-input">Public Repository URLs</label>
 		<textarea
 			id="repository-input"
 			bind:value={repositoryInput}
 			placeholder="https://github.com/owner/repository"
 			rows="4"></textarea>
-		<div class="resolver-actions">
-			<p>Only public <code>github.com</code> repository URLs are supported.</p>
+		<div class="mt-2.5">
 			<button
 				type="button"
 				class="resolve-button"
@@ -241,40 +233,79 @@
 				disabled={resolveState === 'loading'}
 			>
 				{#if resolveState === 'loading'}
-					<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Resolving...
+					<LoaderCircle class="spin" size={18} strokeWidth={1.8} aria-hidden="true" /> Resolving...
 				{:else}
-					<Search size={16} strokeWidth={1.8} aria-hidden="true" /> Resolve repositories
+					<Search size={18} strokeWidth={1.8} aria-hidden="true" /> Resolve repositories
 				{/if}
 			</button>
 		</div>
 		{#if resolveError}
 			<p class="state-message error-message" role="alert">
-				<AlertTriangle size={16} strokeWidth={1.8} aria-hidden="true" />
+				<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
 				{resolveError}
 			</p>
 		{/if}
 
 		{#if results.length}
+			<div class="result-toolbar">
+				<span class="count-label">{results.length} candidate{results.length === 1 ? '' : 's'}</span>
+				<button
+					type="button"
+					class="clear-button"
+					onclick={clearCandidates}
+					aria-label="Clear resolved candidates"
+					title="Clear resolved candidates"
+				>
+					<X size={18} strokeWidth={1.8} aria-hidden="true" /> Clear
+				</button>
+			</div>
 			<div class="result-list" aria-live="polite">
 				{#each results as result (result.input)}
+					{@const candidate = result.candidate}
 					<article class:error-result={Boolean(result.error)} class="result-row">
 						<div class="result-heading">
 							<code>{result.input}</code>
-							{#if result.candidate}
-								<span class="result-status ready-status"
-									><Check size={13} strokeWidth={2} aria-hidden="true" /> Ready</span
-								>
-							{:else if result.error}
+							{#if result.error}
 								<span class="result-status error-status"
-									><AlertTriangle size={13} strokeWidth={2} aria-hidden="true" /> Failed</span
+									><TriangleAlert size={13} strokeWidth={2} aria-hidden="true" /> Failed</span
 								>
-							{:else}
+							{:else if !candidate}
 								<span class="result-status">Resolving...</span>
+							{/if}
+							{#if candidate}
+								<div class="candidate-header-controls">
+									<div class="candidate-controls">
+										{#if candidate.versions.length}
+											<select
+												id={`version-${candidate.id}`}
+												value={selectedVersions[candidate.id] ?? candidate.versions[0].value}
+												onchange={(event) => selectVersion(candidate.id, event)}
+											>
+												{#each candidate.versions as version (version.value)}
+													<option value={version.value}
+														>{version.label ?? version.value}{version.isLatest
+															? ' (latest)'
+															: ''}</option
+													>
+												{/each}
+											</select>
+										{:else}
+											<p class="muted-control">No refs available</p>
+										{/if}
+									</div>
+									<button
+										type="button"
+										class="install-button"
+										disabled={installs.length === 0 || !selectedVersion(candidate)}
+										onclick={() => installCandidate(candidate)}
+									>
+										<Package size={18} strokeWidth={1.8} aria-hidden="true" /> Install
+									</button>
+								</div>
 							{/if}
 						</div>
 
-						{#if result.candidate}
-							{@const candidate = result.candidate}
+						{#if candidate}
 							<div class="candidate-body">
 								<div class="candidate-heading">
 									<div>
@@ -287,7 +318,7 @@
 										rel="external noopener noreferrer"
 										aria-label={`Open ${candidate.name} on GitHub`}
 									>
-										<ExternalLink size={16} strokeWidth={1.8} aria-hidden="true" />
+										<GithubLogo size={16} strokeWidth={1.8} aria-hidden="true" />
 									</a>
 								</div>
 								<div class="metadata-grid">
@@ -300,54 +331,24 @@
 										>
 									</div>
 								</div>
-								<div class="candidate-controls">
-									<label for={`version-${candidate.id}`}>Version or ref</label>
-									{#if candidate.versions.length}
-										<select
-											id={`version-${candidate.id}`}
-											value={selectedVersions[candidate.id] ?? candidate.versions[0].value}
-											onchange={(event) => selectVersion(candidate.id, event)}
-										>
-											{#each candidate.versions as version (version.value)}
-												<option value={version.value}
-													>{version.label ?? version.value}{version.isLatest
-														? ' (latest)'
-														: ''}</option
-												>
-											{/each}
-										</select>
-									{:else}
-										<p class="muted-control">No refs available</p>
-									{/if}
-								</div>
 								{#if candidate.warnings.length}
 									<div class="warning-list" role="note">
-										<AlertTriangle size={16} strokeWidth={1.8} aria-hidden="true" />
+										<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
 										<div>
 											<strong>Review before installing</strong>
 											{#each candidate.warnings as warning (warning)}<p>{warning}</p>{/each}
 										</div>
 									</div>
 								{/if}
-								<div class="candidate-footer">
-									{#if installs.length === 0}
-										<p class="install-hint">
-											No Houdini installs detected. Scan for an install before installing.
-										</p>
-									{/if}
-									<button
-										type="button"
-										class="install-button"
-										disabled={installs.length === 0 || !selectedVersion(candidate)}
-										onclick={() => installCandidate(candidate)}
-									>
-										<Package size={16} strokeWidth={1.8} aria-hidden="true" /> Install candidate
-									</button>
-								</div>
+								{#if installs.length === 0}
+									<p class="install-hint">
+										No Houdini installs detected. Scan for an install before installing.
+									</p>
+								{/if}
 							</div>
 						{:else if result.error}
 							<p class="result-error" role="alert">
-								<AlertTriangle size={16} strokeWidth={1.8} aria-hidden="true" />
+								<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
 								{result.error}
 							</p>
 						{:else}
@@ -359,8 +360,115 @@
 					</article>
 				{/each}
 			</div>
-		{:else if resolveState === 'idle' && !resolveError}
-			<p class="empty-state">Resolved candidates will appear here for review.</p>
+		{/if}
+	</section>
+
+	<section class="catalog-panel" aria-labelledby="curated-catalog-title">
+		<div class="panel-heading">
+			<div>
+				<h3 id="curated-catalog-title">Curated</h3>
+			</div>
+			{#if catalogState === 'ready'}
+				<span class="count-label">{filteredCatalog.length} of {catalog.length} packages</span>
+			{/if}
+		</div>
+
+		{#if catalogState === 'loading'}
+			<p class="state-message" role="status">
+				<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Loading curated packages...
+			</p>
+		{:else if catalogState === 'error'}
+			<p class="state-message error-message" role="alert">
+				<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
+				{catalogError}
+			</p>
+		{:else if catalog.length === 0}
+			<p class="state-message">The curated catalog is empty.</p>
+		{:else}
+			<div class="catalog-toolbar">
+				<label class="catalog-search" for="catalog-search">
+					<Search size={17} strokeWidth={1.8} aria-hidden="true" />
+					<span class="sr-only">Search curated packages</span>
+					<input
+						id="catalog-search"
+						bind:value={catalogSearch}
+						oninput={resetCatalogSearch}
+						placeholder="Search name, author, tags, package file..."
+					/>
+				</label>
+				{#if filteredCatalog.length === 0}
+					<p class="catalog-status">No packages match &ldquo;{catalogSearch}&rdquo;.</p>
+				{:else}
+					<div class="catalog-pagination" aria-label="Catalog pagination">
+						<span class="catalog-status">Page {currentCatalogPage} of {catalogPageCount}</span>
+						<button
+							type="button"
+							class="icon-button"
+							onclick={previousCatalogPage}
+							disabled={currentCatalogPage === 1}
+							aria-label="Previous catalog page"
+							title="Previous catalog page"
+						>
+							<ChevronLeft size={18} strokeWidth={1.8} aria-hidden="true" />
+						</button>
+						<button
+							type="button"
+							class="icon-button"
+							onclick={nextCatalogPage}
+							disabled={currentCatalogPage === catalogPageCount}
+							aria-label="Next catalog page"
+							title="Next catalog page"
+						>
+							<ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" />
+						</button>
+					</div>
+				{/if}
+			</div>
+
+			{#if filteredCatalog.length === 0}
+				<p class="state-message">No curated packages match your search.</p>
+			{:else}
+				<div class="catalog-list" role="list" aria-label="Curated plugin packages">
+					{#each visibleCatalog as entry (entry.id)}
+						<article class="catalog-row" role="listitem">
+							<div class="catalog-main">
+								<div class="catalog-title">
+									<Package size={16} strokeWidth={1.7} aria-hidden="true" />
+									<h4>{entry.name}</h4>
+								</div>
+								<p>{entry.description}</p>
+								<div class="tag-list" aria-label={`${entry.name} tags`}>
+									{#each entry.tags as tag (tag)}<span>{tag}</span>{/each}
+								</div>
+							</div>
+							<div class="catalog-meta">
+								<span>{entry.author}</span>
+								<span>{entry.license}</span>
+								<code>{entry.packageFile}</code>
+							</div>
+							<div class="catalog-actions">
+								<a
+									href={entry.repositoryUrl}
+									target="_blank"
+									rel="external noopener noreferrer"
+									aria-label={`Open ${entry.name} repository on GitHub`}
+									title="Open repository on GitHub"
+								>
+									<GithubLogo width={16} height={16} color="currentColor" aria-hidden="true" />
+								</a>
+								<button
+									type="button"
+									onclick={() => addCatalogRepository(entry.repositoryUrl)}
+									aria-label={`Add ${entry.name} to resolver`}
+									title="Add to resolver"
+								>
+									<Plus size={18} strokeWidth={1.8} aria-hidden="true" />
+								</button>
+							</div>
+						</article>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	</section>
 </section>
@@ -368,20 +476,30 @@
 <style>
 	.discovery-section {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas:
+			'heading'
+			'resolver'
+			'catalog';
 		gap: 18px;
 		width: min(1180px, 100%);
+		min-width: 0;
 		margin: 0 auto;
 		padding: 28px clamp(16px, 3vw, 34px) 44px;
 	}
 
+	.discovery-heading {
+		grid-area: heading;
+		min-width: 0;
+	}
+
 	.discovery-heading,
 	.panel-heading,
-	.card-heading,
+	.catalog-toolbar,
+	.result-toolbar,
+	.catalog-title,
 	.candidate-heading,
-	.resolver-actions,
-	.candidate-footer,
-	.result-heading,
-	.card-actions {
+	.result-heading {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
@@ -391,15 +509,6 @@
 	.discovery-heading {
 		align-items: end;
 		padding-bottom: 4px;
-	}
-
-	.section-kicker {
-		margin: 0 0 5px;
-		color: #84c9ae;
-		font-size: 11px;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
 	}
 
 	h2,
@@ -423,26 +532,25 @@
 	}
 
 	h4 {
-		margin-bottom: 5px;
 		font-size: 16px;
 		font-weight: 650;
 	}
 
-	.section-summary {
-		max-width: 420px;
-		margin: 0;
-		color: var(--text-muted);
-		font-size: 13px;
-		line-height: 1.55;
-		text-align: right;
-	}
-
 	.catalog-panel,
 	.resolver-panel {
+		min-width: 0;
 		padding: 18px;
 		border: 1px solid var(--line);
 		border-radius: 7px;
 		background: rgba(19, 28, 30, 0.62);
+	}
+
+	.resolver-panel {
+		grid-area: resolver;
+	}
+
+	.catalog-panel {
+		grid-area: catalog;
 	}
 
 	.panel-heading {
@@ -459,50 +567,279 @@
 		text-transform: uppercase;
 	}
 
-	.catalog-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-		gap: 10px;
-	}
-
-	.catalog-card,
 	.result-row {
 		border: 1px solid var(--line);
 		border-radius: 6px;
 		background: rgba(30, 42, 44, 0.6);
 	}
 
-	.catalog-card {
-		display: grid;
-		gap: 12px;
-		padding: 14px;
+	.catalog-toolbar {
+		align-items: center;
+		min-width: 0;
+		flex-wrap: wrap;
+		margin-bottom: 10px;
 	}
 
-	.card-heading :global(svg) {
+	.result-toolbar {
+		align-items: center;
+		margin-top: 18px;
+	}
+
+	.clear-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		min-height: 29px;
+		padding: 5px 9px;
+		border: 1px solid var(--line-strong);
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		font: inherit;
+		font-size: 11px;
+		font-weight: 650;
+		cursor: pointer;
+	}
+
+	.clear-button:hover,
+	.clear-button:focus-visible {
+		border-color: var(--line-strong);
+		color: var(--text);
+		outline: none;
+	}
+
+	.catalog-search {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex: 1 1 320px;
+		min-width: 0;
+		margin: 0;
+		padding: 0 10px;
+		border: 1px solid var(--line-strong);
+		border-radius: 5px;
+		background: rgba(8, 14, 16, 0.62);
+	}
+
+	.catalog-pagination {
+		min-width: 0;
+	}
+
+	.catalog-search :global(svg) {
+		flex: 0 0 auto;
+		color: var(--text-dim);
+	}
+
+	.catalog-search input {
+		width: 100%;
+		min-width: 0;
+		min-height: 34px;
+		padding: 6px 0;
+		border: 0;
+		background: transparent;
+		color: var(--text);
+		font: inherit;
+		font-size: 12px;
+	}
+
+	.catalog-search:focus-within {
+		border-color: #69b89b;
+		outline: 3px solid rgba(59, 155, 130, 0.26);
+		outline-offset: 1px;
+	}
+
+	.catalog-search input:focus-visible {
+		outline: none;
+	}
+
+	.catalog-pagination {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex: 0 0 auto;
+	}
+
+	.catalog-status {
+		margin: 0;
+		color: var(--text-dim);
+		font-size: 11px;
+		line-height: 1.4;
+	}
+
+	.icon-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 29px;
+		height: 29px;
+		padding: 0;
+		border: 1px solid var(--line-strong);
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.icon-button:hover:not(:disabled),
+	.icon-button:focus-visible {
+		border-color: var(--line-strong);
+		color: var(--text);
+		outline: none;
+	}
+
+	.icon-button:disabled {
+		color: var(--text-dim);
+		cursor: not-allowed;
+		opacity: 0.5;
+	}
+
+	.catalog-list {
+		display: grid;
+		max-height: 520px;
+		overflow: auto;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+	}
+
+	.catalog-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1.5fr) minmax(150px, 0.8fr) auto;
+		align-items: center;
+		gap: 10px;
+		padding: 7px 10px;
+		border-bottom: 1px solid var(--line);
+		background: rgba(30, 42, 44, 0.44);
+	}
+
+	.catalog-row:last-child {
+		border-bottom: 0;
+	}
+
+	.catalog-main {
+		min-width: 0;
+	}
+
+	.catalog-title {
+		align-items: center;
+		justify-content: flex-start;
+		gap: 7px;
+	}
+
+	.catalog-title :global(svg) {
 		flex: 0 0 auto;
 		color: #84c9ae;
 	}
 
-	.card-heading p,
-	.candidate-heading p {
-		margin-bottom: 0;
-		color: var(--text-muted);
-		font-size: 12px;
-		line-height: 1.45;
+	.catalog-title h4 {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
-	.metadata-line {
+	.catalog-row p {
+		margin: 2px 0 4px;
+		overflow: hidden;
+		color: var(--text-muted);
+		font-size: 12px;
+		line-height: 1.4;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.catalog-meta {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 7px 12px;
+		flex-wrap: nowrap;
+		gap: 0;
+		min-width: 0;
+		overflow: hidden;
 		color: var(--text-muted);
 		font-size: 11px;
 	}
 
-	.metadata-line span + span,
-	.metadata-line code {
-		padding-left: 12px;
+	.catalog-meta > * {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.catalog-meta span,
+	.catalog-meta code {
+		padding: 0 10px;
 		border-left: 1px solid var(--line);
+	}
+
+	.catalog-meta span:first-child {
+		padding-left: 0;
+		border-left: none;
+	}
+
+	.catalog-meta code {
+		max-width: 18ch;
+	}
+
+	.catalog-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 5px;
+	}
+
+	.catalog-actions a,
+	.catalog-actions button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 29px;
+		min-height: 29px;
+		padding: 5px;
+		border: 1px solid transparent;
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		font: inherit;
+		font-size: 11px;
+		font-weight: 650;
+		text-decoration: none;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.catalog-actions a:hover,
+	.catalog-actions a:focus-visible,
+	.catalog-actions button:hover,
+	.catalog-actions button:focus-visible {
+		border-color: var(--line-strong);
+		color: var(--text);
+		outline: none;
+	}
+
+	.catalog-actions button {
+		color: #9ccfba;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.candidate-heading p {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+		margin-bottom: 0;
+		color: var(--text-muted);
+		font-size: 12px;
+		line-height: 1.45;
 	}
 
 	code {
@@ -514,25 +851,23 @@
 
 	.tag-list {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 5px;
+		gap: 4px;
+		min-width: 0;
+		overflow: hidden;
+		white-space: nowrap;
 	}
 
 	.tag-list span {
-		padding: 3px 7px;
+		flex: 0 0 auto;
+		padding: 2px 6px;
 		border: 1px solid rgba(132, 201, 174, 0.25);
 		border-radius: 4px;
 		color: #9ccfba;
 		font-size: 10px;
 	}
 
-	.card-actions {
-		align-items: center;
-		gap: 10px;
-	}
-
-	.card-actions a,
-	.card-actions button,
+	.catalog-actions a,
+	.catalog-actions button,
 	.resolve-button,
 	.install-button {
 		display: inline-flex;
@@ -549,23 +884,12 @@
 		cursor: pointer;
 	}
 
-	.card-actions a,
-	.card-actions button {
-		background: transparent;
-		color: var(--text-muted);
-	}
-
-	.card-actions button {
-		border-color: transparent;
-	}
-
-	.card-actions a:hover,
-	.card-actions a:focus-visible,
-	.card-actions button:hover,
-	.card-actions button:focus-visible {
-		border-color: var(--line-strong);
-		color: var(--text);
-		outline: none;
+	.catalog-actions a,
+	.catalog-actions button {
+		width: 34px;
+		height: 34px;
+		min-height: 34px;
+		padding: 0;
 	}
 
 	label {
@@ -601,18 +925,6 @@
 		outline-offset: 1px;
 	}
 
-	.resolver-actions {
-		align-items: center;
-		margin-top: 10px;
-	}
-
-	.resolver-actions p {
-		margin: 0;
-		color: var(--text-dim);
-		font-size: 11px;
-		line-height: 1.4;
-	}
-
 	.resolve-button,
 	.install-button {
 		flex: 0 0 auto;
@@ -638,15 +950,14 @@
 	}
 
 	.state-message,
-	.empty-state,
 	.result-error {
 		display: flex;
 		align-items: flex-start;
 		gap: 8px;
-		margin: 14px 0 0;
 		color: var(--text-muted);
 		font-size: 12px;
 		line-height: 1.45;
+		padding: 11px 13px;
 	}
 
 	.state-message :global(svg),
@@ -672,11 +983,13 @@
 
 	.result-heading {
 		align-items: center;
+		flex-wrap: wrap;
 		padding: 11px 13px;
 		background: rgba(255, 255, 255, 0.025);
 	}
 
 	.result-heading code {
+		flex: 1 1 240px;
 		min-width: 0;
 		color: var(--text-muted);
 	}
@@ -688,18 +1001,25 @@
 		flex: 0 0 auto;
 	}
 
-	.ready-status {
-		color: #8bd4b3;
-	}
-
 	.error-status {
 		color: #f0a99a;
 	}
 
+	.candidate-header-controls {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		flex: 0 1 auto;
+		flex-wrap: wrap;
+		gap: 10px;
+		min-width: 0;
+		margin-left: auto;
+	}
+
 	.candidate-body {
 		display: grid;
-		gap: 15px;
-		padding: 16px 13px 14px;
+		gap: 10px;
+		padding: 11px 13px 10px;
 	}
 
 	.candidate-heading {
@@ -710,8 +1030,8 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 30px;
-		height: 30px;
+		width: 34px;
+		height: 34px;
 		flex: 0 0 auto;
 		border: 1px solid var(--line);
 		border-radius: 5px;
@@ -726,14 +1046,17 @@
 	}
 
 	.metadata-grid {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 10px;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px 14px;
+		padding-top: 6px;
+		border-top: 1px solid var(--line);
 	}
 
 	.metadata-grid div {
 		display: grid;
-		gap: 4px;
+		gap: 2px;
+		flex: 1 1 120px;
 		min-width: 0;
 	}
 
@@ -753,19 +1076,15 @@
 	}
 
 	.candidate-controls {
-		display: grid;
-		grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+		display: flex;
 		align-items: center;
-		gap: 12px;
-	}
-
-	.candidate-controls label {
-		margin: 0;
+		gap: 7px;
+		min-width: 0;
 	}
 
 	select {
-		min-height: 34px;
-		padding: 6px 9px;
+		min-height: 30px;
+		padding: 4px 8px;
 		font-size: 12px;
 	}
 
@@ -777,14 +1096,14 @@
 
 	.warning-list {
 		display: flex;
-		gap: 9px;
-		padding: 10px;
+		gap: 7px;
+		padding: 7px 9px;
 		border: 1px solid rgba(226, 169, 92, 0.3);
 		border-radius: 5px;
 		background: rgba(226, 169, 92, 0.08);
 		color: #eac18d;
 		font-size: 12px;
-		line-height: 1.45;
+		line-height: 1.35;
 	}
 
 	.warning-list :global(svg) {
@@ -802,22 +1121,13 @@
 		margin: 0;
 	}
 
-	.candidate-footer {
-		align-items: center;
-		padding-top: 2px;
-	}
-
 	.install-hint {
 		max-width: 520px;
 		margin: 0;
+		flex: 1 1 auto;
 		color: #eac18d;
 		font-size: 11px;
 		line-height: 1.4;
-	}
-
-	.empty-state {
-		padding: 14px 0 2px;
-		color: var(--text-dim);
 	}
 
 	:global(.spin) {
@@ -832,15 +1142,9 @@
 
 	@media (max-width: 700px) {
 		.discovery-heading,
-		.resolver-actions,
-		.candidate-footer {
+		.catalog-toolbar {
 			align-items: stretch;
 			flex-direction: column;
-		}
-
-		.section-summary {
-			max-width: none;
-			text-align: left;
 		}
 
 		.resolve-button,
@@ -849,12 +1153,55 @@
 		}
 
 		.metadata-grid {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 5px 10px;
+		}
+
+		.catalog-row {
+			grid-template-columns: 1fr;
+			gap: 8px;
+		}
+
+		.catalog-actions {
+			justify-content: flex-start;
 		}
 
 		.candidate-controls {
-			grid-template-columns: 1fr;
-			gap: 7px;
+			align-items: flex-start;
+			flex-wrap: wrap;
+		}
+
+		.candidate-header-controls {
+			justify-content: flex-start;
+			width: 100%;
+			margin-left: 0;
+		}
+
+		.candidate-controls select {
+			flex: 1 1 160px;
+			width: auto;
+			min-width: 0;
+		}
+
+		.candidate-header-controls .install-button {
+			width: auto;
+		}
+	}
+
+	@media (min-width: 900px) {
+		.discovery-section {
+			grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.5fr);
+			grid-template-areas:
+				'heading heading'
+				'catalog resolver';
+		}
+
+		.catalog-row {
+			grid-template-columns: minmax(0, 1fr) auto;
+		}
+
+		.catalog-meta {
+			grid-column: 1 / -1;
+			max-width: 100%;
 		}
 	}
 
@@ -868,6 +1215,11 @@
 			align-items: flex-start;
 			flex-direction: column;
 			gap: 7px;
+		}
+
+		.catalog-pagination {
+			justify-content: space-between;
+			width: 100%;
 		}
 	}
 </style>
