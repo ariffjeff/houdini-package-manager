@@ -2,13 +2,25 @@
 	let {
 		color = 'currentColor',
 		class: className = '',
+		size,
+		width,
+		height,
 		...rest
-	} = $props<{ color?: string; class?: string; [key: string]: unknown }>();
+	} = $props<{
+		color?: string;
+		class?: string;
+		size?: number | string;
+		width?: number | string;
+		height?: number | string;
+		[key: string]: unknown;
+	}>();
 </script>
 
 <svg
 	{...rest}
 	class={className}
+	width={width ?? size}
+	height={height ?? size}
 	viewBox="0 0 24 24"
 	fill={color}
 	role="img"
