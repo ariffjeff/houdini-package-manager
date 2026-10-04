@@ -7,6 +7,7 @@ import { applyPackageConfigFixes } from '../../houdini/package-config-fixes.js';
 import { runHconfig } from './hconfig.js';
 import { runPluginAction, writableUserPackageDirectory } from './plugin-actions.js';
 import { migratePluginConfigs } from './plugin-migrator.js';
+import { resolvePluginRepository } from '../plugin-discovery/discovery.js';
 import type {
 	HoudiniInstall,
 	InstallPluginRequest,
@@ -19,6 +20,11 @@ import type {
 const execFileAsync = promisify(execFile);
 const commandTimeout = 120_000;
 
+type InstallablePlugin = Pick<PluginRecord, 'id' | 'name' | 'packageFile' | 'repositoryUrl'> & {
+	availableVersions?: string[];
+	gitCommit?: string | null;
+};
+
 export { expandWindowsShortPaths } from './hconfig.js';
 
 export async function installHoudiniPlugin(
@@ -29,8 +35,7 @@ export async function installHoudiniPlugin(
 	throwIfAborted(signal);
 
 	const current = await discoverHoudiniWorkspace();
-	const plugin = current.plugins.find((candidate) => candidate.id === request.pluginId);
-	if (!plugin) throw new Error(`Plugin ${request.pluginId} was not found in the discovery scan.`);
+	const plugin = await resolveInstallablePlugin(request, current.plugins);
 	if (!plugin.repositoryUrl)
 		throw new Error(`${plugin.name} does not have a discoverable Git repository.`);
 	if (
@@ -88,8 +93,19 @@ export function validateInstallPluginRequest(request: InstallPluginRequest): voi
 	if (!request || typeof request !== 'object') {
 		throw new Error('Install request must be an object.');
 	}
-	if (typeof request.pluginId !== 'string' || !request.pluginId.trim()) {
-		throw new Error('A plugin id is required.');
+	if (
+		(request.pluginId !== undefined &&
+			(typeof request.pluginId !== 'string' || !request.pluginId.trim())) ||
+		(request.repositoryUrl !== undefined &&
+			(typeof request.repositoryUrl !== 'string' || !request.repositoryUrl.trim()))
+	) {
+		throw new Error('A valid plugin id or GitHub repository URL is required.');
+	}
+	if (Boolean(request.pluginId) === Boolean(request.repositoryUrl)) {
+		throw new Error('Provide exactly one plugin id or GitHub repository URL.');
+	}
+	if (request.packageFile !== undefined && !isSafePackageFile(request.packageFile)) {
+		throw new Error('A valid Houdini package filename is required.');
 	}
 	if (
 		typeof request.version !== 'string' ||
@@ -117,6 +133,39 @@ export function validateInstallPluginRequest(request: InstallPluginRequest): voi
 	) {
 		throw new Error('An absolute plugin destination path is required.');
 	}
+}
+
+function isSafePackageFile(value: string): boolean {
+	return (
+		Boolean(value.trim()) &&
+		value === path.basename(value) &&
+		value.toLowerCase().endsWith('.json') &&
+		!/[\0\r\n]/.test(value)
+	);
+}
+
+async function resolveInstallablePlugin(
+	request: InstallPluginRequest,
+	plugins: PluginRecord[]
+): Promise<InstallablePlugin> {
+	if (request.pluginId) {
+		const plugin = plugins.find((candidate) => candidate.id === request.pluginId);
+		if (!plugin) throw new Error(`Plugin ${request.pluginId} was not found in the discovery scan.`);
+		return plugin;
+	}
+
+	if (!request.repositoryUrl) {
+		throw new Error('A discovered plugin id or GitHub repository URL is required.');
+	}
+
+	const candidate = await resolvePluginRepository(request.repositoryUrl, request.packageFile);
+	return {
+		id: candidate.id,
+		name: candidate.name,
+		packageFile: candidate.packageFile,
+		repositoryUrl: candidate.repositoryUrl,
+		availableVersions: candidate.versions.map((version) => version.value)
+	};
 }
 
 function selectInstalls(
@@ -155,7 +204,7 @@ async function ensureGitCheckout(
 		try {
 			await runGitRequired(
 				undefined,
-				['clone', '--no-checkout', repositoryUrl, destination],
+				['clone', '--no-checkout', '--no-recurse-submodules', repositoryUrl, destination],
 				signal
 			);
 		} catch (error) {
@@ -171,7 +220,7 @@ async function ensureGitCheckout(
 
 async function writeManagedPackage(
 	packagePath: string,
-	plugin: PluginRecord,
+	plugin: Pick<PluginRecord, 'name' | 'packageFile' | 'repositoryUrl'>,
 	version: string,
 	repositoryPath: string,
 	signal?: AbortSignal

@@ -13,6 +13,7 @@
 		InstallDialogOptions,
 		InstallDialogRequest,
 		InstallDialogState,
+		InstallDialogPlugin,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
 	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
@@ -29,8 +30,8 @@
 	let {
 		settingsDialogOpen,
 		installDialogOpen,
-		selectedPlugin,
-		selectedPluginVersionOptions,
+		installPlugin,
+		installVersionOptions,
 		activationInstalls,
 		activationTargets,
 		remoteSourceOptions,
@@ -77,8 +78,8 @@
 	} = $props<{
 		settingsDialogOpen: boolean;
 		installDialogOpen: boolean;
-		selectedPlugin: Pick<PluginRecord, 'id' | 'name'> | undefined;
-		selectedPluginVersionOptions: InstallVersionOption[];
+		installPlugin: InstallDialogPlugin | undefined;
+		installVersionOptions: InstallVersionOption[];
 		activationInstalls: HoudiniInstall[];
 		activationTargets: ActivationTarget[];
 		remoteSourceOptions: string[];
@@ -141,10 +142,10 @@
 		</dialog>
 	</div>
 {/if}
-{#if installDialogOpen && selectedPlugin}
+{#if installDialogOpen && installPlugin}
 	<PluginInstallDialog
-		plugin={selectedPlugin}
-		versions={selectedPluginVersionOptions}
+		plugin={installPlugin}
+		versions={installVersionOptions}
 		installs={activationInstalls}
 		targets={activationTargets}
 		{remoteSourceOptions}

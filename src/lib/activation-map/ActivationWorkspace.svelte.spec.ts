@@ -5,7 +5,9 @@ import Page from '../../routes/+page.svelte';
 
 let scanRequests: Array<{ stage: string; pluginIds?: string[] }> = [];
 let installRequests: Array<{
-	pluginId: string;
+	pluginId?: string;
+	repositoryUrl?: string;
+	packageFile?: string;
 	version: string;
 	installIds: string[];
 	destinationPath: string;
@@ -161,6 +163,27 @@ const discoveryResponse = {
 	diagnostics: []
 };
 
+const pluginDiscoveryCandidate = {
+	id: 'github:example/houdini-tools',
+	source: 'github' as const,
+	name: 'Houdini Tools',
+	description: 'A test package resolved from GitHub.',
+	author: 'Example',
+	license: 'MIT',
+	repositoryUrl: 'https://github.com/example/houdini-tools',
+	owner: 'example',
+	repository: 'houdini-tools',
+	defaultBranch: 'main',
+	versions: [
+		{ value: 'v1.2.0', label: 'v1.2.0', kind: 'tag' as const, isLatest: true },
+		{ value: 'main', label: 'main', kind: 'commit' as const }
+	],
+	packageFile: 'houdini-tools.json',
+	manifestSource: 'repository' as const,
+	warnings: [],
+	tags: ['github']
+};
+
 afterEach(() => {
 	localStorage.removeItem('hpm:last-selected-node');
 	localStorage.removeItem('hpm:activity-history');
@@ -188,6 +211,38 @@ function stubDiscovery(
 		vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 			const requestUrl = typeof input === 'string' ? input : input.toString();
 			const requestPath = new URL(requestUrl, 'http://localhost').pathname;
+			if (requestPath === '/__hpm/plugin-discovery/catalog') {
+				return new Response(
+					JSON.stringify({
+						plugins: [
+							{
+								id: 'mops',
+								name: 'MOPS',
+								description: 'Motion operators for Houdini.',
+								author: 'toadstorm',
+								license: 'MIT',
+								repositoryUrl: 'https://github.com/toadstorm/MOPS',
+								packageFile: 'MOPS.json',
+								tags: ['motion', 'tools']
+							}
+						]
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			}
+			if (requestPath === '/__hpm/plugin-discovery/resolve') {
+				const request = JSON.parse(String(init?.body)) as { urls: string[] };
+				return new Response(
+					JSON.stringify({
+						results: request.urls.map((url) =>
+							url === pluginDiscoveryCandidate.repositoryUrl
+								? { input: url, candidate: pluginDiscoveryCandidate }
+								: { input: url, error: 'No valid Houdini package manifest was found.' }
+						)
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			}
 			if (requestPath === '/__hpm/houdini/snapshot') {
 				if (!snapshotResponse) return new Response(null, { status: 404 });
 				return new Response(
@@ -258,7 +313,9 @@ function stubDiscovery(
 			}
 			if (requestPath === '/__hpm/houdini/install') {
 				const request = JSON.parse(String(init?.body)) as {
-					pluginId: string;
+					pluginId?: string;
+					repositoryUrl?: string;
+					packageFile?: string;
 					version: string;
 					installIds: string[];
 					destinationPath: string;
@@ -1172,6 +1229,42 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText(`MOPS v1.10.0 installed at ${destination}.`, { exact: true }))
 			.toBeInTheDocument();
+	});
+
+	it('resolves multiple GitHub repositories and hands a candidate to the shared installer', async () => {
+		stubDiscovery();
+		render(Page);
+
+		await expect.element(page.getByText('MOPS', { exact: true }).last()).toBeInTheDocument();
+		await page
+			.getByRole('textbox', { name: 'Repository URLs' })
+			.fill(
+				`${pluginDiscoveryCandidate.repositoryUrl}\nhttps://github.com/example/missing-package`
+			);
+		await page.getByRole('button', { name: 'Resolve repositories', exact: true }).click();
+
+		await expect.element(page.getByText('Houdini Tools', { exact: true })).toBeInTheDocument();
+		await expect
+			.element(page.getByText('No valid Houdini package manifest was found.', { exact: true }))
+			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'Install candidate', exact: true }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Install Houdini Tools', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByText('Use HPM plugin folder', { exact: true }))
+			.toBeInTheDocument();
+
+		await page.getByRole('button', { name: 'Install plugin', exact: true }).click();
+		await expect
+			.poll(() => installRequests.at(-1))
+			.toEqual({
+				repositoryUrl: pluginDiscoveryCandidate.repositoryUrl,
+				packageFile: pluginDiscoveryCandidate.packageFile,
+				version: 'v1.2.0',
+				installIds: ['install:houdini-21.0-455-test'],
+				destinationPath: 'C:/Users/test/Documents/HPM/plugins/houdini-tools'
+			});
 	});
 
 	it('shows undefined variable warnings in the target row and live editor', async () => {

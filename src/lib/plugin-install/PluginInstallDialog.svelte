@@ -3,11 +3,12 @@
 	import { ChevronDown, Tag, TriangleAlert, X } from '@lucide/svelte';
 	import type { ActivationTarget } from '$lib/activation-map/types';
 	import { compareVersionLabels } from '$lib/activation-map/plugin-detail';
-	import type { HoudiniInstall, PluginRecord } from '$lib/houdini/types';
+	import type { HoudiniInstall } from '$lib/houdini/types';
 	import type {
 		InstallDialogOptions,
 		InstallDialogRequest,
 		InstallDialogState,
+		InstallDialogPlugin,
 		InstallVersionOption
 	} from './types';
 
@@ -33,7 +34,7 @@
 		onCancel,
 		onInstall
 	} = $props<{
-		plugin: Pick<PluginRecord, 'id' | 'name'>;
+		plugin: InstallDialogPlugin;
 		versions: InstallVersionOption[];
 		installs: HoudiniInstall[];
 		targets: ActivationTarget[];
@@ -214,12 +215,20 @@
 		const installIds = installs
 			.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
 			.map((install: HoudiniInstall) => install.id);
-		const request: InstallDialogRequest = {
-			pluginId: plugin.id,
-			version: requestedVersion,
-			installIds,
-			destinationPath: requestedDestination
-		};
+		const request: InstallDialogRequest = plugin.repositoryUrl
+			? {
+					repositoryUrl: plugin.repositoryUrl,
+					packageFile: plugin.packageFile,
+					version: requestedVersion,
+					installIds,
+					destinationPath: requestedDestination
+				}
+			: {
+					pluginId: plugin.id,
+					version: requestedVersion,
+					installIds,
+					destinationPath: requestedDestination
+				};
 		const options: InstallDialogOptions = {
 			openInstalledFolder: draft.openInstalledFolder,
 			openInstalledConfig: draft.openInstalledConfig

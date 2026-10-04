@@ -537,7 +537,13 @@ describe('Houdini plugin actions', () => {
 		expect(childProcessMocks.execFile).toHaveBeenNthCalledWith(
 			1,
 			'git',
-			['clone', '--no-checkout', repositoryUrl, path.normalize(destinationPath)],
+			[
+				'clone',
+				'--no-checkout',
+				'--no-recurse-submodules',
+				repositoryUrl,
+				path.normalize(destinationPath)
+			],
 			expect.objectContaining({ cwd: undefined }),
 			expect.any(Function)
 		);

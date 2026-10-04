@@ -64,6 +64,7 @@
 	import type {
 		InstallDialogOptions,
 		InstallDialogRequest,
+		InstallDialogPlugin,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
 	import GithubLogo from '$lib/assets/GithubLogo.svelte';
@@ -259,6 +260,10 @@
 		const documentsPath = userPreferences.replace(/[\\/]houdini[^\\/]*$/i, '');
 		return `${documentsPath}${separator}HPM${separator}plugins${separator}${pluginSlug}`;
 	});
+	let installPlugin = $derived<InstallDialogPlugin | undefined>(selectedPlugin);
+	let installVersionOptions = $derived<InstallVersionOption[]>(selectedPluginVersionOptions);
+	let installRemoteSourceOptions = $derived(remoteSourceOptions);
+	let installHpmPluginDestination = $derived(hpmPluginDestination);
 	let filteredPlugins = $derived.by(() => {
 		if (!normalizedQuery) return activationPlugins;
 
@@ -831,11 +836,14 @@
 		request: InstallDialogRequest,
 		options: InstallDialogOptions
 	) {
-		const plugin = selectedPlugin;
+		const plugin = installPlugin;
+		const validSelectedPluginRequest =
+			Boolean(selectedPlugin) &&
+			request.pluginId === selectedPlugin?.id &&
+			selectedPluginVersions.includes(request.version);
 		if (
 			!plugin ||
-			request.pluginId !== plugin.id ||
-			!selectedPluginVersions.includes(request.version) ||
+			!validSelectedPluginRequest ||
 			!request.installIds.length ||
 			!request.destinationPath
 		) {
@@ -1003,8 +1011,8 @@
 			<HpmLogo class="h-7.5 w-auto" color="var(--accent-orange)" aria-hidden="true" />
 		</a>
 		<nav class="app-nav flex items-center gap-6.5 overflow-x-auto" aria-label="Primary navigation">
-			<a class="active" href="#library">Library</a>
-			<a href="#discover">Discover</a>
+			<a class="active" href={resolve('/')}>Library</a>
+			<a href={resolve('/discover')}>Discover</a>
 			<a
 				href={resolve('/settings')}
 				aria-haspopup="dialog"
@@ -1140,12 +1148,12 @@
 	<ActivationDialogs
 		{settingsDialogOpen}
 		{installDialogOpen}
-		{selectedPlugin}
-		{selectedPluginVersionOptions}
+		{installPlugin}
+		{installVersionOptions}
 		{activationInstalls}
 		{activationTargets}
-		{remoteSourceOptions}
-		{hpmPluginDestination}
+		remoteSourceOptions={installRemoteSourceOptions}
+		hpmPluginDestination={installHpmPluginDestination}
 		{installState}
 		{installMessage}
 		{pluginMigratorOpen}

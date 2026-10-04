@@ -135,7 +135,10 @@ export type HoudiniDiscoveryResponse = {
 };
 
 export type InstallPluginRequest = {
-	pluginId: string;
+	pluginId?: string;
+	repositoryUrl?: string;
+	packageFile?: string;
+	pluginName?: string;
 	version: string;
 	installIds: string[];
 	destinationPath: string;
