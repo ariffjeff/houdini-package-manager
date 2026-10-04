@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { resolve } from '$app/paths';
 	import ActivityConsole from '$lib/activity/ActivityConsole.svelte';
 	import { readActivityEvents, writeActivityEvents } from '$lib/activity/activity-history';
 	import type { ActivityEvent, ActivityEventStatus } from '$lib/activity/types';
@@ -67,8 +66,7 @@
 		InstallDialogPlugin,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
-	import GithubLogo from '$lib/assets/GithubLogo.svelte';
-	import HpmLogo from '$lib/assets/HpmLogo.svelte';
+	import AppHeader from '$lib/AppHeader.svelte';
 	import {
 		clearHoudiniDiscoveryCache,
 		fetchHoudiniDiscoverySnapshot,
@@ -81,7 +79,6 @@
 		type HpmLocalDataKind
 	} from '$lib/settings/local-storage';
 	import Tooltip from '$lib/Tooltip.svelte';
-	import { BookOpen } from '@lucide/svelte';
 
 	type ViewMode = 'map' | 'table';
 	type LiveJsonEditorContext = {
@@ -1006,59 +1003,7 @@
 
 <div class="page-shell px-3.5 pb-4 sm:px-6 lg:px-10">
 	<Tooltip />
-	<header class="app-header mx-auto border-white/10 py-4.5 lg:py-5.5">
-		<a class="app-logo flex items-center" href={resolve('/')} aria-label="HPM home">
-			<HpmLogo class="h-7.5 w-auto" color="var(--accent-orange)" aria-hidden="true" />
-		</a>
-		<nav class="app-nav flex items-center gap-6.5 overflow-x-auto" aria-label="Primary navigation">
-			<a class="active" href={resolve('/')}>Library</a>
-			<a href={resolve('/discover')}>Discover</a>
-			<a
-				href={resolve('/settings')}
-				aria-haspopup="dialog"
-				aria-expanded={settingsDialogOpen}
-				onclick={(event) => {
-					event.preventDefault();
-					openSettingsDialog();
-				}}>Settings</a
-			>
-		</nav>
-		<ul class="header-resource-links flex flex-row gap-4" aria-label="Resources">
-			<li>
-				<a
-					href="https://houpm.com"
-					target="_blank"
-					rel="noopener noreferrer"
-					title="houpm.com"
-					aria-label="houpm.com"
-				>
-					<HpmLogo class="resource-hpm-logo" color="var(--text-muted)" aria-hidden="true" />
-				</a>
-			</li>
-			<li>
-				<a
-					href="https://github.com/ariffjeff/houdini-package-manager"
-					target="_blank"
-					rel="noopener noreferrer"
-					title="HPM GitHub repo"
-					aria-label="HPM GitHub repo"
-				>
-					<GithubLogo class="resource-github-logo" color="var(--text-muted)" aria-hidden="true" />
-				</a>
-			</li>
-			<li>
-				<a
-					href="https://www.sidefx.com/docs/houdini/ref/plugins.html"
-					target="_blank"
-					rel="noopener noreferrer"
-					title="Houdini package docs"
-					aria-label="Houdini package docs"
-				>
-					<BookOpen size={18} strokeWidth={1.8} aria-hidden="true" />
-				</a>
-			</li>
-		</ul>
-	</header>
+	<AppHeader activeSection="library" {settingsDialogOpen} onOpenSettings={openSettingsDialog} />
 
 	<main class="page-main mx-auto">
 		<ActivationWorkspace
@@ -1321,12 +1266,6 @@
 		.topbar-status span.status-error {
 			background: #df6d58;
 			box-shadow: 0 0 0 4px rgba(223, 109, 88, 0.12);
-		}
-
-		@media (max-width: 760px) {
-			nav a {
-				white-space: nowrap;
-			}
 		}
 	}
 </style>
