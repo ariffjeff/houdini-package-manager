@@ -20,10 +20,9 @@
 		PluginDiscoveryVersion
 	} from './types';
 
-	let { installs, onInstallCandidate, onActivity } = $props<{
+	let { installs, onInstallCandidate } = $props<{
 		installs: HoudiniInstall[];
 		onInstallCandidate: (candidate: PluginDiscoveryCandidate) => void;
-		onActivity?: (event: { status: 'success' | 'error'; title: string; detail: string }) => void;
 	}>();
 
 	type CatalogState = 'loading' | 'ready' | 'error';
@@ -91,11 +90,6 @@
 				if (!active) return;
 				catalogError = error instanceof Error ? error.message : String(error);
 				catalogState = 'error';
-				onActivity?.({
-					status: 'error',
-					title: 'Plugin catalog unavailable',
-					detail: catalogError
-				});
 			}
 		}
 	});
@@ -134,23 +128,12 @@
 				)
 			);
 			resolveState = 'idle';
-			const failures = response.results.filter((result) => result.error).length;
-			onActivity?.({
-				status: failures ? 'error' : 'success',
-				title: failures ? 'Plugin discovery completed with errors' : 'Plugin repositories resolved',
-				detail: `${response.results.length - failures} candidate${response.results.length - failures === 1 ? '' : 's'} ready, ${failures} failed.`
-			});
 		} catch (error) {
 			if (error instanceof DOMException && error.name === 'AbortError') return;
 			if (requestId !== resolveRequestId) return;
 			resolveState = 'error';
 			resolveError = error instanceof Error ? error.message : String(error);
 			results = urls.map((input) => ({ input, error: resolveError }));
-			onActivity?.({
-				status: 'error',
-				title: 'Plugin discovery failed',
-				detail: resolveError
-			});
 		} finally {
 			if (requestId === resolveRequestId) resolveController = null;
 		}

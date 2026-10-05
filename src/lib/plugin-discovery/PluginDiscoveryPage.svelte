@@ -25,7 +25,6 @@
 	let installMessage = $state('');
 	let loadingState = $state<'loading' | 'ready' | 'error'>('loading');
 	let loadingError = $state('');
-	let pageMessage = $state('');
 	let installController: AbortController | null = null;
 
 	let installPlugin = $derived<InstallDialogPlugin | undefined>(
@@ -108,7 +107,6 @@
 
 		installState = 'working';
 		installMessage = '';
-		pageMessage = '';
 		const controller = new AbortController();
 		installController = controller;
 		try {
@@ -143,7 +141,6 @@
 				}
 			}
 			installMessage = messages.join(' ');
-			pageMessage = installMessage;
 			installDialogOpen = false;
 			discoveryInstallCandidate = null;
 		} catch (error) {
@@ -175,12 +172,7 @@
 	<PluginDiscoverySection
 		{installs}
 		onInstallCandidate={openInstallDialog}
-		onActivity={(event) => (pageMessage = `${event.title}: ${event.detail}`)}
 	/>
-{/if}
-
-{#if pageMessage}
-	<p class="discovery-page-message" role="status">{pageMessage}</p>
 {/if}
 
 {#if installDialogOpen && installPlugin}
