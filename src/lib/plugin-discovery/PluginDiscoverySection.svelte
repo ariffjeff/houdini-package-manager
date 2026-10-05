@@ -28,6 +28,7 @@
 
 	let catalogSearch = $state('');
 	let catalogPage = $state(1);
+	let openProvenanceCandidate = $state<PluginDiscoveryCandidate | null>(null);
 	const catalogPageSize = 40;
 
 	let filteredCatalog = $derived.by(() => {
@@ -128,6 +129,14 @@
 
 	function shortSha(value: string) {
 		return value.slice(0, 7);
+	}
+
+	function closeProvenanceDialog() {
+		openProvenanceCandidate = null;
+	}
+
+	function handleProvenanceDialogKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') closeProvenanceDialog();
 	}
 </script>
 
@@ -237,7 +246,6 @@
 						</div>
 
 						{#if candidate}
-							{@const selected = selectedVersion(candidate)}
 							<div class="candidate-body">
 								<div class="candidate-heading">
 									<div>
@@ -262,25 +270,18 @@
 											>{candidate.manifestSource === 'catalog' ? 'Curated' : 'Repository'}</strong
 										>
 									</div>
+									{#if candidate.source === 'catalog' && candidate.pinnedCommit && candidate.manifestBlobSha}
+										<button
+											type="button"
+											class="provenance-button"
+											aria-label={`View provenance details for ${candidate.name}`}
+											title={`View provenance details for ${candidate.name}`}
+											onclick={() => (openProvenanceCandidate = candidate)}
+										>
+											<ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+										</button>
+									{/if}
 								</div>
-								{#if candidate.source === 'catalog' && candidate.pinnedCommit && candidate.manifestBlobSha}
-									<div class="provenance-summary" role="note">
-										<ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
-										<div>
-											<strong>Curated provenance</strong>
-											<p>
-												Selected tag <code>{selected?.value ?? 'Choose a tag'}</code> is checked
-												against the approved commit
-												<code title={candidate.pinnedCommit}
-													>{shortSha(candidate.pinnedCommit)}</code
-												>. The package manifest is checked against approved blob SHA
-												<code title={candidate.manifestBlobSha}
-													>{shortSha(candidate.manifestBlobSha)}</code
-												>.
-											</p>
-										</div>
-									</div>
-								{/if}
 								{#if candidate.warnings.length}
 									<div class="warning-list" role="note">
 										<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -312,6 +313,43 @@
 			</div>
 		{/if}
 	</section>
+
+	{#if openProvenanceCandidate}
+		<div class="provenance-overlay">
+			<dialog
+				open
+				class="provenance-dialog"
+				aria-labelledby="provenance-dialog-title"
+				onkeydown={handleProvenanceDialogKeydown}
+			>
+				<div class="provenance-dialog-header">
+					<div>
+						<h2 id="provenance-dialog-title">Curated provenance</h2>
+						<p>{openProvenanceCandidate.name}</p>
+					</div>
+					<button
+						type="button"
+						class="provenance-dialog-close"
+						aria-label="Close provenance details"
+						onclick={closeProvenanceDialog}
+					>
+						<X size={18} strokeWidth={1.8} aria-hidden="true" />
+					</button>
+				</div>
+				<p>
+					Selected tag
+					<code>{selectedVersion(openProvenanceCandidate)?.value ?? 'Choose a tag'}</code>
+					is checked against the approved commit
+					<code title={openProvenanceCandidate.pinnedCommit}
+						>{shortSha(openProvenanceCandidate.pinnedCommit!)}</code
+					>. The package manifest is checked against approved blob SHA
+					<code title={openProvenanceCandidate.manifestBlobSha}
+						>{shortSha(openProvenanceCandidate.manifestBlobSha!)}</code
+					>.
+				</p>
+			</dialog>
+		</div>
+	{/if}
 
 	<section class="catalog-panel" aria-labelledby="curated-catalog-title">
 		<div class="panel-heading">
@@ -980,36 +1018,6 @@
 		padding: 11px 13px 10px;
 	}
 
-	.provenance-summary {
-		display: flex;
-		align-items: flex-start;
-		gap: 8px;
-		padding: 9px 10px;
-		border: 1px solid rgba(57, 155, 130, 0.32);
-		border-radius: 5px;
-		background: rgba(57, 155, 130, 0.06);
-		color: var(--text-muted);
-		font-size: 12px;
-		line-height: 1.45;
-	}
-
-	.provenance-summary :global(svg) {
-		flex: 0 0 auto;
-		margin-top: 1px;
-		color: #55c4a5;
-	}
-
-	.provenance-summary strong {
-		display: block;
-		margin-bottom: 2px;
-		color: var(--text);
-		font-weight: 650;
-	}
-
-	.provenance-summary p {
-		margin: 0;
-	}
-
 	.candidate-heading {
 		align-items: center;
 	}
@@ -1061,6 +1069,103 @@
 		overflow-wrap: anywhere;
 		font-size: 12px;
 		font-weight: 500;
+	}
+
+	.provenance-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		align-self: end;
+		width: 29px;
+		height: 29px;
+		padding: 0;
+		border: 1px solid rgba(57, 155, 130, 0.32);
+		border-radius: 5px;
+		background: rgba(57, 155, 130, 0.06);
+		color: #55c4a5;
+		cursor: pointer;
+	}
+
+	.provenance-button:hover,
+	.provenance-button:focus-visible {
+		border-color: #55c4a5;
+		background: rgba(57, 155, 130, 0.14);
+		color: var(--text);
+		outline: none;
+	}
+
+	.provenance-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		padding: 16px;
+		background: rgba(5, 10, 11, 0.62);
+	}
+
+	.provenance-dialog {
+		position: relative;
+		inset: auto;
+		box-sizing: border-box;
+		max-height: calc(100vh - 32px);
+		margin: 0;
+		width: min(520px, 100%);
+		overflow: auto;
+		padding: 18px;
+		border: 1px solid var(--line-strong);
+		border-radius: 7px;
+		background: #182326;
+		color: var(--text);
+		box-shadow: 0 18px 50px rgba(0, 0, 0, 0.36);
+	}
+
+	.provenance-dialog::backdrop {
+		background: rgba(5, 10, 11, 0.62);
+	}
+
+	.provenance-dialog-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+		margin-bottom: 14px;
+	}
+
+	.provenance-dialog h2 {
+		margin-bottom: 3px;
+		font-size: 18px;
+	}
+
+	.provenance-dialog-header p,
+	.provenance-dialog > p {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: 12px;
+		line-height: 1.5;
+	}
+
+	.provenance-dialog-close {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 30px;
+		height: 30px;
+		padding: 0;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.provenance-dialog-close:hover,
+	.provenance-dialog-close:focus-visible {
+		border-color: var(--line-strong);
+		color: var(--text);
+		outline: none;
 	}
 
 	.candidate-controls {
