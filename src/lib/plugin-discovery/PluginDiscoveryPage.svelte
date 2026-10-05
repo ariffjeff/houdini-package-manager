@@ -12,33 +12,32 @@
 		InstallDialogOptions,
 		InstallDialogPlugin,
 		InstallDialogRequest,
-		InstallDialogState,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
 	import PluginDiscoverySection from './PluginDiscoverySection.svelte';
+	import {
+		cancelDiscoveryInstall,
+		pluginDiscoveryState,
+		setDiscoveryInstallController
+	} from './discovery-state.svelte';
 	import type { PluginDiscoveryCandidate } from './types';
 
 	let installs = $state<HoudiniInstall[]>([]);
-	let discoveryInstallCandidate = $state<PluginDiscoveryCandidate | null>(null);
-	let installDialogOpen = $state(false);
-	let installState = $state<InstallDialogState>('idle');
-	let installMessage = $state('');
 	let loadingState = $state<'loading' | 'ready' | 'error'>('loading');
 	let loadingError = $state('');
-	let installController: AbortController | null = null;
 
 	let installPlugin = $derived<InstallDialogPlugin | undefined>(
-		discoveryInstallCandidate
+		pluginDiscoveryState.installCandidate
 			? {
-					id: discoveryInstallCandidate.id,
-					name: discoveryInstallCandidate.name,
-					repositoryUrl: discoveryInstallCandidate.repositoryUrl,
-					packageFile: discoveryInstallCandidate.packageFile
+					id: pluginDiscoveryState.installCandidate.id,
+					name: pluginDiscoveryState.installCandidate.name,
+					repositoryUrl: pluginDiscoveryState.installCandidate.repositoryUrl,
+					packageFile: pluginDiscoveryState.installCandidate.packageFile
 				}
 			: undefined
 	);
 	let installVersionOptions = $derived.by<InstallVersionOption[]>(() => {
-		const candidate = discoveryInstallCandidate;
+		const candidate = pluginDiscoveryState.installCandidate;
 		if (!candidate) return [];
 
 		return [
@@ -47,9 +46,9 @@
 		];
 	});
 	let hpmPluginDestination = $derived.by(() => {
-		if (!discoveryInstallCandidate) return '';
+		if (!pluginDiscoveryState.installCandidate) return '';
 		const userPreferences = installs[0]?.userPreferences;
-		const pluginSlug = discoveryInstallCandidate.repository
+		const pluginSlug = pluginDiscoveryState.installCandidate.repository
 			.toLowerCase()
 			.replace(/[^a-z0-9._-]+/g, '-');
 		if (!userPreferences || !pluginSlug) return '';
@@ -61,7 +60,6 @@
 
 	onMount(() => {
 		void loadInstalls();
-		return () => installController?.abort();
 	});
 
 	async function loadInstalls() {
@@ -80,20 +78,20 @@
 
 	function openInstallDialog(candidate: PluginDiscoveryCandidate) {
 		if (!installs.length) return;
-		discoveryInstallCandidate = candidate;
-		installState = 'idle';
-		installMessage = '';
-		installDialogOpen = true;
+		pluginDiscoveryState.installCandidate = candidate;
+		pluginDiscoveryState.installState = 'idle';
+		pluginDiscoveryState.installMessage = '';
+		pluginDiscoveryState.installDialogOpen = true;
 	}
 
 	function closeInstallDialog() {
-		if (installState === 'working') return;
-		installDialogOpen = false;
-		discoveryInstallCandidate = null;
+		if (pluginDiscoveryState.installState === 'working') return;
+		pluginDiscoveryState.installDialogOpen = false;
+		pluginDiscoveryState.installCandidate = null;
 	}
 
 	async function installCandidate(request: InstallDialogRequest, options: InstallDialogOptions) {
-		const candidate = discoveryInstallCandidate;
+		const candidate = pluginDiscoveryState.installCandidate;
 		if (
 			!candidate ||
 			request.repositoryUrl !== candidate.repositoryUrl ||
@@ -105,14 +103,14 @@
 			return;
 		}
 
-		installState = 'working';
-		installMessage = '';
+		pluginDiscoveryState.installState = 'working';
+		pluginDiscoveryState.installMessage = '';
 		const controller = new AbortController();
-		installController = controller;
+		setDiscoveryInstallController(controller);
 		try {
 			const result = await installHoudiniPlugin(request, controller.signal);
 			installs = result.discovery.installs;
-			installState = 'success';
+			pluginDiscoveryState.installState = 'success';
 			const messages = [result.message];
 			if (options.openInstalledFolder) {
 				try {
@@ -140,27 +138,28 @@
 					messages.push(error instanceof Error ? error.message : String(error));
 				}
 			}
-			installMessage = messages.join(' ');
-			installDialogOpen = false;
-			discoveryInstallCandidate = null;
+			pluginDiscoveryState.installMessage = messages.join(' ');
+			pluginDiscoveryState.installDialogOpen = false;
+			pluginDiscoveryState.installCandidate = null;
 		} catch (error) {
 			if (
 				controller.signal.aborted ||
 				(error instanceof DOMException && error.name === 'AbortError')
 			) {
-				installState = 'idle';
-				installMessage = 'Installation cancelled.';
+				pluginDiscoveryState.installState = 'idle';
+				pluginDiscoveryState.installMessage = 'Installation cancelled.';
 			} else {
-				installState = 'error';
-				installMessage = error instanceof Error ? error.message : String(error);
+				pluginDiscoveryState.installState = 'error';
+				pluginDiscoveryState.installMessage =
+					error instanceof Error ? error.message : String(error);
 			}
 		} finally {
-			if (installController === controller) installController = null;
+			setDiscoveryInstallController(null);
 		}
 	}
 
 	function cancelInstall() {
-		installController?.abort();
+		cancelDiscoveryInstall();
 	}
 </script>
 
@@ -169,13 +168,14 @@
 {:else if loadingState === 'loading'}
 	<p class="discovery-page-message" role="status">Loading Houdini installations...</p>
 {:else}
-	<PluginDiscoverySection
-		{installs}
-		onInstallCandidate={openInstallDialog}
-	/>
+	<PluginDiscoverySection {installs} onInstallCandidate={openInstallDialog} />
 {/if}
 
-{#if installDialogOpen && installPlugin}
+{#if pluginDiscoveryState.installMessage && !pluginDiscoveryState.installDialogOpen}
+	<p class="discovery-page-message" role="status">{pluginDiscoveryState.installMessage}</p>
+{/if}
+
+{#if pluginDiscoveryState.installDialogOpen && installPlugin}
 	<PluginInstallDialog
 		plugin={installPlugin}
 		versions={installVersionOptions}
@@ -183,8 +183,8 @@
 		targets={[]}
 		remoteSourceOptions={hpmPluginDestination ? [hpmPluginDestination] : []}
 		{hpmPluginDestination}
-		{installState}
-		message={installMessage}
+		installState={pluginDiscoveryState.installState}
+		message={pluginDiscoveryState.installMessage}
 		onClose={closeInstallDialog}
 		onCancel={cancelInstall}
 		onInstall={installCandidate}

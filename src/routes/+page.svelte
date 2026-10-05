@@ -68,6 +68,11 @@
 	} from '$lib/plugin-install/types';
 	import AppHeader from '$lib/AppHeader.svelte';
 	import {
+		libraryNavigationState,
+		readLibraryDiscoveryCache,
+		setLibraryDiscoveryCache
+	} from '$lib/library-state.svelte';
+	import {
 		fetchHoudiniDiscoverySnapshot,
 		installHoudiniPlugin,
 		runHoudiniPluginAction
@@ -75,7 +80,6 @@
 	import { HPM_STORAGE_KEYS } from '$lib/settings/local-storage';
 	import Tooltip from '$lib/Tooltip.svelte';
 
-	type ViewMode = 'map' | 'table';
 	type LiveJsonEditorContext = {
 		plugin: PluginRecord;
 		install: HoudiniInstall;
@@ -84,24 +88,20 @@
 
 	const selectedNodeStorageKey = HPM_STORAGE_KEYS.lastSelectedNode;
 	const pinnedPluginUpdatesStorageKey = HPM_STORAGE_KEYS.pinnedPluginUpdates;
+	const cachedDiscovery = readLibraryDiscoveryCache();
 
-	let view = $state<ViewMode>('map');
-	let searchQuery = $state('');
-	let selectedNodeId = $state<string | null>(null);
-	let connectionFilterNodeId = $state<string | null>(null);
-	let focusNodeId = $state<string | null>(null);
 	let activeScan = $state<ScanAction | null>(null);
 	let initialScanStarted = false;
-	let hasDiscoverySnapshot = $state(false);
-	let snapshotLoadState = $state<ScanState>('pending');
+	let hasDiscoverySnapshot = $state(cachedDiscovery !== null);
+	let snapshotLoadState = $state<ScanState>(cachedDiscovery ? 'ready' : 'pending');
 	let scanStatuses = $state<Record<ScanStage, ScanStatus>>({
 		installs: { state: 'pending', error: '', source: 'none', scannedAt: null },
 		plugins: { state: 'pending', error: '', source: 'none', scannedAt: null },
 		git: { state: 'pending', error: '', source: 'none', scannedAt: null }
 	});
-	let activationPlugins = $state<PluginRecord[]>([]);
-	let activationInstalls = $state<HoudiniInstall[]>([]);
-	let activationTargets = $state<ActivationTarget[]>([]);
+	let activationPlugins = $state<PluginRecord[]>(cachedDiscovery?.plugins ?? []);
+	let activationInstalls = $state<HoudiniInstall[]>(cachedDiscovery?.installs ?? []);
+	let activationTargets = $state<ActivationTarget[]>(cachedDiscovery?.targets ?? []);
 	let installDialogOpen = $state(false);
 	let installState = $state<'idle' | 'working' | 'success' | 'error'>('idle');
 	let installMessage = $state('');
@@ -166,22 +166,25 @@
 	let issueConfigOptions = $derived(
 		createIssueConfigOptions(activationTargets, activationInstalls)
 	);
-	let normalizedQuery = $derived(searchQuery.trim().toLowerCase());
+	let normalizedQuery = $derived(libraryNavigationState.searchQuery.trim().toLowerCase());
 	let selectedGraphNodeId = $derived.by(() => {
-		if (!selectedNodeId) return null;
-		if (activationNodes.some((node) => node.id === selectedNodeId)) return selectedNodeId;
+		if (!libraryNavigationState.selectedNodeId) return null;
+		if (activationNodes.some((node) => node.id === libraryNavigationState.selectedNodeId)) {
+			return libraryNavigationState.selectedNodeId;
+		}
 
-		if (selectedNodeId.startsWith('plugin:')) {
-			const pluginId = selectedNodeId.slice('plugin:'.length);
+		if (libraryNavigationState.selectedNodeId.startsWith('plugin:')) {
+			const pluginId = libraryNavigationState.selectedNodeId.slice('plugin:'.length);
 			const plugin = activationPlugins.find((item) => item.id === pluginId);
 			if (plugin && isOfficialPlugin(plugin)) return OFFICIAL_NODE_ID;
 		}
 
-		return selectedNodeId;
+		return libraryNavigationState.selectedNodeId;
 	});
 	let filterButtonIsActive = $derived(
-		connectionFilterNodeId !== null &&
-			(selectedGraphNodeId === null || connectionFilterNodeId === selectedGraphNodeId)
+		libraryNavigationState.connectionFilterNodeId !== null &&
+			(selectedGraphNodeId === null ||
+				libraryNavigationState.connectionFilterNodeId === selectedGraphNodeId)
 	);
 	let selectedNode = $derived(
 		selectedGraphNodeId
@@ -290,10 +293,13 @@
 	);
 	let visibleMapNodes = $derived.by(() => {
 		let candidateNodes = mapNodes;
-		if (connectionFilterNodeId) {
-			const connectedNodeIds = new SvelteSet([connectionFilterNodeId]);
+		if (libraryNavigationState.connectionFilterNodeId) {
+			const connectedNodeIds = new SvelteSet([libraryNavigationState.connectionFilterNodeId]);
 			for (const edge of activationEdges) {
-				if (edge.source === connectionFilterNodeId || edge.target === connectionFilterNodeId) {
+				if (
+					edge.source === libraryNavigationState.connectionFilterNodeId ||
+					edge.target === libraryNavigationState.connectionFilterNodeId
+				) {
 					connectedNodeIds.add(edge.source);
 					connectedNodeIds.add(edge.target);
 				}
@@ -442,6 +448,7 @@
 	}
 
 	function applyDiscovery(response: HoudiniDiscoveryResponse, liveStage?: ScanAction) {
+		setLibraryDiscoveryCache(response);
 		activationPlugins = response.plugins;
 		activationInstalls = response.installs;
 		activationTargets = response.targets;
@@ -475,23 +482,26 @@
 	}
 
 	function reconcileSelectedNode(response: HoudiniDiscoveryResponse) {
-		const selectionStillExists = selectedNodeId
-			? selectedNodeId === OFFICIAL_NODE_ID
+		const selectionStillExists = libraryNavigationState.selectedNodeId
+			? libraryNavigationState.selectedNodeId === OFFICIAL_NODE_ID
 				? response.plugins.some(isOfficialPlugin)
-				: response.plugins.some((plugin) => `plugin:${plugin.id}` === selectedNodeId) ||
-					response.installs.some((install) => install.id === selectedNodeId)
+				: response.plugins.some(
+						(plugin) => `plugin:${plugin.id}` === libraryNavigationState.selectedNodeId
+					) ||
+					response.installs.some((install) => install.id === libraryNavigationState.selectedNodeId)
 			: false;
 		if (selectionStillExists) return;
 
-		selectedNodeId = null;
+		libraryNavigationState.selectedNodeId = null;
 		persistSelectedNode(null);
 	}
 
 	function restoreSelectedNode() {
+		if (libraryNavigationState.selectedNodeId) return;
 		try {
-			selectedNodeId = localStorage.getItem(selectedNodeStorageKey);
+			libraryNavigationState.selectedNodeId = localStorage.getItem(selectedNodeStorageKey);
 		} catch {
-			selectedNodeId = null;
+			libraryNavigationState.selectedNodeId = null;
 		}
 	}
 
@@ -560,7 +570,7 @@
 
 	function selectNode(id: string | null) {
 		installDialogOpen = false;
-		selectedNodeId = id;
+		libraryNavigationState.selectedNodeId = id;
 		persistSelectedNode(id);
 		installState = 'idle';
 		installMessage = '';
@@ -572,11 +582,13 @@
 
 	function toggleConnectionFilter() {
 		if (!selectedGraphNodeId) {
-			connectionFilterNodeId = null;
+			libraryNavigationState.connectionFilterNodeId = null;
 			return;
 		}
-		connectionFilterNodeId =
-			connectionFilterNodeId === selectedGraphNodeId ? null : selectedGraphNodeId;
+		libraryNavigationState.connectionFilterNodeId =
+			libraryNavigationState.connectionFilterNodeId === selectedGraphNodeId
+				? null
+				: selectedGraphNodeId;
 	}
 
 	function openIssuesDialog(target?: ActivationTarget) {
@@ -621,15 +633,15 @@
 
 	function selectPluginUpdate(update: PluginUpdateItem) {
 		closeUpdatesDialog();
-		view = 'map';
+		libraryNavigationState.view = 'map';
 		selectNode(`plugin:${update.pluginId}`);
 	}
 
 	function selectIssue(issue: IssueItem, target: ActivationTarget) {
-		view = 'map';
-		searchQuery = '';
+		libraryNavigationState.view = 'map';
+		libraryNavigationState.searchQuery = '';
 		closeIssuesDialog();
-		focusNodeId = issue.nodeId;
+		libraryNavigationState.focusNodeId = issue.nodeId;
 		selectNode(issue.nodeId);
 		const install = activationInstalls.find((item) => item.id === target.installId);
 		if (install) openTargetIssueDetails(install, target);
@@ -917,6 +929,14 @@
 	}
 
 	async function loadInitialDiscovery() {
+		const cachedDiscovery = readLibraryDiscoveryCache();
+		if (cachedDiscovery) {
+			snapshotLoadState = 'ready';
+			applyDiscovery(cachedDiscovery);
+			reconcileSelectedNode(cachedDiscovery);
+			return;
+		}
+
 		snapshotLoadState = 'loading';
 		try {
 			const snapshot = await fetchHoudiniDiscoverySnapshot();
@@ -983,12 +1003,12 @@
 
 	<main class="page-main mx-auto">
 		<ActivationWorkspace
-			{view}
-			{searchQuery}
-			{selectedNodeId}
+			view={libraryNavigationState.view}
+			searchQuery={libraryNavigationState.searchQuery}
+			selectedNodeId={libraryNavigationState.selectedNodeId}
 			{selectedGraphNodeId}
-			{connectionFilterNodeId}
-			{focusNodeId}
+			connectionFilterNodeId={libraryNavigationState.connectionFilterNodeId}
+			focusNodeId={libraryNavigationState.focusNodeId}
 			{isScanActive}
 			{scanStages}
 			{scanStatuses}
@@ -1035,11 +1055,11 @@
 			onOpenIssues={() => openIssuesDialog()}
 			onOpenUpdates={openUpdatesDialog}
 			onToggleConnectionFilter={toggleConnectionFilter}
-			onClearSearch={() => (searchQuery = '')}
-			onSearchQueryChange={(value) => (searchQuery = value)}
+			onClearSearch={() => (libraryNavigationState.searchQuery = '')}
+			onSearchQueryChange={(value) => (libraryNavigationState.searchQuery = value)}
 			onSelectNode={selectNode}
-			onFocusComplete={() => (focusNodeId = null)}
-			onViewChange={(nextView) => (view = nextView)}
+			onFocusComplete={() => (libraryNavigationState.focusNodeId = null)}
+			onViewChange={(nextView) => (libraryNavigationState.view = nextView)}
 			onRescanPluginConfigs={() => void rescanSelectedPluginConfigs()}
 			onRescanInstall={() => rescanSelectedInstall()}
 			onSyncGit={() => void syncSelectedPluginGit()}

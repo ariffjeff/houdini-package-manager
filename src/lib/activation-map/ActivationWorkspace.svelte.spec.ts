@@ -1,6 +1,7 @@
 import { page } from 'vitest/browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { resetLibraryDiscoveryCache } from '../library-state.svelte';
 import Page from '../../routes/+page.svelte';
 
 let scanRequests: Array<{ stage: string; pluginIds?: string[] }> = [];
@@ -185,6 +186,7 @@ const pluginDiscoveryCandidate = {
 };
 
 afterEach(() => {
+	resetLibraryDiscoveryCache();
 	localStorage.removeItem('hpm:last-selected-node');
 	localStorage.removeItem('hpm:activity-history');
 	localStorage.removeItem('hpm:activity-settings');

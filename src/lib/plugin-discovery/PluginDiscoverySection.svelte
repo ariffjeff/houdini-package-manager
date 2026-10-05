@@ -12,41 +12,28 @@
 	} from '@lucide/svelte';
 	import GithubLogo from '$lib/assets/GithubLogo.svelte';
 	import type { HoudiniInstall } from '$lib/houdini/types';
-	import { fetchPluginCatalog, resolvePluginRepositories } from './client';
-	import type {
-		PluginCatalogEntry,
-		PluginDiscoveryCandidate,
-		PluginDiscoveryResult,
-		PluginDiscoveryVersion
-	} from './types';
+	import {
+		clearResolvedRepositories,
+		loadPluginCatalog,
+		pluginDiscoveryState,
+		resolveRepositories
+	} from './discovery-state.svelte';
+	import type { PluginDiscoveryCandidate, PluginDiscoveryVersion } from './types';
 
 	let { installs, onInstallCandidate } = $props<{
 		installs: HoudiniInstall[];
 		onInstallCandidate: (candidate: PluginDiscoveryCandidate) => void;
 	}>();
 
-	type CatalogState = 'loading' | 'ready' | 'error';
-	type ResolveState = 'idle' | 'loading' | 'error';
-
-	let catalog = $state<PluginCatalogEntry[]>([]);
-	let catalogState = $state<CatalogState>('loading');
-	let catalogError = $state('');
-	let repositoryInput = $state('');
-	let results = $state<PluginDiscoveryResult[]>([]);
-	let resolveState = $state<ResolveState>('idle');
-	let resolveError = $state('');
-	let selectedVersions = $state<Record<string, string>>({});
 	let catalogSearch = $state('');
 	let catalogPage = $state(1);
 	const catalogPageSize = 40;
-	let resolveController: AbortController | null = null;
-	let resolveRequestId = 0;
 
 	let filteredCatalog = $derived.by(() => {
 		const query = catalogSearch.trim().toLocaleLowerCase();
-		if (!query) return catalog;
+		if (!query) return pluginDiscoveryState.catalog;
 
-		return catalog.filter((entry) =>
+		return pluginDiscoveryState.catalog.filter((entry) =>
 			[
 				entry.name,
 				entry.description,
@@ -71,92 +58,43 @@
 	);
 
 	onMount(() => {
-		let active = true;
-
-		void loadCatalog();
-
-		return () => {
-			active = false;
-			resolveController?.abort();
-		};
-
-		async function loadCatalog() {
-			try {
-				const response = await fetchPluginCatalog();
-				if (!active) return;
-				catalog = response.plugins;
-				catalogState = 'ready';
-			} catch (error) {
-				if (!active) return;
-				catalogError = error instanceof Error ? error.message : String(error);
-				catalogState = 'error';
-			}
-		}
+		void loadPluginCatalog();
 	});
 
-	async function resolveRepositories() {
+	async function handleResolveRepositories() {
 		const urls = [
 			...new Set(
-				repositoryInput
+				pluginDiscoveryState.repositoryInput
 					.split(/\r?\n/)
 					.map((url) => url.trim())
 					.filter(Boolean)
 			)
 		];
 		if (!urls.length) {
-			resolveError = 'Enter at least one public GitHub repository URL.';
-			resolveState = 'error';
-			results = [];
+			pluginDiscoveryState.resolveError = 'Enter at least one public GitHub repository URL.';
+			pluginDiscoveryState.resolveState = 'error';
+			pluginDiscoveryState.results = [];
 			return;
 		}
 
-		resolveController?.abort();
-		resolveController = new AbortController();
-		const requestId = ++resolveRequestId;
-		resolveState = 'loading';
-		resolveError = '';
-		results = urls.map((input) => ({ input }));
-		selectedVersions = {};
-
-		try {
-			const response = await resolvePluginRepositories(urls, resolveController.signal);
-			if (requestId !== resolveRequestId) return;
-			results = response.results;
-			selectedVersions = Object.fromEntries(
-				response.results.flatMap(({ candidate }) =>
-					candidate?.versions[0] ? [[candidate.id, candidate.versions[0].value]] : []
-				)
-			);
-			resolveState = 'idle';
-		} catch (error) {
-			if (error instanceof DOMException && error.name === 'AbortError') return;
-			if (requestId !== resolveRequestId) return;
-			resolveState = 'error';
-			resolveError = error instanceof Error ? error.message : String(error);
-			results = urls.map((input) => ({ input, error: resolveError }));
-		} finally {
-			if (requestId === resolveRequestId) resolveController = null;
-		}
+		await resolveRepositories(urls);
 	}
 
 	function clearCandidates() {
-		resolveController?.abort();
-		resolveController = null;
-		resolveRequestId += 1;
-		results = [];
-		selectedVersions = {};
-		resolveError = '';
-		resolveState = 'idle';
+		clearResolvedRepositories();
 	}
 
 	function selectVersion(candidateId: string, event: Event) {
-		selectedVersions[candidateId] = (event.currentTarget as HTMLSelectElement).value;
+		pluginDiscoveryState.selectedVersions[candidateId] = (
+			event.currentTarget as HTMLSelectElement
+		).value;
 	}
 
 	function selectedVersion(
 		candidate: PluginDiscoveryCandidate
 	): PluginDiscoveryVersion | undefined {
-		const selectedValue = selectedVersions[candidate.id] ?? candidate.versions[0]?.value;
+		const selectedValue =
+			pluginDiscoveryState.selectedVersions[candidate.id] ?? candidate.versions[0]?.value;
 		return candidate.versions.find((version) => version.value === selectedValue);
 	}
 
@@ -167,12 +105,12 @@
 	}
 
 	function addCatalogRepository(repositoryUrl: string) {
-		const urls = repositoryInput
+		const urls = pluginDiscoveryState.repositoryInput
 			.split(/\r?\n/)
 			.map((url) => url.trim())
 			.filter(Boolean);
 		if (!urls.includes(repositoryUrl)) urls.push(repositoryUrl);
-		repositoryInput = urls.join('\n');
+		pluginDiscoveryState.repositoryInput = urls.join('\n');
 	}
 
 	function resetCatalogSearch() {
@@ -205,33 +143,37 @@
 		<label for="repository-input">Public Repository URLs</label>
 		<textarea
 			id="repository-input"
-			bind:value={repositoryInput}
+			bind:value={pluginDiscoveryState.repositoryInput}
 			placeholder="https://github.com/owner/repository"
 			rows="4"></textarea>
 		<div class="mt-2.5">
 			<button
 				type="button"
 				class="resolve-button"
-				onclick={resolveRepositories}
-				disabled={resolveState === 'loading'}
+				onclick={handleResolveRepositories}
+				disabled={pluginDiscoveryState.resolveState === 'loading'}
 			>
-				{#if resolveState === 'loading'}
+				{#if pluginDiscoveryState.resolveState === 'loading'}
 					<LoaderCircle class="spin" size={18} strokeWidth={1.8} aria-hidden="true" /> Resolving...
 				{:else}
 					<Search size={18} strokeWidth={1.8} aria-hidden="true" /> Resolve repositories
 				{/if}
 			</button>
 		</div>
-		{#if resolveError}
+		{#if pluginDiscoveryState.resolveError}
 			<p class="state-message error-message" role="alert">
 				<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-				{resolveError}
+				{pluginDiscoveryState.resolveError}
 			</p>
 		{/if}
 
-		{#if results.length}
+		{#if pluginDiscoveryState.results.length}
 			<div class="result-toolbar">
-				<span class="count-label">{results.length} candidate{results.length === 1 ? '' : 's'}</span>
+				<span class="count-label"
+					>{pluginDiscoveryState.results.length} candidate{pluginDiscoveryState.results.length === 1
+						? ''
+						: 's'}</span
+				>
 				<button
 					type="button"
 					class="clear-button"
@@ -243,7 +185,7 @@
 				</button>
 			</div>
 			<div class="result-list" aria-live="polite">
-				{#each results as result (result.input)}
+				{#each pluginDiscoveryState.results as result (result.input)}
 					{@const candidate = result.candidate}
 					<article class:error-result={Boolean(result.error)} class="result-row">
 						<div class="result-heading">
@@ -261,7 +203,8 @@
 										{#if candidate.versions.length}
 											<select
 												id={`version-${candidate.id}`}
-												value={selectedVersions[candidate.id] ?? candidate.versions[0].value}
+												value={pluginDiscoveryState.selectedVersions[candidate.id] ??
+													candidate.versions[0].value}
 												onchange={(event) => selectVersion(candidate.id, event)}
 											>
 												{#each candidate.versions as version (version.value)}
@@ -351,21 +294,23 @@
 			<div>
 				<h3 id="curated-catalog-title">Curated</h3>
 			</div>
-			{#if catalogState === 'ready'}
-				<span class="count-label">{filteredCatalog.length} of {catalog.length} packages</span>
+			{#if pluginDiscoveryState.catalogState === 'ready'}
+				<span class="count-label"
+					>{filteredCatalog.length} of {pluginDiscoveryState.catalog.length} packages</span
+				>
 			{/if}
 		</div>
 
-		{#if catalogState === 'loading'}
+		{#if pluginDiscoveryState.catalogState === 'loading'}
 			<p class="state-message" role="status">
 				<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Loading curated packages...
 			</p>
-		{:else if catalogState === 'error'}
+		{:else if pluginDiscoveryState.catalogState === 'error'}
 			<p class="state-message error-message" role="alert">
 				<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-				{catalogError}
+				{pluginDiscoveryState.catalogError}
 			</p>
-		{:else if catalog.length === 0}
+		{:else if pluginDiscoveryState.catalog.length === 0}
 			<p class="state-message">The curated catalog is empty.</p>
 		{:else}
 			<div class="catalog-toolbar">
