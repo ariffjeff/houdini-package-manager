@@ -22,11 +22,17 @@ import type {
 const execFileAsync = promisify(execFile);
 const commandTimeout = 120_000;
 
+type InstalledProvenance = {
+	commit: string;
+	manifestBlobSha: string;
+};
+
 type InstallablePlugin = Pick<PluginRecord, 'id' | 'name' | 'packageFile' | 'repositoryUrl'> & {
 	availableVersions?: string[];
 	gitCommit?: string | null;
 	pinnedCommit?: string;
 	manifestBlobSha?: string;
+	allowVerifiedVersions?: boolean;
 };
 
 export { expandWindowsShortPaths } from './hconfig.js';
@@ -42,12 +48,12 @@ export async function installHoudiniPlugin(
 	const plugin = await resolveInstallablePlugin(request, current.plugins);
 	if (!plugin.repositoryUrl)
 		throw new Error(`${plugin.name} does not have a discoverable Git repository.`);
-	if (
-		plugin.pinnedCommit
-			? plugin.pinnedCommit !== request.version
-			: !(plugin.availableVersions ?? []).includes(request.version) &&
-				plugin.gitCommit !== request.version
-	) {
+	const requestedVersionIsAvailable = (plugin.availableVersions ?? []).includes(request.version);
+	const versionIsAllowed = plugin.pinnedCommit
+		? request.version === plugin.pinnedCommit ||
+			(plugin.allowVerifiedVersions && requestedVersionIsAvailable)
+		: requestedVersionIsAvailable || plugin.gitCommit === request.version;
+	if (!versionIsAllowed) {
 		throw new Error(
 			plugin.pinnedCommit
 				? `${plugin.name} can only be installed from its approved commit.`
@@ -58,7 +64,7 @@ export async function installHoudiniPlugin(
 	const installs = selectInstalls(current.installs, request);
 	if (!installs.length) throw new Error('No Houdini install matched the requested scope.');
 	const repositoryPath = path.normalize(request.destinationPath);
-	await ensureGitCheckout(
+	const provenance = await ensureGitCheckout(
 		plugin.repositoryUrl,
 		request.version,
 		repositoryPath,
@@ -81,7 +87,14 @@ export async function installHoudiniPlugin(
 		);
 		const packagePath =
 			existingTarget?.packagePath ?? path.join(packageDirectory, plugin.packageFile);
-		await writeManagedPackage(packagePath, plugin, request.version, repositoryPath, signal);
+		await writeManagedPackage(
+			packagePath,
+			plugin,
+			request.version,
+			repositoryPath,
+			provenance,
+			signal
+		);
 	}
 
 	throwIfAborted(signal);
@@ -90,8 +103,11 @@ export async function installHoudiniPlugin(
 		installs.length === current.installs.length
 			? 'all detected Houdini installs'
 			: installs.map((install) => install.label).join(', ');
+	const verifiedCommitMessage = provenance.commit
+		? ` Verified commit ${provenance.commit.slice(0, 7)}.`
+		: '';
 	return {
-		message: `${plugin.name} ${request.version} installed for ${targetLabel} at ${repositoryPath}.`,
+		message: `${plugin.name} ${request.version} installed for ${targetLabel} at ${repositoryPath}.${verifiedCommitMessage}`,
 		discovery
 	};
 }
@@ -189,7 +205,8 @@ async function resolveInstallablePlugin(
 		repositoryUrl: candidate.repositoryUrl,
 		availableVersions: candidate.versions.map((version) => version.value),
 		pinnedCommit: candidate.pinnedCommit,
-		manifestBlobSha: candidate.manifestBlobSha
+		manifestBlobSha: candidate.manifestBlobSha,
+		allowVerifiedVersions: true
 	};
 }
 
@@ -225,7 +242,7 @@ async function ensureGitCheckout(
 	pinnedCommit?: string,
 	manifestBlobSha?: string,
 	packageFile?: string
-): Promise<void> {
+): Promise<InstalledProvenance> {
 	throwIfAborted(signal);
 	const destinationExists = await isDirectory(destination);
 	if (destinationExists) {
@@ -256,23 +273,26 @@ async function ensureGitCheckout(
 	}
 
 	await runGitRequired(destination, ['checkout', '--detach', version], signal);
+	const checkedOutCommit = await runGitRequired(destination, ['rev-parse', 'HEAD'], signal);
 	if (pinnedCommit) {
-		const checkedOutCommit = await runGitRequired(destination, ['rev-parse', 'HEAD'], signal);
 		if (checkedOutCommit.toLowerCase() !== pinnedCommit.toLowerCase()) {
 			throw new Error('The curated plugin checkout did not match its approved commit.');
 		}
 	}
-	if (manifestBlobSha && packageFile) {
-		const manifestCommitPath = `HEAD:${packageFile.replaceAll('\\', '/')}`;
-		const checkedOutManifest = await runGitRequired(
-			destination,
-			['rev-parse', manifestCommitPath],
-			signal
-		);
+	if (!packageFile) throw new Error('The installed plugin package file is required.');
+	const manifestCommitPath = `HEAD:${packageFile.replaceAll('\\', '/')}`;
+	const checkedOutManifest = await runGitRequired(
+		destination,
+		['rev-parse', manifestCommitPath],
+		signal
+	);
+	if (manifestBlobSha) {
 		if (checkedOutManifest.toLowerCase() !== manifestBlobSha.toLowerCase()) {
 			throw new Error('The curated plugin manifest did not match its approved content.');
 		}
 	}
+
+	return { commit: checkedOutCommit, manifestBlobSha: checkedOutManifest };
 }
 
 async function writeManagedPackage(
@@ -280,6 +300,7 @@ async function writeManagedPackage(
 	plugin: Pick<PluginRecord, 'name' | 'packageFile' | 'repositoryUrl'>,
 	version: string,
 	repositoryPath: string,
+	provenance: InstalledProvenance,
 	signal?: AbortSignal
 ): Promise<void> {
 	throwIfAborted(signal);
@@ -305,7 +326,9 @@ async function writeManagedPackage(
 	packageValue.hpm = {
 		managed: true,
 		repository: plugin.repositoryUrl,
-		version
+		version,
+		...(provenance.commit ? { commit: provenance.commit } : {}),
+		...(provenance.manifestBlobSha ? { manifestBlobSha: provenance.manifestBlobSha } : {})
 	};
 	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
 }

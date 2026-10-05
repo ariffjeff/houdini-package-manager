@@ -1,5 +1,5 @@
 import type { InstallPluginRequest } from '$lib/houdini/types';
-import type { PluginDiscoveryVersion } from '$lib/plugin-discovery/types';
+import type { PluginDiscoverySource, PluginDiscoveryVersion } from '$lib/plugin-discovery/types';
 
 export type InstallDialogState = 'idle' | 'working' | 'success' | 'error';
 
@@ -15,6 +15,9 @@ export type InstallDialogPlugin = {
 	name: string;
 	repositoryUrl?: string | null;
 	packageFile?: string;
+	provenanceSource?: PluginDiscoverySource;
+	pinnedCommit?: string;
+	manifestBlobSha?: string;
 };
 
 export type InstallDialogRequest = InstallPluginRequest;

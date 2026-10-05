@@ -561,7 +561,11 @@ describe('Houdini plugin actions', () => {
 			) as Record<string, unknown>;
 			expect(packageValue).toMatchObject({
 				hpath: path.normalize(destinationPath),
-				hpm: { managed: true, repository: repositoryUrl, version: 'v1.0.0' }
+				hpm: {
+					managed: true,
+					repository: repositoryUrl,
+					version: 'v1.0.0'
+				}
 			});
 			expect(packageValue.version).toBeUndefined();
 			expect(packageValue.path).toBeUndefined();
@@ -630,6 +634,15 @@ describe('Houdini plugin actions', () => {
 			destinationPath
 		});
 
+		const packageValue = JSON.parse(
+			await readFile(path.join(packageDirectory, 'MOPS.json'), 'utf8')
+		) as { hpm: Record<string, unknown> };
+		expect(packageValue.hpm).toMatchObject({
+			version: pinnedCommit,
+			commit: pinnedCommit,
+			manifestBlobSha
+		});
+
 		expect(childProcessMocks.execFile).toHaveBeenNthCalledWith(
 			3,
 			'git',
@@ -646,7 +659,7 @@ describe('Houdini plugin actions', () => {
 		);
 	});
 
-	it('rejects mutable versions for curated plugins before checkout', async () => {
+	it('keeps plugin-id installs pinned to the approved curated commit', async () => {
 		const repositoryUrl = 'https://github.com/toadstorm/MOPS';
 		const discovery = {
 			installs: [],

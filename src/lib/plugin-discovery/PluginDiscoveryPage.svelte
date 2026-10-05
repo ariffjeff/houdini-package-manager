@@ -32,7 +32,10 @@
 					id: pluginDiscoveryState.installCandidate.id,
 					name: pluginDiscoveryState.installCandidate.name,
 					repositoryUrl: pluginDiscoveryState.installCandidate.repositoryUrl,
-					packageFile: pluginDiscoveryState.installCandidate.packageFile
+					packageFile: pluginDiscoveryState.installCandidate.packageFile,
+					provenanceSource: pluginDiscoveryState.installCandidate.source,
+					pinnedCommit: pluginDiscoveryState.installCandidate.pinnedCommit,
+					manifestBlobSha: pluginDiscoveryState.installCandidate.manifestBlobSha
 				}
 			: undefined
 	);

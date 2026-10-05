@@ -8,6 +8,7 @@
 		Package,
 		Plus,
 		Search,
+		ShieldCheck,
 		X
 	} from '@lucide/svelte';
 	import GithubLogo from '$lib/assets/GithubLogo.svelte';
@@ -124,6 +125,10 @@
 	function nextCatalogPage() {
 		catalogPage = Math.min(catalogPageCount, currentCatalogPage + 1);
 	}
+
+	function shortSha(value: string) {
+		return value.slice(0, 7);
+	}
 </script>
 
 <section id="discover" class="discovery-section" aria-labelledby="plugin-discovery-title">
@@ -232,6 +237,7 @@
 						</div>
 
 						{#if candidate}
+							{@const selected = selectedVersion(candidate)}
 							<div class="candidate-body">
 								<div class="candidate-heading">
 									<div>
@@ -257,6 +263,24 @@
 										>
 									</div>
 								</div>
+								{#if candidate.source === 'catalog' && candidate.pinnedCommit && candidate.manifestBlobSha}
+									<div class="provenance-summary" role="note">
+										<ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+										<div>
+											<strong>Curated provenance</strong>
+											<p>
+												Selected tag <code>{selected?.value ?? 'Choose a tag'}</code> is checked
+												against the approved commit
+												<code title={candidate.pinnedCommit}
+													>{shortSha(candidate.pinnedCommit)}</code
+												>. The package manifest is checked against approved blob SHA
+												<code title={candidate.manifestBlobSha}
+													>{shortSha(candidate.manifestBlobSha)}</code
+												>.
+											</p>
+										</div>
+									</div>
+								{/if}
 								{#if candidate.warnings.length}
 									<div class="warning-list" role="note">
 										<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -954,6 +978,36 @@
 		display: grid;
 		gap: 10px;
 		padding: 11px 13px 10px;
+	}
+
+	.provenance-summary {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 9px 10px;
+		border: 1px solid rgba(57, 155, 130, 0.32);
+		border-radius: 5px;
+		background: rgba(57, 155, 130, 0.06);
+		color: var(--text-muted);
+		font-size: 12px;
+		line-height: 1.45;
+	}
+
+	.provenance-summary :global(svg) {
+		flex: 0 0 auto;
+		margin-top: 1px;
+		color: #55c4a5;
+	}
+
+	.provenance-summary strong {
+		display: block;
+		margin-bottom: 2px;
+		color: var(--text);
+		font-weight: 650;
+	}
+
+	.provenance-summary p {
+		margin: 0;
 	}
 
 	.candidate-heading {

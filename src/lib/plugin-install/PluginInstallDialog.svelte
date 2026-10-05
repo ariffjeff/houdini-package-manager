@@ -1,6 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { ChevronDown, Tag, TriangleAlert, X } from '@lucide/svelte';
+	import {
+		ChevronDown,
+		FileCheck2,
+		GitCommitHorizontal,
+		ShieldCheck,
+		Tag,
+		TriangleAlert,
+		X
+	} from '@lucide/svelte';
 	import type { ActivationTarget } from '$lib/activation-map/types';
 	import { compareVersionLabels } from '$lib/activation-map/plugin-detail';
 	import type { HoudiniInstall } from '$lib/houdini/types';
@@ -235,6 +243,10 @@
 		};
 
 		void onInstall(request, options);
+	}
+
+	function shortSha(value: string) {
+		return value.slice(0, 7);
 	}
 </script>
 
@@ -481,6 +493,51 @@
 				</div>
 				<code>{requestedDestination || 'Choose a destination folder'}</code>
 			</div>
+			{#if plugin.provenanceSource === 'catalog' && plugin.pinnedCommit && plugin.manifestBlobSha}
+				<div class="install-provenance curated-provenance" role="note">
+					<div class="install-provenance-heading">
+						<ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+						<strong>Curated provenance</strong>
+					</div>
+					<div class="install-provenance-grid">
+						<div>
+							<span>Selected tag</span>
+							<code>{selectedVersion?.value ?? 'Choose a tag'}</code>
+						</div>
+						<div>
+							<span
+								><GitCommitHorizontal size={14} strokeWidth={1.8} aria-hidden="true" /> Approved commit</span
+							>
+							<code title={plugin.pinnedCommit}>{shortSha(plugin.pinnedCommit)}</code>
+						</div>
+						<div>
+							<span
+								><FileCheck2 size={14} strokeWidth={1.8} aria-hidden="true" /> Manifest file</span
+							>
+							<code>{plugin.packageFile ?? 'package manifest'}</code>
+						</div>
+						<div>
+							<span>Approved blob SHA</span>
+							<code title={plugin.manifestBlobSha}>{shortSha(plugin.manifestBlobSha)}</code>
+						</div>
+					</div>
+					<p>
+						Installation verifies that the selected tag resolves to the approved commit before
+						writing files.
+					</p>
+				</div>
+			{:else if plugin.provenanceSource === 'github'}
+				<div class="install-provenance repository-provenance" role="note">
+					<div class="install-provenance-heading">
+						<GitCommitHorizontal size={17} strokeWidth={1.8} aria-hidden="true" />
+						<strong>Repository provenance</strong>
+					</div>
+					<p>
+						The checked-out commit and manifest hash will be recorded after checkout. This
+						repository is not pre-approved by the curated catalog.
+					</p>
+				</div>
+			{/if}
 			{#if message}
 				<p class={['install-message', `is-${installState}`]} aria-live="polite">{message}</p>
 			{/if}
@@ -949,6 +1006,65 @@
 		line-height: 1.4;
 	}
 
+	.install-provenance {
+		display: grid;
+		gap: 9px;
+		padding: 11px 12px;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: rgba(255, 255, 255, 0.025);
+		color: var(--text-muted);
+		font-size: 12px;
+		line-height: 1.45;
+	}
+
+	.curated-provenance {
+		border-color: rgba(57, 155, 130, 0.32);
+		background: rgba(57, 155, 130, 0.06);
+	}
+
+	.install-provenance-heading,
+	.install-provenance-grid span {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.install-provenance-heading {
+		color: var(--text);
+	}
+
+	.install-provenance-heading :global(svg) {
+		color: #55c4a5;
+	}
+
+	.install-provenance-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px 14px;
+	}
+
+	.install-provenance-grid > div {
+		display: grid;
+		gap: 3px;
+		min-width: 0;
+	}
+
+	.install-provenance-grid span {
+		color: var(--text-dim);
+		font-size: 11px;
+		text-transform: uppercase;
+	}
+
+	.install-provenance p {
+		margin: 0;
+	}
+
+	.install-provenance code {
+		max-width: 100%;
+		overflow-wrap: anywhere;
+	}
+
 	.install-message {
 		margin: 0;
 		color: var(--text-muted);
@@ -1043,6 +1159,10 @@
 		.install-dialog-actions {
 			align-items: stretch;
 			flex-direction: column-reverse;
+		}
+
+		.install-provenance-grid {
+			grid-template-columns: minmax(0, 1fr);
 		}
 
 		.install-dialog-actions button {

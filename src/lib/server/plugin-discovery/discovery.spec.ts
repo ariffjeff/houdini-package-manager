@@ -56,6 +56,41 @@ describe('plugin repository discovery', () => {
 		});
 	});
 
+	it('keeps curated repository tags visible while retaining pinned provenance', async () => {
+		const response = await resolvePluginRepositories(
+			['https://github.com/toadstorm/MOPS'],
+			async (input) => {
+				const url = input.toString();
+				if (url.endsWith('/repos/toadstorm/MOPS')) {
+					return Response.json({
+						name: 'MOPS',
+						owner: { login: 'toadstorm' },
+						description: 'A motion graphics toolkit for Houdini.',
+						default_branch: 'master',
+						license: { spdx_id: 'MIT' }
+					});
+				}
+				if (url.includes('/tags?')) {
+					return Response.json([{ name: 'v2.0.0' }, { name: 'v1.9.0' }]);
+				}
+				if (url.includes('/git/trees/')) {
+					return Response.json({ tree: [{ path: 'MOPS.json', type: 'blob' }] });
+				}
+				return Promise.reject(new Error(`Unexpected request: ${url}`));
+			}
+		);
+
+		expect(response.results[0].candidate).toMatchObject({
+			source: 'catalog',
+			pinnedCommit: 'c99890df1b007229ee46e08bd61a346da2702600',
+			manifestBlobSha: 'ba2c6514d0762330300394ab87b6b8f69bd9766d',
+			versions: [
+				{ value: 'v2.0.0', kind: 'tag', isLatest: true },
+				{ value: 'v1.9.0', kind: 'tag', isLatest: false }
+			]
+		});
+	});
+
 	it('returns independent errors for malformed repositories', async () => {
 		const response = await resolvePluginRepositories(
 			['https://github.com/example/toolkit', 'https://gitlab.com/example/toolkit'],
