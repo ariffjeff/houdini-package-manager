@@ -874,6 +874,7 @@
 		align-items: center;
 		justify-content: center;
 		gap: 7px;
+		height: 32px;
 		min-height: 32px;
 		padding: 7px 10px;
 		border: 1px solid var(--line-strong);
@@ -916,6 +917,11 @@
 		resize: vertical;
 		font-size: 13px;
 		line-height: 1.5;
+	}
+
+	select:hover {
+		border-color: var(--line-strong);
+		background: rgba(19, 30, 31, 0.9);
 	}
 
 	textarea:focus-visible,
@@ -1083,7 +1089,9 @@
 	}
 
 	select {
-		min-height: 30px;
+		height: 32px;
+		min-height: 32px;
+		box-sizing: border-box;
 		padding: 4px 8px;
 		font-size: 12px;
 	}
