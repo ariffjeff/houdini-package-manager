@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { ActivationTarget, PluginRecord } from '$lib/activation-map/types';
 	import type { HoudiniInstall } from '$lib/houdini/types';
 	import {
 		fetchHoudiniDiscovery,
@@ -23,22 +24,28 @@
 	import type { PluginDiscoveryCandidate } from './types';
 
 	let installs = $state<HoudiniInstall[]>([]);
+	let plugins = $state<PluginRecord[]>([]);
+	let targets = $state<ActivationTarget[]>([]);
 	let loadingState = $state<'loading' | 'ready' | 'error'>('loading');
 	let loadingError = $state('');
 
-	let installPlugin = $derived<InstallDialogPlugin | undefined>(
-		pluginDiscoveryState.installCandidate
-			? {
-					id: pluginDiscoveryState.installCandidate.id,
-					name: pluginDiscoveryState.installCandidate.name,
-					repositoryUrl: pluginDiscoveryState.installCandidate.repositoryUrl,
-					packageFile: pluginDiscoveryState.installCandidate.packageFile,
-					provenanceSource: pluginDiscoveryState.installCandidate.source,
-					pinnedCommit: pluginDiscoveryState.installCandidate.pinnedCommit,
-					manifestBlobSha: pluginDiscoveryState.installCandidate.manifestBlobSha
-				}
-			: undefined
-	);
+	let installPlugin = $derived.by<InstallDialogPlugin | undefined>(() => {
+		const candidate = pluginDiscoveryState.installCandidate;
+		if (!candidate) return undefined;
+
+		const installedPlugin = plugins.find((plugin) =>
+			sameRepositoryUrl(plugin.repositoryUrl, candidate.repositoryUrl)
+		);
+		return {
+			id: installedPlugin?.id ?? candidate.id,
+			name: candidate.name,
+			repositoryUrl: candidate.repositoryUrl,
+			packageFile: candidate.packageFile,
+			provenanceSource: candidate.source,
+			pinnedCommit: candidate.pinnedCommit,
+			manifestBlobSha: candidate.manifestBlobSha
+		};
+	});
 	let installVersionOptions = $derived.by<InstallVersionOption[]>(() => {
 		const candidate = pluginDiscoveryState.installCandidate;
 		if (!candidate) return [];
@@ -71,12 +78,27 @@
 		try {
 			const snapshot = await fetchHoudiniDiscoverySnapshot();
 			const response = snapshot ?? (await fetchHoudiniDiscovery());
-			installs = response.installs;
+			setDiscoveryState(response.installs, response.plugins, response.targets);
 			loadingState = 'ready';
 		} catch (error) {
 			loadingState = 'error';
 			loadingError = error instanceof Error ? error.message : String(error);
 		}
+	}
+
+	function setDiscoveryState(
+		nextInstalls: HoudiniInstall[],
+		nextPlugins: PluginRecord[],
+		nextTargets: ActivationTarget[]
+	) {
+		installs = nextInstalls;
+		plugins = nextPlugins;
+		targets = nextTargets;
+	}
+
+	function sameRepositoryUrl(left: string | null | undefined, right: string | null | undefined) {
+		if (!left || !right) return false;
+		return left.trim().toLowerCase() === right.trim().toLowerCase();
 	}
 
 	function openInstallDialog(candidate: PluginDiscoveryCandidate) {
@@ -112,7 +134,11 @@
 		setDiscoveryInstallController(controller);
 		try {
 			const result = await installHoudiniPlugin(request, controller.signal);
-			installs = result.discovery.installs;
+			setDiscoveryState(
+				result.discovery.installs,
+				result.discovery.plugins,
+				result.discovery.targets
+			);
 			pluginDiscoveryState.installState = 'success';
 			const messages = [result.message];
 			if (options.openInstalledFolder) {
@@ -183,7 +209,7 @@
 		plugin={installPlugin}
 		versions={installVersionOptions}
 		{installs}
-		targets={[]}
+		{targets}
 		remoteSourceOptions={hpmPluginDestination ? [hpmPluginDestination] : []}
 		{hpmPluginDestination}
 		installState={pluginDiscoveryState.installState}
