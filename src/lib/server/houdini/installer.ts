@@ -4,9 +4,11 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { discoverHoudiniWorkspace } from './discovery.js';
 import { applyPackageConfigFixes } from '../../houdini/package-config-fixes.js';
+import { getPluginCatalog } from '../../plugin-discovery/catalog.js';
 import { runHconfig } from './hconfig.js';
 import { runPluginAction, writableUserPackageDirectory } from './plugin-actions.js';
 import { migratePluginConfigs } from './plugin-migrator.js';
+import { parseGithubRepositoryUrl } from '../plugin-discovery/github.js';
 import { resolvePluginRepository } from '../plugin-discovery/discovery.js';
 import type {
 	HoudiniInstall,
@@ -23,6 +25,8 @@ const commandTimeout = 120_000;
 type InstallablePlugin = Pick<PluginRecord, 'id' | 'name' | 'packageFile' | 'repositoryUrl'> & {
 	availableVersions?: string[];
 	gitCommit?: string | null;
+	pinnedCommit?: string;
+	manifestBlobSha?: string;
 };
 
 export { expandWindowsShortPaths } from './hconfig.js';
@@ -39,16 +43,30 @@ export async function installHoudiniPlugin(
 	if (!plugin.repositoryUrl)
 		throw new Error(`${plugin.name} does not have a discoverable Git repository.`);
 	if (
-		!(plugin.availableVersions ?? []).includes(request.version) &&
-		plugin.gitCommit !== request.version
+		plugin.pinnedCommit
+			? plugin.pinnedCommit !== request.version
+			: !(plugin.availableVersions ?? []).includes(request.version) &&
+				plugin.gitCommit !== request.version
 	) {
-		throw new Error(`${request.version} is not an available Git version for ${plugin.name}.`);
+		throw new Error(
+			plugin.pinnedCommit
+				? `${plugin.name} can only be installed from its approved commit.`
+				: `${request.version} is not an available Git version for ${plugin.name}.`
+		);
 	}
 
 	const installs = selectInstalls(current.installs, request);
 	if (!installs.length) throw new Error('No Houdini install matched the requested scope.');
 	const repositoryPath = path.normalize(request.destinationPath);
-	await ensureGitCheckout(plugin.repositoryUrl, request.version, repositoryPath, signal);
+	await ensureGitCheckout(
+		plugin.repositoryUrl,
+		request.version,
+		repositoryPath,
+		signal,
+		plugin.pinnedCommit,
+		plugin.manifestBlobSha,
+		plugin.packageFile
+	);
 
 	for (const install of installs) {
 		throwIfAborted(signal);
@@ -151,7 +169,12 @@ async function resolveInstallablePlugin(
 	if (request.pluginId) {
 		const plugin = plugins.find((candidate) => candidate.id === request.pluginId);
 		if (!plugin) throw new Error(`Plugin ${request.pluginId} was not found in the discovery scan.`);
-		return plugin;
+		const catalogEntry = findCatalogEntry(plugin.repositoryUrl);
+		return {
+			...plugin,
+			pinnedCommit: catalogEntry?.pinnedCommit,
+			manifestBlobSha: catalogEntry?.manifestBlobSha
+		};
 	}
 
 	if (!request.repositoryUrl) {
@@ -164,8 +187,22 @@ async function resolveInstallablePlugin(
 		name: candidate.name,
 		packageFile: candidate.packageFile,
 		repositoryUrl: candidate.repositoryUrl,
-		availableVersions: candidate.versions.map((version) => version.value)
+		availableVersions: candidate.versions.map((version) => version.value),
+		pinnedCommit: candidate.pinnedCommit,
+		manifestBlobSha: candidate.manifestBlobSha
 	};
+}
+
+function findCatalogEntry(repositoryUrl: string | null | undefined) {
+	if (!repositoryUrl) return undefined;
+	try {
+		const repository = parseGithubRepositoryUrl(repositoryUrl).url;
+		return getPluginCatalog().find(
+			(entry) => parseGithubRepositoryUrl(entry.repositoryUrl).url === repository
+		);
+	} catch {
+		return undefined;
+	}
 }
 
 function selectInstalls(
@@ -184,7 +221,10 @@ async function ensureGitCheckout(
 	repositoryUrl: string,
 	version: string,
 	destination: string,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	pinnedCommit?: string,
+	manifestBlobSha?: string,
+	packageFile?: string
 ): Promise<void> {
 	throwIfAborted(signal);
 	const destinationExists = await isDirectory(destination);
@@ -216,6 +256,23 @@ async function ensureGitCheckout(
 	}
 
 	await runGitRequired(destination, ['checkout', '--detach', version], signal);
+	if (pinnedCommit) {
+		const checkedOutCommit = await runGitRequired(destination, ['rev-parse', 'HEAD'], signal);
+		if (checkedOutCommit.toLowerCase() !== pinnedCommit.toLowerCase()) {
+			throw new Error('The curated plugin checkout did not match its approved commit.');
+		}
+	}
+	if (manifestBlobSha && packageFile) {
+		const manifestCommitPath = `HEAD:${packageFile.replaceAll('\\', '/')}`;
+		const checkedOutManifest = await runGitRequired(
+			destination,
+			['rev-parse', manifestCommitPath],
+			signal
+		);
+		if (checkedOutManifest.toLowerCase() !== manifestBlobSha.toLowerCase()) {
+			throw new Error('The curated plugin manifest did not match its approved content.');
+		}
+	}
 }
 
 async function writeManagedPackage(

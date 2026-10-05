@@ -13,6 +13,8 @@ export type PluginDiscoveryCandidate = {
 	id: string;
 	source: PluginDiscoverySource;
 	catalogId?: string;
+	pinnedCommit?: string;
+	manifestBlobSha?: string;
 	name: string;
 	description: string;
 	author: string;
@@ -45,6 +47,8 @@ export type ResolvePluginRepositoriesResponse = {
 
 export type PluginCatalogEntry = {
 	id: string;
+	pinnedCommit: string;
+	manifestBlobSha: string;
 	name: string;
 	description: string;
 	author: string;

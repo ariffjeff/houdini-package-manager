@@ -94,6 +94,16 @@ async function createCandidate(
 	fetcher: typeof fetch
 ): Promise<PluginDiscoveryCandidate> {
 	const packageFile = catalogEntry?.packageFile ?? (await inferPackageFile(snapshot, fetcher));
+	const versions = catalogEntry
+		? [
+				{
+					value: catalogEntry.pinnedCommit,
+					label: `Pinned commit ${catalogEntry.pinnedCommit.slice(0, 7)}`,
+					kind: 'commit' as const,
+					isLatest: true
+				}
+			]
+		: snapshot.versions;
 	const warnings: string[] = [];
 	if (!catalogEntry && snapshot.packageFiles.length > 1) {
 		warnings.push(
@@ -110,6 +120,8 @@ async function createCandidate(
 		id: `github:${snapshot.repository.owner}/${snapshot.repository.repository}`.toLowerCase(),
 		source: catalogEntry ? 'catalog' : 'github',
 		...(catalogEntry ? { catalogId: catalogEntry.id } : {}),
+		...(catalogEntry ? { pinnedCommit: catalogEntry.pinnedCommit } : {}),
+		...(catalogEntry ? { manifestBlobSha: catalogEntry.manifestBlobSha } : {}),
 		name: catalogEntry?.name ?? snapshot.displayName,
 		description: catalogEntry?.description ?? snapshot.description,
 		author: catalogEntry?.author ?? snapshot.author,
@@ -118,7 +130,7 @@ async function createCandidate(
 		owner: snapshot.repository.owner,
 		repository: snapshot.repository.repository,
 		defaultBranch: snapshot.defaultBranch,
-		versions: snapshot.versions,
+		versions,
 		packageFile: path.basename(packageFile),
 		manifestSource: catalogEntry ? 'catalog' : 'repository',
 		warnings: [...warnings],

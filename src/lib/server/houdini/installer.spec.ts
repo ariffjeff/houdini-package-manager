@@ -572,6 +572,108 @@ describe('Houdini plugin actions', () => {
 		).rejects.toThrow();
 	});
 
+	it('verifies the pinned commit and manifest for curated plugins', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-curated-install-'));
+		temporaryDirectories.push(root);
+		const packageDirectory = path.join(root, 'Documents', 'houdini21.0', 'packages');
+		const destinationPath = path.join(root, 'custom', 'MOPS');
+		await mkdir(packageDirectory, { recursive: true });
+		const installId = 'install:21.0';
+		const repositoryUrl = 'https://github.com/toadstorm/MOPS';
+		const pinnedCommit = 'c99890df1b007229ee46e08bd61a346da2702600';
+		const manifestBlobSha = 'ba2c6514d0762330300394ab87b6b8f69bd9766d';
+		const discovery = {
+			installs: [
+				{
+					id: installId,
+					label: 'Houdini 21.0',
+					version: '21.0',
+					packageDirectory,
+					packageRoots: [{ path: packageDirectory, origin: 'user' as const }]
+				}
+			],
+			plugins: [
+				{
+					id: 'package:mops',
+					name: 'MOPS',
+					packageFile: 'MOPS.json',
+					repositoryUrl,
+					availableVersions: [pinnedCommit]
+				}
+			],
+			targets: []
+		} as unknown as HoudiniDiscoveryResponse;
+		discoveryMocks.discoverHoudiniWorkspace
+			.mockResolvedValueOnce(discovery)
+			.mockResolvedValueOnce(discovery);
+		childProcessMocks.execFile.mockImplementation(
+			(
+				_command: string,
+				args: string[],
+				_options: object,
+				callback: (error: null, result: { stdout: string; stderr: string }) => void
+			) => {
+				const stdout =
+					args[0] === 'rev-parse' && args[1] === 'HEAD'
+						? pinnedCommit
+						: args[0] === 'rev-parse' && args[1] === `HEAD:MOPS.json`
+							? manifestBlobSha
+							: '';
+				callback(null, { stdout, stderr: '' });
+			}
+		);
+
+		await installHoudiniPlugin({
+			pluginId: 'package:mops',
+			version: pinnedCommit,
+			installIds: [installId],
+			destinationPath
+		});
+
+		expect(childProcessMocks.execFile).toHaveBeenNthCalledWith(
+			3,
+			'git',
+			['rev-parse', 'HEAD'],
+			expect.objectContaining({ cwd: path.normalize(destinationPath) }),
+			expect.any(Function)
+		);
+		expect(childProcessMocks.execFile).toHaveBeenNthCalledWith(
+			4,
+			'git',
+			['rev-parse', 'HEAD:MOPS.json'],
+			expect.objectContaining({ cwd: path.normalize(destinationPath) }),
+			expect.any(Function)
+		);
+	});
+
+	it('rejects mutable versions for curated plugins before checkout', async () => {
+		const repositoryUrl = 'https://github.com/toadstorm/MOPS';
+		const discovery = {
+			installs: [],
+			plugins: [
+				{
+					id: 'package:mops',
+					name: 'MOPS',
+					packageFile: 'MOPS.json',
+					repositoryUrl,
+					availableVersions: ['v1.0.0']
+				}
+			],
+			targets: []
+		} as unknown as HoudiniDiscoveryResponse;
+		discoveryMocks.discoverHoudiniWorkspace.mockResolvedValue(discovery);
+
+		await expect(
+			installHoudiniPlugin({
+				pluginId: 'package:mops',
+				version: 'v1.0.0',
+				installIds: ['install:21.0'],
+				destinationPath: path.resolve('plugins', 'MOPS')
+			})
+		).rejects.toThrow('can only be installed from its approved commit');
+		expect(childProcessMocks.execFile).not.toHaveBeenCalled();
+	});
+
 	it('updates only the selected minor-version package config without a Git scan', async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-plugin-action-'));
 		temporaryDirectories.push(root);
