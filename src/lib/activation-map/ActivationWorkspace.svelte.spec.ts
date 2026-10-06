@@ -1,8 +1,9 @@
 import { page } from 'vitest/browser';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
-import { resetLibraryDiscoveryCache } from '../library-state.svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render } from 'vitest-browser-svelte';
+import { libraryNavigationState, resetLibraryDiscoveryCache } from '../library-state.svelte';
 import Page from '../../routes/+page.svelte';
+import DiscoverPage from '../../routes/discover/+page.svelte';
 
 let scanRequests: Array<{ stage: string; pluginIds?: string[] }> = [];
 let installRequests: Array<{
@@ -33,6 +34,13 @@ let pluginActionRequests: Array<{
 let holdPluginAction = false;
 let releasePluginAction: (() => void) | null = null;
 let holdInstall = false;
+
+function ignoreResizeObserverError(event: ErrorEvent) {
+	if (event.message === 'ResizeObserver loop completed with undelivered notifications.') {
+		event.preventDefault();
+		event.stopImmediatePropagation();
+	}
+}
 
 const discoveryResponse = {
 	installs: [
@@ -185,8 +193,19 @@ const pluginDiscoveryCandidate = {
 	tags: ['github']
 };
 
-afterEach(() => {
+beforeEach(() => {
+	window.addEventListener('error', ignoreResizeObserverError, true);
+});
+
+afterEach(async () => {
+	await cleanup();
+	window.removeEventListener('error', ignoreResizeObserverError, true);
 	resetLibraryDiscoveryCache();
+	libraryNavigationState.view = 'map';
+	libraryNavigationState.searchQuery = '';
+	libraryNavigationState.selectedNodeId = null;
+	libraryNavigationState.connectionFilterNodeId = null;
+	libraryNavigationState.focusNodeId = null;
 	localStorage.removeItem('hpm:last-selected-node');
 	localStorage.removeItem('hpm:activity-history');
 	localStorage.removeItem('hpm:activity-settings');
@@ -402,9 +421,11 @@ it('opens the Plugin Migrator and copies all available plugins to selected insta
 		]
 	} as typeof discoveryResponse;
 	stubDiscovery(migrationResponse);
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('3 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await page.getByRole('button', { name: 'Open Plugin Migrator' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Plugin Migrator' });
 	await expect.element(dialog).toBeInTheDocument();
@@ -436,9 +457,11 @@ it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => 
 		HOUDINI_PATH: 'C:/Users/test/Documents/houdini21.0/packages',
 		enable: false
 	});
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
 	await expect
 		.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
@@ -483,9 +506,11 @@ it('edits and switches a HOUDINI_PATH source alias with reference rewriting', as
 		env: { CUSTOM_ROOT: '$HOUDINI_PATH/bin' },
 		enable: false
 	});
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
 	await expect
 		.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
@@ -531,9 +556,11 @@ it('uses the existing nested HOUDINI_PATH value when selecting that alias', asyn
 		env: [{ HOUDINI_PATH: 'C:/Users/test/Documents/houdini21.0/packages', OTHER: 'C:/other' }],
 		enable: false
 	});
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
 	await expect
 		.element(page.getByRole('heading', { name: 'Live JSON Editor', exact: true }))
@@ -577,9 +604,11 @@ it('hides target-specific actions for a missing plugin target', async () => {
 		)
 	} as typeof discoveryResponse;
 	stubDiscovery(missingTargetResponse);
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('button', { name: 'Rescan plugin configs', exact: true }).first())
 		.toBeInTheDocument();
@@ -659,9 +688,11 @@ it('shows invalid package JSON details for a plugin target', async () => {
 		)
 	} as typeof discoveryResponse;
 	stubDiscovery(invalidJsonResponse);
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }))
 		.toBeInTheDocument();
@@ -730,9 +761,11 @@ it('groups repeated config issues and selects the matching plugin node', async (
 		]
 	} as typeof discoveryResponse;
 	stubDiscovery(issueResponse);
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	const issueTrigger = page.getByRole('button', { name: /1 Issues/ });
 	await issueTrigger.click();
 	await page
@@ -785,9 +818,11 @@ it('groups repeated config issues and selects the matching plugin node', async (
 
 it('hydrates a saved snapshot without running automatic scans', async () => {
 	stubDiscovery(discoveryResponse, discoveryResponse);
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Saved', exact: true }))
+		.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('button', { name: /Discovery snapshot restored/ }))
 		.toBeInTheDocument();
@@ -808,9 +843,11 @@ it('hydrates a saved snapshot without running automatic scans', async () => {
 it('does not select a plugin when a scan completes without a saved selection', async () => {
 	stubDiscovery();
 	localStorage.removeItem('hpm:last-selected-node');
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await expect
 		.element(page.getByRole('heading', { name: 'MOPS', exact: true }))
 		.not.toBeInTheDocument();
@@ -831,7 +868,7 @@ it('restores activity history across page loads', async () => {
 		])
 	);
 	stubDiscovery(discoveryResponse, discoveryResponse);
-	render(Page);
+	await render(Page);
 
 	await expect
 		.element(page.getByRole('button', { name: /Discovery snapshot restored/ }))
@@ -849,7 +886,7 @@ it('restores activity history across page loads', async () => {
 it('restores the last selected node from local storage', async () => {
 	stubDiscovery(discoveryResponse, discoveryResponse);
 	localStorage.setItem('hpm:last-selected-node', 'plugin:package:qlib');
-	render(Page);
+	await render(Page);
 
 	await expect
 		.element(page.getByRole('heading', { name: 'qLib', exact: true }))
@@ -889,9 +926,11 @@ it('groups plugin targets that share a Houdini minor version', async () => {
 		]
 	} as typeof discoveryResponse;
 	stubDiscovery(groupedResponse);
-	render(Page);
+	await render(Page);
 
-	await expect.element(page.getByText('3 installs scanned')).toBeInTheDocument();
+	await expect
+		.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+		.toBeInTheDocument();
 	await expect.element(page.getByRole('img', { name: /2 versions installed/ })).toBeInTheDocument();
 	await expect.element(page.getByText('455', { exact: true })).toBeInTheDocument();
 	await expect.element(page.getByText('456', { exact: true })).toBeInTheDocument();
@@ -914,11 +953,13 @@ it('groups plugin targets that share a Houdini minor version', async () => {
 describe('activation workspace', () => {
 	it('selects an install from the map and updates the detail rail', async () => {
 		stubDiscovery();
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
 		await expect
-			.element(page.getByRole('link', { name: 'Houdini installs', exact: true }))
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('link', { name: 'Library', exact: true }))
 			.toBeInTheDocument();
 		await expect.element(page.getByRole('button', { name: 'Rescan all' })).toBeInTheDocument();
 		await expect
@@ -1047,7 +1088,7 @@ describe('activation workspace', () => {
 			]
 		} as typeof discoveryResponse;
 		stubDiscovery(missingConfigResponse);
-		render(Page);
+		await render(Page);
 
 		await page.getByRole('group', { name: 'Houdini 21.0, 2 package configs' }).click();
 		const detailPanel = page.getByRole('complementary');
@@ -1056,7 +1097,7 @@ describe('activation workspace', () => {
 
 	it('switches to the table and filters plugin rows', async () => {
 		stubDiscovery();
-		render(Page);
+		await render(Page);
 
 		await page.getByRole('button', { name: 'Table' }).click();
 		await expect.element(page.getByRole('table')).toBeInTheDocument();
@@ -1078,9 +1119,11 @@ describe('activation workspace', () => {
 
 	it('syncs Git metadata for the selected plugin', async () => {
 		stubDiscovery();
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('button', { name: 'Sync Git', exact: true }))
 			.toBeInTheDocument();
@@ -1109,10 +1152,15 @@ describe('activation workspace', () => {
 	it('cancels a remote plugin installation', async () => {
 		stubDiscovery();
 		holdInstall = true;
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Install plugin', exact: true }))
+			.not.toBeDisabled();
 		await page.getByRole('button', { name: 'Install plugin', exact: true }).click();
 		await expect.poll(() => installRequests).toHaveLength(1);
 		await expect
@@ -1170,9 +1218,11 @@ describe('activation workspace', () => {
 			]
 		} as typeof discoveryResponse;
 		stubDiscovery(multiInstallResponse);
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('2 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await expect.element(page.getByText('v1.9.2e', { exact: true })).toBeInTheDocument();
 		await expect.element(page.getByText('v1.10.0', { exact: true }).first()).toBeInTheDocument();
 		await expect
@@ -1234,12 +1284,14 @@ describe('activation workspace', () => {
 	});
 
 	it('resolves multiple GitHub repositories and hands a candidate to the shared installer', async () => {
-		stubDiscovery();
-		render(Page);
+		stubDiscovery(discoveryResponse, discoveryResponse);
+		await render(DiscoverPage);
 
-		await expect.element(page.getByText('MOPS', { exact: true }).last()).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Resolve repositories', exact: true }))
+			.toBeInTheDocument();
 		await page
-			.getByRole('textbox', { name: 'Repository URLs' })
+			.getByRole('textbox', { name: 'Public Repository URLs' })
 			.fill(
 				`${pluginDiscoveryCandidate.repositoryUrl}\nhttps://github.com/example/missing-package`
 			);
@@ -1249,7 +1301,7 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText('No valid Houdini package manifest was found.', { exact: true }))
 			.toBeInTheDocument();
-		await page.getByRole('button', { name: 'Install candidate', exact: true }).click();
+		await page.getByRole('button', { name: 'Install', exact: true }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Install Houdini Tools', exact: true }))
 			.toBeInTheDocument();
@@ -1288,9 +1340,11 @@ describe('activation workspace', () => {
 			path: 'C:/Users/test/Documents/HPM/plugins/mops',
 			config: '$MISSING'
 		});
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 		await expect
 			.element(
@@ -1317,9 +1371,11 @@ describe('activation workspace', () => {
 
 	it('refreshes and toggles the selected plugin config', async () => {
 		stubDiscovery();
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Rescan plugin configs' }).first().click();
 		await expect
 			.poll(() => scanRequests.at(-1))
@@ -1497,9 +1553,11 @@ describe('activation workspace', () => {
 			]
 		} as typeof discoveryResponse;
 		stubDiscovery(multipleIssueResponse);
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Multiple issues' }))
@@ -1550,9 +1608,11 @@ describe('activation workspace', () => {
 			)
 		} as typeof discoveryResponse;
 		stubDiscovery(aliasConflictResponse);
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 		await page.getByRole('button', { name: 'Live JSON Editor', exact: true }).click();
 		await expect
@@ -1609,9 +1669,11 @@ describe('activation workspace', () => {
 			)
 		} as typeof discoveryResponse;
 		stubDiscovery(unusedAliasResponse);
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Open issue list for Houdini 21.0' }).click();
 		await expect
 			.element(
@@ -1646,9 +1708,11 @@ describe('activation workspace', () => {
 			]
 		} as typeof discoveryResponse;
 		stubDiscovery(sourceFixResponse);
-		render(Page);
+		await render(Page);
 
-		await expect.element(page.getByText('1 installs scanned')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
+			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Edit Live JSON Editor for Houdini 21.0' }).click();
 		await expect
 			.element(page.getByRole('checkbox', { name: 'Restore source path from another config' }))
