@@ -223,21 +223,20 @@
 		const installIds = installs
 			.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
 			.map((install: HoudiniInstall) => install.id);
-		const request: InstallDialogRequest =
-			plugin.repositoryUrl && plugin.provenanceSource === 'github'
-				? {
-						repositoryUrl: plugin.repositoryUrl,
-						packageFile: plugin.packageFile,
-						version: requestedVersion,
-						installIds,
-						destinationPath: requestedDestination
-					}
-				: {
-						pluginId: plugin.id,
-						version: requestedVersion,
-						installIds,
-						destinationPath: requestedDestination
-					};
+		const request: InstallDialogRequest = plugin.repositoryUrl
+			? {
+					repositoryUrl: plugin.repositoryUrl,
+					packageFile: plugin.packageFile,
+					version: requestedVersion,
+					installIds,
+					destinationPath: requestedDestination
+				}
+			: {
+					pluginId: plugin.id,
+					version: requestedVersion,
+					installIds,
+					destinationPath: requestedDestination
+				};
 		const options: InstallDialogOptions = {
 			openInstalledFolder: draft.openInstalledFolder,
 			openInstalledConfig: draft.openInstalledConfig

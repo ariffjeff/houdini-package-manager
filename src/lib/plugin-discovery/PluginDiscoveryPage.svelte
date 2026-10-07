@@ -117,10 +117,12 @@
 
 	async function installCandidate(request: InstallDialogRequest, options: InstallDialogOptions) {
 		const candidate = pluginDiscoveryState.installCandidate;
+		const sourceMatches =
+			request.repositoryUrl === candidate?.repositoryUrl &&
+			request.packageFile === candidate?.packageFile;
 		if (
 			!candidate ||
-			request.repositoryUrl !== candidate.repositoryUrl ||
-			request.packageFile !== candidate.packageFile ||
+			!sourceMatches ||
 			!candidate.versions.some((version) => version.value === request.version) ||
 			!request.installIds.length ||
 			!request.destinationPath
