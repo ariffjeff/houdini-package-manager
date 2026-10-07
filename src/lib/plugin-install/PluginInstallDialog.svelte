@@ -204,7 +204,7 @@
 
 	function currentVersionLabel(installId: string) {
 		const target = targetForInstall(installId);
-		if (!target) return 'Not installed';
+		if (!target || target.status === 'missing') return 'Not installed';
 		return target.artifactVersion ?? 'Installed, version unknown';
 	}
 
