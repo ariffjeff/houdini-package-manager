@@ -13,6 +13,7 @@
 		InstallDialogOptions,
 		InstallDialogPlugin,
 		InstallDialogRequest,
+		InstallDialogSelection,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
 	import PluginDiscoverySection from './PluginDiscoverySection.svelte';
@@ -115,20 +116,26 @@
 		pluginDiscoveryState.installCandidate = null;
 	}
 
-	async function installCandidate(request: InstallDialogRequest, options: InstallDialogOptions) {
+	async function installCandidate(
+		selection: InstallDialogSelection,
+		options: InstallDialogOptions
+	) {
 		const candidate = pluginDiscoveryState.installCandidate;
-		const sourceMatches =
-			request.repositoryUrl === candidate?.repositoryUrl &&
-			request.packageFile === candidate?.packageFile;
 		if (
 			!candidate ||
-			!sourceMatches ||
-			!candidate.versions.some((version) => version.value === request.version) ||
-			!request.installIds.length ||
-			!request.destinationPath
+			!candidate.versions.some((version) => version.value === selection.version) ||
+			!selection.installIds.length ||
+			!selection.destinationPath
 		) {
 			return;
 		}
+		const request: InstallDialogRequest = {
+			repositoryUrl: candidate.repositoryUrl,
+			packageFile: candidate.packageFile,
+			version: selection.version,
+			installIds: selection.installIds,
+			destinationPath: selection.destinationPath
+		};
 
 		pluginDiscoveryState.installState = 'working';
 		pluginDiscoveryState.installMessage = '';

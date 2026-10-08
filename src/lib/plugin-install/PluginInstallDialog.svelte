@@ -14,9 +14,9 @@
 	import type { HoudiniInstall } from '$lib/houdini/types';
 	import type {
 		InstallDialogOptions,
-		InstallDialogRequest,
 		InstallDialogState,
 		InstallDialogPlugin,
+		InstallDialogSelection,
 		InstallVersionOption
 	} from './types';
 
@@ -53,7 +53,7 @@
 		onClose: () => void;
 		onCancel: () => void;
 		onInstall: (
-			request: InstallDialogRequest,
+			selection: InstallDialogSelection,
 			options: InstallDialogOptions
 		) => void | Promise<void>;
 	}>();
@@ -223,26 +223,17 @@
 		const installIds = installs
 			.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
 			.map((install: HoudiniInstall) => install.id);
-		const request: InstallDialogRequest = plugin.repositoryUrl
-			? {
-					repositoryUrl: plugin.repositoryUrl,
-					packageFile: plugin.packageFile,
-					version: requestedVersion,
-					installIds,
-					destinationPath: requestedDestination
-				}
-			: {
-					pluginId: plugin.id,
-					version: requestedVersion,
-					installIds,
-					destinationPath: requestedDestination
-				};
+		const selection: InstallDialogSelection = {
+			version: requestedVersion,
+			installIds,
+			destinationPath: requestedDestination
+		};
 		const options: InstallDialogOptions = {
 			openInstalledFolder: draft.openInstalledFolder,
 			openInstalledConfig: draft.openInstalledConfig
 		};
 
-		void onInstall(request, options);
+		void onInstall(selection, options);
 	}
 
 	function shortSha(value: string) {

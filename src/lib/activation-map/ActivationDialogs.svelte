@@ -11,9 +11,9 @@
 	import PluginInstallDialog from '$lib/plugin-install/PluginInstallDialog.svelte';
 	import type {
 		InstallDialogOptions,
-		InstallDialogRequest,
 		InstallDialogState,
 		InstallDialogPlugin,
+		InstallDialogSelection,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
 	import PluginMigratorDialog from '$lib/plugin-migrator/PluginMigratorDialog.svelte';
@@ -98,7 +98,7 @@
 		onCloseInstall: () => void;
 		onCancelInstall: () => void;
 		onInstall: (
-			request: InstallDialogRequest,
+			selection: InstallDialogSelection,
 			options: InstallDialogOptions
 		) => void | Promise<void>;
 		onClosePluginMigrator: () => void;

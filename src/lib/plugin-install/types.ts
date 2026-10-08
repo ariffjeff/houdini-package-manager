@@ -10,6 +10,12 @@ export type InstallDialogOptions = {
 	openInstalledConfig: boolean;
 };
 
+export type InstallDialogSelection = {
+	version: string;
+	installIds: string[];
+	destinationPath: string;
+};
+
 export type InstallDialogPlugin = {
 	id: string;
 	name: string;

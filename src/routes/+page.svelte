@@ -64,6 +64,7 @@
 		InstallDialogOptions,
 		InstallDialogRequest,
 		InstallDialogPlugin,
+		InstallDialogSelection,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
 	import AppHeader from '$lib/AppHeader.svelte';
@@ -818,22 +819,25 @@
 	}
 
 	async function installSelectedPlugin(
-		request: InstallDialogRequest,
+		selection: InstallDialogSelection,
 		options: InstallDialogOptions
 	) {
-		const plugin = installPlugin;
-		const validSelectedPluginRequest =
-			Boolean(selectedPlugin) &&
-			request.pluginId === selectedPlugin?.id &&
-			selectedPluginVersions.includes(request.version);
 		if (
-			!plugin ||
-			!validSelectedPluginRequest ||
-			!request.installIds.length ||
-			!request.destinationPath
+			!selectedPlugin ||
+			!installPlugin ||
+			!selectedPluginVersions.includes(selection.version) ||
+			!selection.installIds.length ||
+			!selection.destinationPath
 		) {
 			return;
 		}
+		const plugin = installPlugin;
+		const request: InstallDialogRequest = {
+			pluginId: selectedPlugin.id,
+			version: selection.version,
+			installIds: selection.installIds,
+			destinationPath: selection.destinationPath
+		};
 
 		installState = 'working';
 		installMessage = '';
