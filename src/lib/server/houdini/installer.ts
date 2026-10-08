@@ -189,7 +189,8 @@ async function resolveInstallablePlugin(
 		return {
 			...plugin,
 			pinnedCommit: catalogEntry?.pinnedCommit,
-			manifestBlobSha: catalogEntry?.manifestBlobSha
+			manifestBlobSha: catalogEntry?.manifestBlobSha,
+			allowVerifiedVersions: Boolean(catalogEntry)
 		};
 	}
 
