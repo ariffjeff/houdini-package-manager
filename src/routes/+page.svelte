@@ -50,7 +50,11 @@
 		PluginRecord
 	} from '$lib/activation-map/types';
 	import { targetIssueMessages, targetIssueSummary } from '$lib/houdini/known-issues';
-	import type { HoudiniDiscoveryResponse, HoudiniPluginMigrationRequest } from '$lib/houdini/types';
+	import type {
+		HoudiniDiscoveryResponse,
+		HoudiniPluginMigrationRequest,
+		InstallPluginRequest
+	} from '$lib/houdini/types';
 	import {
 		responseStageTimestamp,
 		scanStages,
@@ -62,7 +66,6 @@
 	import { createScanOrchestrator } from '$lib/houdini/scan-orchestrator.svelte';
 	import type {
 		InstallDialogOptions,
-		InstallDialogRequest,
 		InstallDialogPlugin,
 		InstallDialogSelection,
 		InstallVersionOption
@@ -832,7 +835,7 @@
 			return;
 		}
 		const plugin = installPlugin;
-		const request: InstallDialogRequest = {
+		const request: InstallPluginRequest = {
 			pluginId: selectedPlugin.id,
 			version: selection.version,
 			installIds: selection.installIds,

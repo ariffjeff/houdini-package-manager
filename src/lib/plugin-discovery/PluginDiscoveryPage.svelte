@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { ActivationTarget, PluginRecord } from '$lib/activation-map/types';
-	import type { HoudiniInstall } from '$lib/houdini/types';
+	import type { HoudiniInstall, InstallPluginRequest } from '$lib/houdini/types';
 	import {
 		fetchHoudiniDiscovery,
 		fetchHoudiniDiscoverySnapshot,
@@ -12,7 +12,6 @@
 	import type {
 		InstallDialogOptions,
 		InstallDialogPlugin,
-		InstallDialogRequest,
 		InstallDialogSelection,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
@@ -129,7 +128,7 @@
 		) {
 			return;
 		}
-		const request: InstallDialogRequest = {
+		const request: InstallPluginRequest = {
 			repositoryUrl: candidate.repositoryUrl,
 			packageFile: candidate.packageFile,
 			version: selection.version,

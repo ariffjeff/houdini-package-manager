@@ -1,9 +1,13 @@
-import type { InstallPluginRequest } from '$lib/houdini/types';
-import type { PluginDiscoverySource, PluginDiscoveryVersion } from '$lib/plugin-discovery/types';
+import type { PluginDiscoverySource } from '$lib/plugin-discovery/types';
 
 export type InstallDialogState = 'idle' | 'working' | 'success' | 'error';
 
-export type InstallVersionOption = PluginDiscoveryVersion;
+export type InstallVersionOption = {
+	value: string;
+	label?: string;
+	kind: 'tag' | 'commit';
+	isLatest?: boolean;
+};
 
 export type InstallDialogOptions = {
 	openInstalledFolder: boolean;
@@ -25,5 +29,3 @@ export type InstallDialogPlugin = {
 	pinnedCommit?: string;
 	manifestBlobSha?: string;
 };
-
-export type InstallDialogRequest = InstallPluginRequest;
