@@ -492,8 +492,8 @@
 					</div>
 					<div class="install-provenance-grid">
 						<div>
-							<span>Selected tag</span>
-							<code>{selectedVersion?.value ?? 'Choose a tag'}</code>
+							<span>Selected ref</span>
+							<code>{selectedVersion?.value ?? 'Choose a ref'}</code>
 						</div>
 						<div>
 							<span
@@ -513,8 +513,8 @@
 						</div>
 					</div>
 					<p>
-						Installation verifies that the selected tag resolves to the approved commit before
-						writing files.
+						The selected ref is checked against approved provenance. A tag that differs from the
+						curated pin may still be installed, but it will be marked unverified.
 					</p>
 				</div>
 			{:else if plugin.provenanceSource === 'github'}

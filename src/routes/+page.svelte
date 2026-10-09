@@ -83,6 +83,7 @@
 	} from '$lib/houdini/client';
 	import { HPM_STORAGE_KEYS } from '$lib/settings/local-storage';
 	import Tooltip from '$lib/Tooltip.svelte';
+	import { curatedPluginCatalog } from '$lib/plugin-discovery/catalog';
 
 	type LiveJsonEditorContext = {
 		plugin: PluginRecord;
@@ -208,9 +209,25 @@
 	let selectedOfficialPlugins = $derived(
 		selectedNode?.data.kind === 'official' ? activationPlugins.filter(isOfficialPlugin) : []
 	);
-	let selectedPluginVersions = $derived(selectedPlugin?.availableVersions ?? []);
+	let selectedPluginCatalogEntry = $derived(
+		selectedPlugin
+			? curatedPluginCatalog.find(
+					(entry) =>
+						entry.repositoryUrl.trim().toLowerCase() ===
+						selectedPlugin.repositoryUrl?.trim().toLowerCase()
+				)
+			: undefined
+	);
+	let selectedPluginVersions = $derived.by(() => {
+		if (!selectedPlugin) return [];
+		const curatedEntry = selectedPluginCatalogEntry;
+		return [
+			...(selectedPlugin.availableVersions ?? []),
+			...(curatedEntry ? [curatedEntry.pinnedCommit] : [])
+		].filter((version, index, versions) => versions.indexOf(version) === index);
+	});
 	let selectedPluginCommitOption = $derived(
-		selectedPlugin ? gitCommitOption(selectedPlugin) : null
+		selectedPlugin && !selectedPluginCatalogEntry ? gitCommitOption(selectedPlugin) : null
 	);
 	let selectedPluginVersionOptions = $derived<InstallVersionOption[]>(
 		[
@@ -258,7 +275,16 @@
 		const documentsPath = userPreferences.replace(/[\\/]houdini[^\\/]*$/i, '');
 		return `${documentsPath}${separator}HPM${separator}plugins${separator}${pluginSlug}`;
 	});
-	let installPlugin = $derived<InstallDialogPlugin | undefined>(selectedPlugin);
+	let installPlugin = $derived.by<InstallDialogPlugin | undefined>(() => {
+		if (!selectedPlugin || !selectedPluginCatalogEntry) return selectedPlugin;
+
+		return {
+			...selectedPlugin,
+			provenanceSource: 'catalog',
+			pinnedCommit: selectedPluginCatalogEntry.pinnedCommit,
+			manifestBlobSha: selectedPluginCatalogEntry.manifestBlobSha
+		};
+	});
 	let installVersionOptions = $derived<InstallVersionOption[]>(selectedPluginVersionOptions);
 	let installRemoteSourceOptions = $derived(remoteSourceOptions);
 	let installHpmPluginDestination = $derived(hpmPluginDestination);

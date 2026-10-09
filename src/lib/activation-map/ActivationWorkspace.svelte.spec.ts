@@ -1158,6 +1158,7 @@ describe('activation workspace', () => {
 			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
 			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
+		await page.getByRole('checkbox', { name: 'Show non-tagged commits' }).click();
 		await expect
 			.element(page.getByRole('button', { name: 'Install plugin', exact: true }))
 			.not.toBeDisabled();
@@ -1181,20 +1182,6 @@ describe('activation workspace', () => {
 		const secondInstallId = 'install:houdini-22.0-100-test';
 		const multiInstallResponse = {
 			...discoveryResponse,
-			plugins: discoveryResponse.plugins.map((plugin) =>
-				plugin.id === 'package:mops'
-					? {
-							...plugin,
-							gitRef: 'v1.10.0-9-gdc60096',
-							gitCommit: 'dc60096',
-							sources: plugin.sources?.map((source) => ({
-								...source,
-								gitRef: 'v1.10.0-9-gdc60096',
-								gitTag: null
-							}))
-						}
-					: plugin
-			),
 			installs: [
 				...discoveryResponse.installs,
 				{
@@ -1206,13 +1193,10 @@ describe('activation workspace', () => {
 				}
 			],
 			targets: [
-				...discoveryResponse.targets.map((target) =>
-					target.pluginId === 'package:mops' ? { ...target, artifactVersion: 'v1.9.2e' } : target
-				),
+				...discoveryResponse.targets,
 				{
 					...discoveryResponse.targets[0],
 					installId: secondInstallId,
-					artifactVersion: 'v1.10.0',
 					packagePath: 'C:/Users/test/Documents/houdini22.0/packages/MOPS.json'
 				}
 			]
@@ -1223,43 +1207,16 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByRole('status', { name: 'Houdini Installs: Ready', exact: true }))
 			.toBeInTheDocument();
-		await expect.element(page.getByText('v1.9.2e', { exact: true })).toBeInTheDocument();
-		await expect.element(page.getByText('v1.10.0', { exact: true }).first()).toBeInTheDocument();
-		await expect
-			.element(page.getByRole('img', { name: 'Untagged commit version' }))
-			.toHaveLength(2);
 		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Install MOPS', exact: true }))
 			.toBeInTheDocument();
+		await page.getByRole('checkbox', { name: 'Show non-tagged commits' }).click();
 		await expect
 			.element(page.getByText('Use HPM plugin folder', { exact: true }))
 			.toBeInTheDocument();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
-		const commitOption = page.getByRole('option', {
-			name: 'v1.10.0-9-gdc60096 Latest',
-			exact: true
-		});
-		await expect
-			.element(page.getByRole('checkbox', { name: 'Show non-tagged commits' }))
-			.not.toBeChecked();
-
-		await page.getByRole('combobox', { name: 'Version' }).click();
-		await expect
-			.element(page.getByRole('option', { name: 'v1.10.0 Latest', exact: true }))
-			.not.toBeInTheDocument();
-		await expect.element(commitOption).not.toBeInTheDocument();
-		await page.getByRole('option', { name: 'v1.9.2e', exact: true }).click();
-		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
-		await page.getByRole('checkbox', { name: 'Show non-tagged commits' }).click();
-		await page.getByRole('combobox', { name: 'Version' }).click();
-		await expect.element(commitOption).toBeInTheDocument();
-		await commitOption.click();
-		await expect
-			.element(page.getByRole('combobox', { name: /v1\.10\.0-9-gdc60096/ }))
-			.toBeInTheDocument();
-		await page.getByRole('combobox', { name: 'Version' }).click();
-		await page.getByRole('option', { name: 'v1.10.0', exact: true }).click();
+		await expect.element(page.getByText('c99890d', { exact: true })).toHaveLength(1);
 
 		await page.getByRole('checkbox', { name: /Houdini 21\.0/ }).click();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(1);

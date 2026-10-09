@@ -95,16 +95,17 @@ async function createCandidate(
 ): Promise<PluginDiscoveryCandidate> {
 	const packageFile = catalogEntry?.packageFile ?? (await inferPackageFile(snapshot, fetcher));
 	const versions = catalogEntry
-		? snapshot.versions.some((version) => version.kind === 'tag')
-			? snapshot.versions
-			: [
-					{
-						value: catalogEntry.pinnedCommit,
-						label: `Pinned commit ${catalogEntry.pinnedCommit.slice(0, 7)}`,
-						kind: 'commit' as const,
-						isLatest: true
-					}
-				]
+		? [
+				...snapshot.versions,
+				{
+					value: catalogEntry.pinnedCommit,
+					label: `Pinned commit ${catalogEntry.pinnedCommit.slice(0, 7)}`,
+					kind: 'commit' as const
+				}
+			].filter(
+				(version, index, allVersions) =>
+					allVersions.findIndex((candidate) => candidate.value === version.value) === index
+			)
 		: snapshot.versions;
 	const warnings: string[] = [];
 	if (!catalogEntry && snapshot.packageFiles.length > 1) {

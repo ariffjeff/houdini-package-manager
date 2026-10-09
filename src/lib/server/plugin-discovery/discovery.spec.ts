@@ -56,7 +56,7 @@ describe('plugin repository discovery', () => {
 		});
 	});
 
-	it('keeps curated repository tags visible while retaining pinned provenance', async () => {
+	it('exposes tags and the pinned commit for curated repositories', async () => {
 		const response = await resolvePluginRepositories(
 			['https://github.com/toadstorm/MOPS'],
 			async (input) => {
@@ -86,7 +86,12 @@ describe('plugin repository discovery', () => {
 			manifestBlobSha: 'ba2c6514d0762330300394ab87b6b8f69bd9766d',
 			versions: [
 				{ value: 'v2.0.0', kind: 'tag', isLatest: true },
-				{ value: 'v1.9.0', kind: 'tag', isLatest: false }
+				{ value: 'v1.9.0', kind: 'tag', isLatest: false },
+				{
+					value: 'c99890df1b007229ee46e08bd61a346da2702600',
+					label: 'Pinned commit c99890d',
+					kind: 'commit'
+				}
 			]
 		});
 	});
