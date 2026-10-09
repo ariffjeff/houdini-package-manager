@@ -19,6 +19,29 @@ describe('GitHub repository parsing', () => {
 		);
 	});
 
+	it('falls back to a license file when GitHub reports NOASSERTION', async () => {
+		const fetcher = async (input: RequestInfo | URL) => {
+			const url = input.toString();
+			if (url.endsWith('/repos/qLab/qLib')) {
+				return Response.json({
+					name: 'qLib',
+					owner: { login: 'qLab' },
+					description: 'A procedural asset library for SideFX Houdini.',
+					default_branch: 'master',
+					license: { name: 'Other', spdx_id: 'NOASSERTION' }
+				});
+			}
+			if (url.includes('/tags?')) return Response.json([]);
+			if (url.includes('/git/trees/')) {
+				return Response.json({ tree: [{ path: 'LICENSE', type: 'blob' }] });
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		};
+
+		const result = await resolveGithubRepository('https://github.com/qLab/qLib', fetcher);
+		expect(result.license).toBe('License file present');
+	});
+
 	it('rejects branch, file, and non-GitHub URLs', () => {
 		expect(() => parseGithubRepositoryUrl('https://github.com/toadstorm/MOPS/tree/main')).toThrow(
 			'Use a repository URL'

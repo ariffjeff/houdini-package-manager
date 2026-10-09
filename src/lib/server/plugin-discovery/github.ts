@@ -98,9 +98,12 @@ export async function resolveGithubRepository(
 	]);
 
 	const versions = createVersions(tags, defaultBranchName);
-	const packageFiles = (tree.tree ?? [])
-		.filter((entry) => entry.type === 'blob' && typeof entry.path === 'string')
-		.map((entry) => entry.path as string)
+	const treeFiles = (tree.tree ?? []).filter(
+		(entry): entry is { path: string; type?: unknown } =>
+			typeof entry.path === 'string' && entry.type === 'blob'
+	);
+	const packageFiles = treeFiles
+		.map((entry) => entry.path)
 		.filter(isPossiblePackageFile)
 		.sort((left, right) => left.localeCompare(right));
 	const value: GithubRepositorySnapshot = {
@@ -109,7 +112,10 @@ export async function resolveGithubRepository(
 		description: readString(metadata.description) || 'No repository description provided.',
 		author: readString(metadata.owner?.login) || repository.owner,
 		license:
-			readString(metadata.license?.spdx_id) || readString(metadata.license?.name) || 'Not declared',
+			normalizeGithubLicense(metadata.license) ||
+			(treeFiles.some((entry) => isLicenseFile(entry.path))
+				? 'License file present'
+				: 'Not declared'),
 		defaultBranch: defaultBranchName,
 		versions,
 		packageFiles
@@ -211,6 +217,20 @@ function isPossiblePackageFile(filePath: string): boolean {
 	return !['package.json', 'package-lock.json', 'composer.json', 'tsconfig.json'].includes(
 		fileName
 	);
+}
+
+function isLicenseFile(filePath: string): boolean {
+	const fileName = filePath.split('/').at(-1)?.toLowerCase() ?? '';
+	return /^licen[cs]e(?:[._-]|$)/.test(fileName) || /^copying(?:[._-]|$)/.test(fileName);
+}
+
+function normalizeGithubLicense(license: GithubRepositoryResponse['license']): string | null {
+	const spdxId = readString(license?.spdx_id);
+	if (spdxId && !['NOASSERTION', 'NONE'].includes(spdxId.toUpperCase())) return spdxId;
+
+	const name = readString(license?.name);
+	if (name && !['other', 'noassertion', 'none'].includes(name.toLowerCase())) return name;
+	return null;
 }
 
 function readString(value: unknown): string {
