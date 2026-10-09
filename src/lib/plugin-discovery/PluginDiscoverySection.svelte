@@ -19,7 +19,7 @@
 		pluginDiscoveryState,
 		resolveRepositories
 	} from './discovery-state.svelte';
-	import type { PluginDiscoveryCandidate, PluginDiscoveryVersion } from './types';
+	import type { PluginDiscoveryCandidate } from './types';
 
 	let { installs, onInstallCandidate } = $props<{
 		installs: HoudiniInstall[];
@@ -86,24 +86,9 @@
 		clearResolvedRepositories();
 	}
 
-	function selectVersion(candidateId: string, event: Event) {
-		pluginDiscoveryState.selectedVersions[candidateId] = (
-			event.currentTarget as HTMLSelectElement
-		).value;
-	}
-
-	function selectedVersion(
-		candidate: PluginDiscoveryCandidate
-	): PluginDiscoveryVersion | undefined {
-		const selectedValue =
-			pluginDiscoveryState.selectedVersions[candidate.id] ?? candidate.versions[0]?.value;
-		return candidate.versions.find((version) => version.value === selectedValue);
-	}
-
 	function installCandidate(candidate: PluginDiscoveryCandidate) {
-		const version = selectedVersion(candidate);
-		if (!version || installs.length === 0) return;
-		onInstallCandidate({ ...candidate, selectedVersion: version });
+		if (installs.length === 0) return;
+		onInstallCandidate(candidate);
 	}
 
 	function addCatalogRepository(repositoryUrl: string) {
@@ -213,30 +198,10 @@
 							{/if}
 							{#if candidate}
 								<div class="candidate-header-controls">
-									<div class="candidate-controls">
-										{#if candidate.versions.length}
-											<select
-												id={`version-${candidate.id}`}
-												value={pluginDiscoveryState.selectedVersions[candidate.id] ??
-													candidate.versions[0].value}
-												onchange={(event) => selectVersion(candidate.id, event)}
-											>
-												{#each candidate.versions as version (version.value)}
-													<option value={version.value}
-														>{version.label ?? version.value}{version.isLatest
-															? ' (latest)'
-															: ''}</option
-													>
-												{/each}
-											</select>
-										{:else}
-											<p class="muted-control">No versions available</p>
-										{/if}
-									</div>
 									<button
 										type="button"
 										class="install-button"
-										disabled={installs.length === 0 || !selectedVersion(candidate)}
+										disabled={installs.length === 0}
 										onclick={() => installCandidate(candidate)}
 									>
 										<Package size={18} strokeWidth={1.8} aria-hidden="true" /> Install
@@ -337,8 +302,8 @@
 					</button>
 				</div>
 				<p>
-					Selected tag
-					<code>{selectedVersion(openProvenanceCandidate)?.value ?? 'Choose a tag'}</code>
+					Catalog tag
+					<code>{openProvenanceCandidate.versions[0]?.value ?? 'Unknown'}</code>
 					is checked against the approved commit
 					<code title={openProvenanceCandidate.pinnedCommit}
 						>{shortSha(openProvenanceCandidate.pinnedCommit!)}</code
@@ -897,8 +862,7 @@
 		font-weight: 650;
 	}
 
-	textarea,
-	select {
+	textarea {
 		width: 100%;
 		border: 1px solid var(--line-strong);
 		border-radius: 5px;
@@ -915,13 +879,7 @@
 		line-height: 1.5;
 	}
 
-	select:hover {
-		border-color: var(--line-strong);
-		background: rgba(19, 30, 31, 0.9);
-	}
-
-	textarea:focus-visible,
-	select:focus-visible {
+	textarea:focus-visible {
 		border-color: #69b89b;
 		outline: 3px solid rgba(59, 155, 130, 0.26);
 		outline-offset: 1px;
@@ -1174,27 +1132,6 @@
 		outline: none;
 	}
 
-	.candidate-controls {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		min-width: 0;
-	}
-
-	select {
-		height: 32px;
-		min-height: 32px;
-		box-sizing: border-box;
-		padding: 4px 8px;
-		font-size: 12px;
-	}
-
-	.muted-control {
-		margin: 0;
-		color: var(--text-dim);
-		font-size: 12px;
-	}
-
 	.warning-list {
 		display: flex;
 		gap: 7px;
@@ -1266,21 +1203,10 @@
 			justify-content: space-between;
 		}
 
-		.candidate-controls {
-			align-items: flex-start;
-			flex-wrap: wrap;
-		}
-
 		.candidate-header-controls {
 			justify-content: flex-start;
 			width: 100%;
 			margin-left: 0;
-		}
-
-		.candidate-controls select {
-			flex: 1 1 160px;
-			width: auto;
-			min-width: 0;
 		}
 
 		.candidate-header-controls .install-button {

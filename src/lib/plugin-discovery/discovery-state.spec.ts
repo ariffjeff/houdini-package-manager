@@ -19,16 +19,14 @@ describe('plugin discovery state', () => {
 		pluginDiscoveryState.catalogUpdatedAt = null;
 	});
 
-	it('clears resolved candidates and selected versions without persistent storage', () => {
+	it('clears resolved candidates without persistent storage', () => {
 		pluginDiscoveryState.results = [{ input: 'https://github.com/example/toolkit' }];
-		pluginDiscoveryState.selectedVersions = { 'github:example/toolkit': 'v1.0.0' };
 		pluginDiscoveryState.resolveError = 'previous error';
 		pluginDiscoveryState.resolveState = 'error';
 
 		clearResolvedRepositories();
 
 		expect(pluginDiscoveryState.results).toEqual([]);
-		expect(pluginDiscoveryState.selectedVersions).toEqual({});
 		expect(pluginDiscoveryState.resolveError).toBe('');
 		expect(pluginDiscoveryState.resolveState).toBe('idle');
 	});

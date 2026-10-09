@@ -50,10 +50,7 @@
 		const candidate = pluginDiscoveryState.installCandidate;
 		if (!candidate) return [];
 
-		return [
-			...(candidate.selectedVersion ? [candidate.selectedVersion] : []),
-			...candidate.versions.filter((version) => version.value !== candidate.selectedVersion?.value)
-		];
+		return candidate.versions;
 	});
 	let hpmPluginDestination = $derived.by(() => {
 		if (!pluginDiscoveryState.installCandidate) return '';

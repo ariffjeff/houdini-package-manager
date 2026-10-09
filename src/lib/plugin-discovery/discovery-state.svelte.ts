@@ -5,7 +5,6 @@ import type { PluginCatalogEntry, PluginDiscoveryCandidate, PluginDiscoveryResul
 export const pluginDiscoveryState = $state({
 	repositoryInput: '',
 	results: [] as PluginDiscoveryResult[],
-	selectedVersions: {} as Record<string, string>,
 	resolveState: 'idle' as 'idle' | 'loading' | 'error',
 	resolveError: '',
 	catalog: [] as PluginCatalogEntry[],
@@ -67,17 +66,11 @@ export async function resolveRepositories(urls: string[]): Promise<void> {
 	pluginDiscoveryState.resolveState = 'loading';
 	pluginDiscoveryState.resolveError = '';
 	pluginDiscoveryState.results = urls.map((input) => ({ input }));
-	pluginDiscoveryState.selectedVersions = {};
 
 	try {
 		const response = await resolvePluginRepositories(urls, resolveController.signal);
 		if (requestId !== resolveRequestId) return;
 		pluginDiscoveryState.results = response.results;
-		pluginDiscoveryState.selectedVersions = Object.fromEntries(
-			response.results.flatMap(({ candidate }) =>
-				candidate?.versions[0] ? [[candidate.id, candidate.versions[0].value]] : []
-			)
-		);
 		pluginDiscoveryState.resolveState = 'idle';
 	} catch (error) {
 		if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -98,7 +91,6 @@ export function clearResolvedRepositories(): void {
 	resolveController = null;
 	resolveRequestId += 1;
 	pluginDiscoveryState.results = [];
-	pluginDiscoveryState.selectedVersions = {};
 	pluginDiscoveryState.resolveError = '';
 	pluginDiscoveryState.resolveState = 'idle';
 }

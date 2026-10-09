@@ -28,7 +28,6 @@ export type PluginDiscoveryCandidate = {
 	manifestSource: PluginManifestSource;
 	warnings: string[];
 	tags: string[];
-	selectedVersion?: PluginDiscoveryVersion;
 };
 
 export type PluginDiscoveryResult = {
