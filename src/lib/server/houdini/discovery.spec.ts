@@ -22,6 +22,7 @@ import {
 	resolvePackageTargetStatus,
 	shouldWarnForLegacyPath,
 	resolvePluginVersion,
+	repositoryNameFromUrl,
 	loadHoudiniDiscoverySnapshot,
 	scanHoudiniWorkspace
 } from './discovery';
@@ -176,6 +177,9 @@ CUSTOM_HOUDINI_VAR := 'custom'
 		);
 		expect(githubAccountFromRepositoryUrl('https://github.com/Aeoll/Aelib')).toBe('Aeoll');
 		expect(githubAccountFromRepositoryUrl('https://gitlab.com/example/Aelib')).toBeNull();
+		expect(repositoryNameFromUrl('https://github.com/qLab/qLib')).toBe('qLib');
+		expect(repositoryNameFromUrl('https://github.com/qLab/qLib.git')).toBe('qLib');
+		expect(repositoryNameFromUrl(null)).toBeNull();
 	});
 
 	it('preserves package config filenames without their extensions', () => {

@@ -892,7 +892,7 @@ async function readPackageConfigs(
 			const packageConfig: PackageConfig = {
 				plugin: {
 					id: pluginId,
-					name: formatPackageName(entry.name),
+					name: repositoryNameFromUrl(git?.repositoryUrl) ?? formatPackageName(entry.name),
 					author: git?.author ?? undefined,
 					description: missingPaths.length
 						? existingPaths.length
@@ -1542,6 +1542,19 @@ export function githubAccountFromRepositoryUrl(repositoryUrl: string | null): st
 
 		const account = url.pathname.split('/').filter(Boolean)[0];
 		return account ? decodeURIComponent(account) : null;
+	} catch {
+		return null;
+	}
+}
+
+export function repositoryNameFromUrl(repositoryUrl: string | null | undefined): string | null {
+	if (!repositoryUrl) return null;
+
+	try {
+		const url = new URL(repositoryUrl);
+		const repository = url.pathname.split('/').filter(Boolean).at(-1);
+		if (!repository) return null;
+		return decodeURIComponent(repository).replace(/\.git$/i, '') || null;
 	} catch {
 		return null;
 	}
