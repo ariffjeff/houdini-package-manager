@@ -693,11 +693,12 @@
 	}
 
 	.catalog-row {
+		position: relative;
 		display: grid;
 		grid-template-columns: minmax(0, 1.5fr) minmax(150px, 0.8fr) auto;
 		align-items: center;
 		gap: 10px;
-		padding: 7px 10px;
+		padding: 7px 48px 7px 10px;
 		border-bottom: 1px solid var(--line);
 		background: rgba(30, 42, 44, 0.44);
 	}
@@ -771,8 +772,13 @@
 	.catalog-actions {
 		display: flex;
 		align-items: center;
-		justify-content: flex-end;
+		justify-content: space-between;
+		position: absolute;
+		top: 7px;
+		right: 10px;
+		bottom: 7px;
 		gap: 5px;
+		flex-direction: column;
 	}
 
 	.catalog-actions a,
@@ -1257,7 +1263,7 @@
 		}
 
 		.catalog-actions {
-			justify-content: flex-start;
+			justify-content: space-between;
 		}
 
 		.candidate-controls {
