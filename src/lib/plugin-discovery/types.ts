@@ -25,6 +25,7 @@ export type PluginDiscoveryCandidate = {
 	defaultBranch: string;
 	versions: PluginDiscoveryVersion[];
 	packageFile: string;
+	packageFiles: string[];
 	manifestSource: PluginManifestSource;
 	warnings: string[];
 	tags: string[];

@@ -85,6 +85,7 @@ export async function installHoudiniPlugin(
 		);
 		const packagePath =
 			existingTarget?.packagePath ?? path.join(packageDirectory, plugin.packageFile);
+		await mkdir(path.dirname(packagePath), { recursive: true });
 		await writeManagedPackage(
 			packagePath,
 			plugin,
@@ -172,11 +173,16 @@ export function validateInstallPluginRequest(request: InstallPluginRequest): voi
 }
 
 function isSafePackageFile(value: string): boolean {
+	const normalized = value.replaceAll('\\', '/');
+	const segments = normalized.split('/');
 	return (
-		Boolean(value.trim()) &&
-		value === path.basename(value) &&
-		value.toLowerCase().endsWith('.json') &&
-		!/[\0\r\n]/.test(value)
+		Boolean(normalized.trim()) &&
+		normalized === normalized.replace(/^\.\//, '') &&
+		!path.posix.isAbsolute(normalized) &&
+		!segments.some((segment) => !segment || segment === '.' || segment === '..') &&
+		normalized.toLowerCase().endsWith('.json') &&
+		!normalized.includes('\0') &&
+		!/[\r\n]/.test(normalized)
 	);
 }
 

@@ -21,6 +21,7 @@
 	} from './types';
 
 	type InstallDraft = {
+		packageFile: string;
 		version: string;
 		selectedInstallIds: string[];
 		destinationChoice: string;
@@ -59,6 +60,7 @@
 	}>();
 
 	let draft = $state<InstallDraft>({
+		packageFile: '',
 		version: '',
 		selectedInstallIds: [],
 		destinationChoice: 'custom',
@@ -68,6 +70,9 @@
 	});
 	let showNonTaggedCommits = $state(false);
 	let versionQuery = $state('');
+	let packageFiles = $derived(
+		plugin.packageFiles ?? (plugin.packageFile ? [plugin.packageFile] : [])
+	);
 
 	let visibleVersions = $derived(
 		showNonTaggedCommits
@@ -102,6 +107,7 @@
 	);
 	let canInstall = $derived(
 		installState !== 'working' &&
+			packageFiles.includes(draft.packageFile) &&
 			Boolean(requestedVersion) &&
 			visibleVersions.some((version: InstallVersionOption) => version.value === requestedVersion) &&
 			selectedInstallCount > 0 &&
@@ -113,6 +119,7 @@
 	function resetDraft() {
 		const existingSource = remoteSourceOptions[0];
 		draft = {
+			packageFile: plugin.packageFile ?? packageFiles[0] ?? '',
 			version: visibleVersions[0]?.value ?? '',
 			selectedInstallIds: installs.map((install: HoudiniInstall) => install.id),
 			destinationChoice: existingSource ?? 'custom',
@@ -192,6 +199,7 @@
 			.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
 			.map((install: HoudiniInstall) => install.id);
 		const selection: InstallDialogSelection = {
+			packageFile: draft.packageFile,
 			version: requestedVersion,
 			installIds,
 			destinationPath: requestedDestination
@@ -314,6 +322,28 @@
 			</aside>
 
 			<div class="install-dialog-content">
+				<fieldset class="install-dialog-fieldset">
+					<legend>Package manifest</legend>
+					{#if packageFiles.length === 0}
+						<p class="install-manifest-empty" role="alert">
+							No JSON package files were found in this repository. Installation is unavailable.
+						</p>
+					{:else}
+						<label class="install-manifest-select">
+							<span>Choose the Houdini package config to install.</span>
+							<select
+								aria-label="Houdini package manifest"
+								bind:value={draft.packageFile}
+								disabled={installState === 'working'}
+							>
+								{#each packageFiles as packageFile (packageFile)}
+									<option value={packageFile}>{packageFile}</option>
+								{/each}
+							</select>
+						</label>
+					{/if}
+				</fieldset>
+
 				<fieldset class="install-dialog-fieldset">
 					<legend class="install-fieldset-heading">
 						<span>Houdini installs</span>
@@ -864,6 +894,35 @@
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;
 		line-height: 1.4;
+	}
+
+	.install-manifest-select {
+		display: grid;
+		gap: 6px;
+		margin-top: 8px;
+		color: var(--text-muted);
+		font-size: 12px;
+	}
+
+	.install-manifest-select select {
+		width: 100%;
+		min-width: 0;
+		padding: 8px 9px;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
+		font: inherit;
+	}
+
+	.install-manifest-select select:focus-visible {
+		border-color: #399b82;
+		outline: 2px solid rgba(57, 155, 130, 0.3);
+		outline-offset: 1px;
+	}
+
+	.install-manifest-empty {
+		margin: 8px 0 0;
 	}
 
 	.install-target-options {

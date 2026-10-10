@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePluginRepositories, validateRepositoryInputs } from './discovery';
+import {
+	resolvePluginRepositories,
+	resolvePluginRepository,
+	validateRepositoryInputs
+} from './discovery';
 
 function githubFetcher(input: RequestInfo | URL) {
 	const url = input.toString();
@@ -54,6 +58,129 @@ describe('plugin repository discovery', () => {
 			manifestSource: 'repository',
 			source: 'github'
 		});
+	});
+
+	it('keeps all JSON files and allows selecting a nested manifest when configs are ambiguous', async () => {
+		const response = await resolvePluginRepositories(
+			['https://github.com/example/ambiguous'],
+			async (input) => {
+				const url = input.toString();
+				if (url.endsWith('/repos/example/ambiguous')) {
+					return Response.json({
+						name: 'ambiguous',
+						owner: { login: 'example' },
+						default_branch: 'main'
+					});
+				}
+				if (url.includes('/tags?')) return Response.json([{ name: 'main' }]);
+				if (url.includes('/git/trees/')) {
+					return Response.json({
+						tree: [
+							{ path: 'configs/first.json', type: 'blob' },
+							{ path: 'configs/second.json', type: 'blob' },
+							{ path: 'README.json', type: 'blob' }
+						]
+					});
+				}
+				if (url.endsWith('/configs/first.json')) return Response.json({ hpath: '$FIRST' });
+				if (url.endsWith('/configs/second.json')) return Response.json({ env: [] });
+				if (url.endsWith('/README.json')) return Response.json({ title: 'readme' });
+				return Promise.reject(new Error(`Unexpected request: ${url}`));
+			}
+		);
+
+		const candidate = response.results[0].candidate;
+		expect(candidate).toMatchObject({
+			packageFile: 'configs/first.json',
+			packageFiles: ['configs/first.json', 'configs/second.json', 'README.json']
+		});
+		expect(candidate?.warnings).toContain(
+			'The repository contains multiple JSON files; review and choose the Houdini package manifest in the installer.'
+		);
+
+		const selected = await resolvePluginRepository(
+			'https://github.com/example/ambiguous',
+			'configs/second.json',
+			async (input) => {
+				const url = input.toString();
+				if (url.endsWith('/repos/example/ambiguous')) {
+					return Response.json({
+						name: 'ambiguous',
+						owner: { login: 'example' },
+						default_branch: 'main'
+					});
+				}
+				if (url.includes('/tags?')) return Response.json([{ name: 'main' }]);
+				if (url.includes('/git/trees/')) {
+					return Response.json({
+						tree: [
+							{ path: 'configs/first.json', type: 'blob' },
+							{ path: 'configs/second.json', type: 'blob' }
+						]
+					});
+				}
+				if (url.endsWith('/configs/first.json')) return Response.json({ hpath: '$FIRST' });
+				if (url.endsWith('/configs/second.json')) return Response.json({ env: [] });
+				return Promise.reject(new Error(`Unexpected request: ${url}`));
+			}
+		);
+		expect(selected.packageFile).toBe('configs/second.json');
+	});
+
+	it('falls back to the first JSON file and reports when no config is recognizable', async () => {
+		const response = await resolvePluginRepositories(
+			['https://github.com/example/unrecognized'],
+			async (input) => {
+				const url = input.toString();
+				if (url.endsWith('/repos/example/unrecognized')) {
+					return Response.json({
+						name: 'unrecognized',
+						owner: { login: 'example' },
+						default_branch: 'main'
+					});
+				}
+				if (url.includes('/tags?')) return Response.json([{ name: 'main' }]);
+				if (url.includes('/git/trees/')) {
+					return Response.json({ tree: [{ path: 'metadata.json', type: 'blob' }] });
+				}
+				if (url.endsWith('/metadata.json')) return Response.json({ title: 'metadata' });
+				return Promise.reject(new Error(`Unexpected request: ${url}`));
+			}
+		);
+
+		expect(response.results[0].candidate).toMatchObject({
+			packageFile: 'metadata.json',
+			packageFiles: ['metadata.json']
+		});
+		expect(response.results[0].candidate?.warnings).toContain(
+			'No recognizable Houdini package config was found; choose a JSON file in the installer if it is the package manifest.'
+		);
+	});
+
+	it('returns an unavailable candidate when the repository has no JSON files', async () => {
+		const response = await resolvePluginRepositories(
+			['https://github.com/example/no-manifest'],
+			async (input) => {
+				const url = input.toString();
+				if (url.endsWith('/repos/example/no-manifest')) {
+					return Response.json({
+						name: 'no-manifest',
+						owner: { login: 'example' },
+						default_branch: 'main'
+					});
+				}
+				if (url.includes('/tags?')) return Response.json([{ name: 'main' }]);
+				if (url.includes('/git/trees/')) {
+					return Response.json({ tree: [{ path: 'README.md', type: 'blob' }] });
+				}
+				return Promise.reject(new Error(`Unexpected request: ${url}`));
+			}
+		);
+
+		expect(response.results[0].candidate).toMatchObject({ packageFile: '', packageFiles: [] });
+		expect(response.results[0].candidate?.warnings).toContain(
+			'No JSON package files were found; installation is unavailable for this repository.'
+		);
 	});
 
 	it('exposes tags and the pinned commit for curated repositories', async () => {

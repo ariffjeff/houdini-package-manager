@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { getPluginCatalog } from '../../plugin-discovery/catalog.js';
 import type {
 	PluginCatalogEntry,
@@ -12,6 +11,11 @@ import {
 	resolveGithubRepository,
 	type GithubRepositorySnapshot
 } from './github.js';
+
+type PackageFileInference = {
+	packageFile: string;
+	recognized: boolean;
+};
 
 const maximumRepositories = 20;
 const packageConfigKeys = new Set([
@@ -82,10 +86,10 @@ export async function resolvePluginRepository(
 	);
 	const snapshot = await resolveGithubRepository(repository.url, fetcher);
 	const candidate = await createCandidate(snapshot, catalogEntry, fetcher);
-	if (packageFile && packageFile !== candidate.packageFile) {
+	if (packageFile && !candidate.packageFiles.includes(packageFile)) {
 		throw new Error('The selected Houdini package manifest does not match the repository.');
 	}
-	return candidate;
+	return packageFile ? { ...candidate, packageFile } : candidate;
 }
 
 async function createCandidate(
@@ -93,7 +97,10 @@ async function createCandidate(
 	catalogEntry: PluginCatalogEntry | undefined,
 	fetcher: typeof fetch
 ): Promise<PluginDiscoveryCandidate> {
-	const packageFile = catalogEntry?.packageFile ?? (await inferPackageFile(snapshot, fetcher));
+	const inference = catalogEntry
+		? { packageFile: catalogEntry.packageFile, recognized: true }
+		: await inferPackageFile(snapshot, fetcher);
+	const packageFile = inference.packageFile;
 	const versions = catalogEntry
 		? [
 				...snapshot.versions,
@@ -110,12 +117,21 @@ async function createCandidate(
 	const warnings: string[] = [];
 	if (!catalogEntry && snapshot.packageFiles.length > 1) {
 		warnings.push(
-			'The repository contains multiple JSON files; one Houdini package manifest was selected.'
+			'The repository contains multiple JSON files; review and choose the Houdini package manifest in the installer.'
+		);
+	}
+	if (!catalogEntry && snapshot.packageFiles.length === 0) {
+		warnings.push(
+			'No JSON package files were found; installation is unavailable for this repository.'
+		);
+	} else if (!catalogEntry && !inference.recognized) {
+		warnings.push(
+			'No recognizable Houdini package config was found; choose a JSON file in the installer if it is the package manifest.'
 		);
 	}
 	if (packageFile.includes('/')) {
 		warnings.push(
-			`The package manifest is nested at ${packageFile}; HPM will install ${path.basename(packageFile)}.`
+			`The package manifest is nested at ${packageFile}; HPM will preserve that repository-relative path.`
 		);
 	}
 
@@ -134,7 +150,8 @@ async function createCandidate(
 		repository: snapshot.repository.repository,
 		defaultBranch: snapshot.defaultBranch,
 		versions,
-		packageFile: path.basename(packageFile),
+		packageFile,
+		packageFiles: catalogEntry ? [catalogEntry.packageFile] : [...snapshot.packageFiles],
 		manifestSource: catalogEntry ? 'catalog' : 'repository',
 		warnings: [...warnings],
 		tags: [...(catalogEntry?.tags ?? [])]
@@ -144,7 +161,7 @@ async function createCandidate(
 async function inferPackageFile(
 	snapshot: GithubRepositorySnapshot,
 	fetcher: typeof fetch
-): Promise<string> {
+): Promise<PackageFileInference> {
 	const validFiles: string[] = [];
 	for (const filePath of snapshot.packageFiles.slice(0, 12)) {
 		try {
@@ -161,11 +178,10 @@ async function inferPackageFile(
 		}
 	}
 
-	if (validFiles.length === 1) return validFiles[0];
-	if (!validFiles.length) {
-		throw new Error('No Houdini package manifest was found in this repository.');
-	}
-	throw new Error(`Multiple Houdini package manifests were found: ${validFiles.join(', ')}.`);
+	return {
+		packageFile: validFiles[0] ?? snapshot.packageFiles[0] ?? '',
+		recognized: validFiles.length > 0
+	};
 }
 
 function isPackageConfig(value: unknown): value is Record<string, unknown> {

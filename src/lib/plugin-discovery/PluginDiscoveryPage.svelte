@@ -41,6 +41,7 @@
 			name: candidate.name,
 			repositoryUrl: candidate.repositoryUrl,
 			packageFile: candidate.packageFile,
+			packageFiles: candidate.packageFiles,
 			provenanceSource: candidate.source,
 			pinnedCommit: candidate.pinnedCommit,
 			manifestBlobSha: candidate.manifestBlobSha
@@ -119,6 +120,7 @@
 		const candidate = pluginDiscoveryState.installCandidate;
 		if (
 			!candidate ||
+			!candidate.packageFiles.includes(selection.packageFile) ||
 			!candidate.versions.some((version) => version.value === selection.version) ||
 			!selection.installIds.length ||
 			!selection.destinationPath
@@ -127,7 +129,7 @@
 		}
 		const request: InstallPluginRequest = {
 			repositoryUrl: candidate.repositoryUrl,
-			packageFile: candidate.packageFile,
+			packageFile: selection.packageFile,
 			version: selection.version,
 			installIds: selection.installIds,
 			destinationPath: selection.destinationPath

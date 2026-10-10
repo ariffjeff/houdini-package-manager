@@ -15,6 +15,7 @@ export type InstallDialogOptions = {
 };
 
 export type InstallDialogSelection = {
+	packageFile: string;
 	version: string;
 	installIds: string[];
 	destinationPath: string;
@@ -25,6 +26,7 @@ export type InstallDialogPlugin = {
 	name: string;
 	repositoryUrl?: string | null;
 	packageFile?: string;
+	packageFiles?: string[];
 	provenanceSource?: PluginDiscoverySource;
 	pinnedCommit?: string;
 	manifestBlobSha?: string;
