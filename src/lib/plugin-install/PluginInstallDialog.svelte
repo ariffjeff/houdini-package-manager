@@ -121,7 +121,7 @@
 		draft = {
 			packageFile: plugin.packageFile ?? packageFiles[0] ?? '',
 			version: visibleVersions[0]?.value ?? '',
-			selectedInstallIds: installs.map((install: HoudiniInstall) => install.id),
+			selectedInstallIds: [],
 			destinationChoice: existingSource ?? 'custom',
 			customDestination: existingSource ?? '',
 			openInstalledFolder: false,
