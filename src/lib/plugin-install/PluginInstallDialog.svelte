@@ -634,8 +634,8 @@
 	}
 
 	.install-dialog {
-		width: min(1200px, 100%);
-		height: min(820px, calc(100dvh - 48px));
+		width: 100%;
+		height: 100%;
 	}
 
 	.install-dialog-layout {
