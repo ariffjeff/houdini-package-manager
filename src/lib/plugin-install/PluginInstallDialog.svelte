@@ -479,10 +479,19 @@
 							previewText={manifestConfig ? manifestPreviewText : draft.manifestText}
 							packagePath={draft.packageFile}
 							editable
+							fillHeight
 							onReset={resetManifestChanges}
 							disabled={installState === 'working'}
 							onEdit={updateManifestText}
 						/>
+					{/if}
+				</fieldset>
+			</div>
+
+			<div class="install-dialog-column install-fixes-column">
+				<fieldset class="install-dialog-fieldset">
+					<legend>Issue fixes</legend>
+					{#if packageFiles.length > 0}
 						<ConfigFixesPanel
 							bind:state={manifestFixState}
 							disabled={installState === 'working'}
@@ -493,6 +502,8 @@
 							manifestUninspected={!selectedManifestPreflight}
 							{manifestDraftError}
 						/>
+					{:else}
+						<p class="install-manifest-empty">No package manifest is available.</p>
 					{/if}
 				</fieldset>
 			</div>
@@ -802,10 +813,14 @@
 
 	.install-dialog-layout {
 		display: grid;
-		grid-template-columns: minmax(190px, 0.3fr) minmax(300px, 1fr) minmax(280px, 1fr);
+		grid-template-columns:
+			minmax(180px, 0.3fr)
+			minmax(300px, 0.9fr)
+			minmax(250px, 1fr)
+			minmax(280px, 0.75fr);
 		min-height: 0;
 		flex: 1 1 auto;
-		gap: 18px;
+		gap: 8px;
 		margin-top: 20px;
 	}
 
@@ -913,8 +928,25 @@
 	}
 
 	.install-manifest-column,
+	.install-fixes-column,
 	.install-review-column {
 		min-width: 0;
+	}
+
+	.install-manifest-column,
+	.install-fixes-column {
+		height: 100%;
+		overflow: hidden;
+	}
+
+	.install-manifest-column > .install-dialog-fieldset,
+	.install-fixes-column > .install-dialog-fieldset {
+		display: flex;
+		flex-direction: column;
+		box-sizing: border-box;
+		height: 100%;
+		min-height: 0;
+		overflow-y: auto;
 	}
 
 	.install-destination-input {

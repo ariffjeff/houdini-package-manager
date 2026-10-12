@@ -8,6 +8,7 @@
 		packagePath,
 		loading = false,
 		editable = false,
+		fillHeight = false,
 		disabled = false,
 		onEdit,
 		onReset
@@ -17,6 +18,7 @@
 		packagePath: string;
 		loading?: boolean;
 		editable?: boolean;
+		fillHeight?: boolean;
 		disabled?: boolean;
 		onEdit?: (text: string) => void;
 		onReset?: () => void;
@@ -31,6 +33,8 @@
 	let previewLines = $derived(diffPreviewLines(originalText, previewText));
 
 	function syncPreviewHeight(node: HTMLElement, height: number) {
+		node.style.removeProperty('height');
+		if (fillHeight) return;
 		node.style.height = `${height}px`;
 		const observer = new ResizeObserver(([entry]) => {
 			const borderBoxSize = Array.isArray(entry.borderBoxSize)
@@ -78,12 +82,8 @@
 	}
 </script>
 
-<div class="config-preview-panel mb-2">
+<div class:config-preview-panel-fill-height={fillHeight} class="config-preview-panel mb-2">
 	<div class="config-preview-heading">
-		<div>
-			<span>{editable ? 'Package manifest' : 'Live JSON preview'}</span>
-			<code>{packagePath}</code>
-		</div>
 		<div class="config-preview-toggles">
 			{#if editable || onReset}
 				<button
@@ -194,10 +194,16 @@
 		overflow: hidden;
 	}
 
+	.config-preview-panel-fill-height {
+		display: flex;
+		min-height: 0;
+		flex: 1 1 auto;
+		flex-direction: column;
+	}
+
 	.config-preview-heading {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
+		align-items: flex-start;
 		gap: 12px;
 		padding: 9px 11px;
 		border-bottom: 1px solid var(--line);
@@ -213,12 +219,19 @@
 		gap: 12px;
 	}
 
+	.config-preview-heading > div:first-child {
+		width: 100%;
+		align-items: flex-start;
+		gap: 3px;
+	}
+
 	.config-preview-toggles {
 		display: flex;
 		align-items: center;
-		justify-content: flex-end;
+		justify-content: flex-start;
 		flex-wrap: wrap;
 		gap: 6px;
+		width: 100%;
 	}
 
 	.config-preview-toggle {
@@ -279,8 +292,10 @@
 		opacity: 0.45;
 	}
 
-	.config-preview-heading code {
+	.config-preview-path {
+		width: 100%;
 		min-width: 0;
+		max-width: 100%;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -326,6 +341,23 @@
 		font-size: 12px;
 		line-height: 1.5;
 		white-space: pre;
+	}
+
+	.config-preview-panel-fill-height > pre,
+	.config-preview-panel-fill-height > textarea,
+	.config-preview-panel-fill-height > .config-editable-diff {
+		box-sizing: border-box;
+		min-height: 0;
+		height: auto !important;
+		max-height: none;
+		flex: 1 1 0;
+	}
+
+	.config-preview-panel-fill-height .config-editable-diff .config-diff-layer,
+	.config-preview-panel-fill-height .config-editable-diff .config-diff-editor {
+		min-height: 0;
+		height: 100% !important;
+		max-height: none;
 	}
 
 	.config-preview-panel textarea:focus-visible {
