@@ -160,7 +160,7 @@
 							<div class="config-table-fix">
 								<label class="config-fix-toggle">
 									<input type="checkbox" bind:checked={state.migrateLegacyPath} {disabled} />
-									<span>Remove deprecated <code>path</code></span>
+									<span>Replace deprecated <code>path</code></span>
 								</label>
 								<label class="config-fix-alias-choice">
 									<span>Replace with</span>
