@@ -134,7 +134,7 @@
 	});
 	let manifestPreviewText = $derived(
 		manifestConfig
-			? correctedConfigText(manifestFixState, requestedDestination, draft.manifestTextInitial)
+			? correctedConfigText(manifestFixState, requestedDestination, draft.manifestText)
 			: ''
 	);
 	let manifestHasFatalIssue = $derived.by(() => {
