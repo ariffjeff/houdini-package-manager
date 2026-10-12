@@ -292,15 +292,6 @@
 		opacity: 0.45;
 	}
 
-	.config-preview-path {
-		width: 100%;
-		min-width: 0;
-		max-width: 100%;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
 	.config-preview-panel pre {
 		box-sizing: border-box;
 		min-height: 260px;

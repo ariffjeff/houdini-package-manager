@@ -83,6 +83,43 @@ describe('config editor helpers', () => {
 		);
 	});
 
+	it('preserves blank lines after env when migrating path into HOUDINI_PATH', () => {
+		const state = createConfigFixState(
+			{
+				path: 'C:/legacy/plugin',
+				load_package_once: true,
+				recommends: "houdini_version >= '17.5.321'",
+				env: [
+					{
+						QLIB: '$HOUDINI_USER_PREF_DIR/qLib-master',
+						HOUDINI_PATH: 'C:/Users/ariff/HPM/plugins/qlib'
+					},
+					{ QOTL: '$QLIB/otls' }
+				]
+			},
+			{ defaultHpath: 'C:/install/plugin', migrateLegacyPath: true }
+		);
+		state.legacyPathAlias = 'HOUDINI_PATH';
+		const sourceText = `{
+    "path": "C:/legacy/plugin",
+    "load_package_once": true,
+    "recommends": "houdini_version >= '17.5.321'",
+    "env": [
+
+        {
+            "QLIB": "$HOUDINI_USER_PREF_DIR/qLib-master",
+            "HOUDINI_PATH": "C:/Users/ariff/HPM/plugins/qlib"
+        },
+        {
+            "QOTL": "$QLIB/otls"
+        }
+    ]
+}`;
+
+		const corrected = correctedConfigText(state, 'C:/install/plugin', sourceText);
+		expect(corrected).toContain('    "env": [\n\n        {');
+	});
+
 	it('returns the original source when no fix changes the config', () => {
 		const state = createConfigFixState(
 			{ hpath: 'C:/install/plugin', enable: false },

@@ -304,23 +304,73 @@ function detectJsonIndentation(sourceText: string): string | number {
 function preserveBlankLines(sourceText: string, generatedText: string, lineEnding: string): string {
 	const sourceBody = sourceText.replace(/\r?\n$/, '');
 	const sourceLines = sourceBody.split(/\r?\n/);
-	const blankRuns = new Map<number, number>();
+	type LineAnchor = { line: string; occurrence: number } | null;
+	type BlankRun = {
+		count: number;
+		contentIndex: number;
+		previous: LineAnchor;
+		next: LineAnchor;
+	};
+
+	function anchors(lines: string[]): LineAnchor[] {
+		const occurrences = new Map<string, number>();
+		return lines.map((line) => {
+			if (line.trim() === '') return null;
+			const occurrence = (occurrences.get(line) ?? 0) + 1;
+			occurrences.set(line, occurrence);
+			return { line, occurrence };
+		});
+	}
+
+	function sameAnchor(left: LineAnchor, right: LineAnchor): boolean {
+		return left?.line === right?.line && left?.occurrence === right?.occurrence;
+	}
+
+	const sourceAnchors = anchors(sourceLines);
+	const blankRuns: BlankRun[] = [];
 	let sourceContentLineCount = 0;
-	for (const line of sourceLines) {
-		if (line.trim() === '') {
-			blankRuns.set(sourceContentLineCount, (blankRuns.get(sourceContentLineCount) ?? 0) + 1);
-		} else {
+	for (let index = 0; index < sourceLines.length; index += 1) {
+		if (sourceLines[index].trim() !== '') {
 			sourceContentLineCount += 1;
+			continue;
 		}
+		const start = index;
+		while (index + 1 < sourceLines.length && sourceLines[index + 1].trim() === '') index += 1;
+		blankRuns.push({
+			count: index - start + 1,
+			contentIndex: sourceContentLineCount,
+			previous: sourceAnchors[start - 1] ?? null,
+			next: sourceAnchors[index + 1] ?? null
+		});
 	}
 
 	const outputLines: string[] = [];
+	const generatedLines = generatedText.split(/\r?\n/);
+	const generatedAnchors = anchors(generatedLines);
+	const appliedRuns = new Set<BlankRun>();
 	let generatedContentLineCount = 0;
-	for (const line of generatedText.split(/\r?\n/)) {
-		outputLines.push(...Array(blankRuns.get(generatedContentLineCount) ?? 0).fill(''));
-		outputLines.push(line);
-		if (line.trim() !== '') generatedContentLineCount += 1;
+	for (let index = 0; index < generatedLines.length; index += 1) {
+		const run = blankRuns.find(
+			(candidate) =>
+				!appliedRuns.has(candidate) &&
+				((sameAnchor(candidate.previous, generatedAnchors[index - 1] ?? null) &&
+					sameAnchor(candidate.next, generatedAnchors[index] ?? null)) ||
+					candidate.contentIndex === generatedContentLineCount)
+		);
+		if (run) {
+			outputLines.push(...Array(run.count).fill(''));
+			appliedRuns.add(run);
+		}
+		outputLines.push(generatedLines[index]);
+		if (generatedLines[index].trim() !== '') generatedContentLineCount += 1;
 	}
-	outputLines.push(...Array(blankRuns.get(generatedContentLineCount) ?? 0).fill(''));
+	const trailingRun = blankRuns.find(
+		(candidate) =>
+			!appliedRuns.has(candidate) &&
+			candidate.next === null &&
+			(sameAnchor(candidate.previous, generatedAnchors[generatedAnchors.length - 1] ?? null) ||
+				candidate.contentIndex === generatedContentLineCount)
+	);
+	if (trailingRun) outputLines.push(...Array(trailingRun.count).fill(''));
 	return outputLines.join(lineEnding);
 }
