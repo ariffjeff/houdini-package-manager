@@ -1,45 +1,30 @@
 <script lang="ts">
 	import { TriangleAlert } from '@lucide/svelte';
-	import type { PackagePathAlias } from '$lib/houdini/package-config-fixes';
 	import type { PackageConfigIssue } from '$lib/houdini/types';
-	import {
-		configHpath,
-		hasPathAlias,
-		pathAliasConflictDescription,
-		effectiveHpath,
-		selectedPathAlias,
-		type ConfigFixState
-	} from './config-editor';
+	import { pathAliasConflictDescription, type ConfigFixState } from './config-editor';
 	import ConfigFixTable from './ConfigFixTable.svelte';
 
 	type Props = {
 		state: ConfigFixState;
 		disabled?: boolean;
 		idPrefix?: string;
-		hpathOverride?: string;
 		layout?: 'stacked' | 'table';
 		manifestIssues?: PackageConfigIssue[];
 		manifestFatal?: boolean;
 		manifestUninspected?: boolean;
 		manifestDraftError?: string;
-		showSource?: boolean;
 	};
 
 	let {
 		state = $bindable(),
 		disabled = false,
 		idPrefix = 'config',
-		hpathOverride,
 		layout = 'stacked',
 		manifestIssues = [],
 		manifestFatal = false,
 		manifestUninspected = false,
-		manifestDraftError = '',
-		showSource = true
+		manifestDraftError = ''
 	}: Props = $props();
-
-	let displayedHpath = $derived(effectiveHpath(state, hpathOverride));
-	let displayedAlias = $derived(selectedPathAlias(state) ?? state.pathAlias);
 
 	function toggleFixCard(event: MouseEvent | KeyboardEvent, toggle: () => void): void {
 		if (disabled) return;
@@ -48,17 +33,6 @@
 		if (event instanceof KeyboardEvent) event.preventDefault();
 		toggle();
 	}
-
-	function handlePathAliasChange(selectedAlias: PackagePathAlias): void {
-		const currentHpath = state.hpath;
-		state.pathAlias = selectedAlias;
-		const selectedHpath = configHpath(state.config, state.defaultHpath, selectedAlias);
-		state.hpath = hasPathAlias(state.config, selectedAlias) ? selectedHpath : currentHpath;
-	}
-
-	function updateHpath(value: string): void {
-		if (hpathOverride === undefined) state.hpath = value;
-	}
 </script>
 
 <div class:config-fix-table-mode={layout === 'table'} class="config-fix-mode">
@@ -66,11 +40,9 @@
 		bind:state
 		{disabled}
 		{idPrefix}
-		{hpathOverride}
 		{manifestIssues}
 		{manifestUninspected}
 		{manifestDraftError}
-		{showSource}
 	/>
 
 	<div class:config-fix-legacy-hidden={layout === 'table'} class="config-fix-layout">
@@ -298,38 +270,6 @@
 					{/if}
 				</div>
 			{/if}
-
-			{#if showSource}
-				<label class="install-dialog-field">
-					<span>
-						<select
-							aria-label="Local plugin source alias"
-							value={state.pathAlias}
-							onchange={(event) =>
-								handlePathAliasChange(
-									(event.currentTarget as HTMLSelectElement).value as PackagePathAlias
-								)}
-							disabled={disabled || state.applyPathAliasFix}
-						>
-							<option value="hpath">hpath</option>
-							<option value="HOUDINI_PATH">HOUDINI_PATH</option>
-						</select>
-						Local plugin source
-					</span>
-					<input
-						class="config-source-input"
-						type="text"
-						aria-label={`Local plugin source (${displayedAlias})`}
-						value={displayedHpath}
-						disabled={disabled ||
-							hpathOverride !== undefined ||
-							state.applySourcePathFix ||
-							(state.applyPathAliasFix && !selectedPathAlias(state))}
-						oninput={(event) => updateHpath((event.currentTarget as HTMLInputElement).value)}
-						placeholder="C:\\Plugins\\Plugin"
-					/>
-				</label>
-			{/if}
 		</div>
 	</div>
 </div>
@@ -373,23 +313,6 @@
 		background: rgba(0, 0, 0, 0.35);
 		color: var(--text);
 		cursor: pointer;
-	}
-
-	.config-source-input {
-		width: 100%;
-		min-width: 0;
-		padding: 9px 10px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--surface-raised);
-		color: var(--text);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 12px;
-	}
-
-	.config-source-input:focus-visible {
-		border-color: #399b82;
-		outline: none;
 	}
 
 	.config-fixes-section {

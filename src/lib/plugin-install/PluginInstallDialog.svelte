@@ -487,13 +487,11 @@
 							bind:state={manifestFixState}
 							disabled={installState === 'working'}
 							idPrefix="install-manifest"
-							hpathOverride={requestedDestination}
 							layout="table"
 							manifestIssues={selectedManifestPreflight?.issues ?? []}
 							manifestFatal={selectedManifestPreflight?.fatal ?? false}
 							manifestUninspected={!selectedManifestPreflight}
 							{manifestDraftError}
-							showSource={Boolean(manifestConfig)}
 						/>
 					{/if}
 				</fieldset>

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { TriangleAlert } from '@lucide/svelte';
-	import type { PackagePathAlias } from '$lib/houdini/package-config-fixes';
 	import type { PackageConfigIssue } from '$lib/houdini/types';
 	import { pathAliasConflictDescription, type ConfigFixState } from './config-editor';
 
@@ -8,22 +7,18 @@
 		state: ConfigFixState;
 		disabled?: boolean;
 		idPrefix?: string;
-		hpathOverride?: string;
 		manifestIssues?: PackageConfigIssue[];
 		manifestUninspected?: boolean;
 		manifestDraftError?: string;
-		showSource?: boolean;
 	};
 
 	let {
 		state = $bindable(),
 		disabled = false,
 		idPrefix = 'config',
-		hpathOverride,
 		manifestIssues = [],
 		manifestUninspected = false,
-		manifestDraftError = '',
-		showSource = true
+		manifestDraftError = ''
 	}: Props = $props();
 
 	function issueFix(issue: PackageConfigIssue): string {
@@ -42,32 +37,6 @@
 		}
 	}
 </script>
-
-{#if showSource}
-	<label class="install-dialog-field config-table-source">
-		<span>
-			<select
-				aria-label="Local plugin source alias"
-				value={state.pathAlias}
-				onchange={(event) =>
-					(state.pathAlias = (event.currentTarget as HTMLSelectElement).value as PackagePathAlias)}
-				disabled={disabled || state.applyPathAliasFix}
-			>
-				<option value="hpath">hpath</option>
-				<option value="HOUDINI_PATH">HOUDINI_PATH</option>
-			</select>
-			Local plugin source
-		</span>
-		<input
-			class="config-source-input"
-			type="text"
-			aria-label="Local plugin source"
-			value={hpathOverride ?? state.hpath}
-			disabled
-			placeholder="C:\\Plugins\\Plugin"
-		/>
-	</label>
-{/if}
 
 <div class="config-fix-table-shell">
 	<table class="config-fix-table" aria-label="Manifest issues and fixes">
@@ -406,9 +375,7 @@
 		font: inherit;
 	}
 
-	.config-table-select:focus-visible,
-	.config-table-source select:focus-visible,
-	.config-table-source input:focus-visible {
+	.config-table-select:focus-visible {
 		border-color: #399b82;
 		outline: 2px solid rgba(57, 155, 130, 0.28);
 		outline-offset: 1px;
@@ -475,49 +442,6 @@
 		font-style: italic;
 	}
 
-	.config-table-source {
-		display: grid;
-		gap: 8px;
-		margin-top: 12px;
-		padding: 10px 11px;
-		border: 1px solid var(--line);
-		border-radius: 7px;
-		background: rgba(255, 255, 255, 0.025);
-	}
-
-	.config-table-source > span {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		color: var(--text-dim);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 11px;
-		font-weight: 600;
-	}
-
-	.config-table-source select,
-	.config-table-source input {
-		box-sizing: border-box;
-		min-width: 0;
-		padding: 7px 8px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--surface-raised);
-		color: var(--text);
-		font: inherit;
-		font-size: 12px;
-	}
-
-	.config-table-source select {
-		flex: 0 0 auto;
-	}
-
-	.config-table-source input {
-		width: 100%;
-		color: var(--text-muted);
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-	}
-
 	@media (max-width: 560px) {
 		.config-fix-table {
 			min-width: 500px;
@@ -526,12 +450,6 @@
 		.config-fix-table th,
 		.config-fix-table td {
 			padding: 9px;
-		}
-
-		.config-table-source > span {
-			align-items: flex-start;
-			flex-direction: column;
-			gap: 5px;
 		}
 	}
 </style>
