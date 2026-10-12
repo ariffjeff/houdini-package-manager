@@ -7,6 +7,14 @@ import {
 	type PackagePathAliasConflict,
 	type PackagePathAliasLocationIssue
 } from '$lib/houdini/package-config-fixes';
+import {
+	applyEdits,
+	findNodeAtLocation,
+	modify,
+	parseTree,
+	type FormattingOptions,
+	type JSONPath
+} from 'jsonc-parser';
 
 export type PathAliasResolution =
 	'keep-hpath' | 'keep-HOUDINI_PATH' | 'replace-hpath' | 'replace-HOUDINI_PATH' | null;
@@ -273,104 +281,96 @@ export function correctedConfigText(
 	hpathOverride?: string,
 	sourceText?: string
 ): string {
-	const correctedConfig = applyPackageConfigFixes(
-		state.config,
-		configFixPlan(state, hpathOverride)
-	);
+	const plan = configFixPlan(state, hpathOverride);
+	const correctedConfig = applyPackageConfigFixes(state.config, plan);
 	if (
 		sourceText !== undefined &&
 		JSON.stringify(correctedConfig) === JSON.stringify(state.config)
 	) {
 		return sourceText;
 	}
-	const indentation = sourceText === undefined ? 2 : detectJsonIndentation(sourceText);
-	const lineEnding = sourceText?.includes('\r\n') ? '\r\n' : '\n';
-	const correctedText = JSON.stringify(correctedConfig, null, indentation).replace(
-		/\n/g,
-		lineEnding
-	);
-	const formattedText =
-		sourceText === undefined
-			? correctedText
-			: preserveBlankLines(sourceText, correctedText, lineEnding);
-	return sourceText && /\r?\n$/.test(sourceText) ? `${formattedText}${lineEnding}` : formattedText;
+	if (sourceText === undefined) return JSON.stringify(correctedConfig, null, 2);
+
+	const lineEnding = sourceText.includes('\r\n') ? '\r\n' : '\n';
+	const formattingOptions = detectFormattingOptions(sourceText, lineEnding);
+	let workingSource = sourceText;
+	let sourceConfig = state.config;
+	if (
+		plan.migrateLegacyPath &&
+		plan.pathAlias === 'hpath' &&
+		Object.prototype.hasOwnProperty.call(state.config, 'path') &&
+		Object.prototype.hasOwnProperty.call(correctedConfig, 'hpath')
+	) {
+		workingSource = renameJsonProperty(workingSource, ['path'], 'hpath');
+		sourceConfig = { ...state.config, hpath: state.config.path };
+		delete sourceConfig.path;
+	}
+
+	return applyConfigTextEdits(workingSource, sourceConfig, correctedConfig, formattingOptions);
 }
 
-function detectJsonIndentation(sourceText: string): string | number {
-	if (!/\r?\n/.test(sourceText)) return 0;
-	return sourceText.match(/^[ \t]+(?=["}\]])/m)?.[0] ?? 2;
-}
-
-function preserveBlankLines(sourceText: string, generatedText: string, lineEnding: string): string {
-	const sourceBody = sourceText.replace(/\r?\n$/, '');
-	const sourceLines = sourceBody.split(/\r?\n/);
-	type LineAnchor = { line: string; occurrence: number } | null;
-	type BlankRun = {
-		count: number;
-		contentIndex: number;
-		previous: LineAnchor;
-		next: LineAnchor;
+function detectFormattingOptions(sourceText: string, lineEnding: string): FormattingOptions {
+	const indentation = sourceText.match(/^[ \t]+(?=["}\]])/m)?.[0] ?? '  ';
+	return {
+		insertSpaces: !indentation.includes('\t'),
+		tabSize: indentation.includes('\t') ? 1 : indentation.length,
+		eol: lineEnding,
+		insertFinalNewline: false
 	};
+}
 
-	function anchors(lines: string[]): LineAnchor[] {
-		const occurrences = new Map<string, number>();
-		return lines.map((line) => {
-			if (line.trim() === '') return null;
-			const occurrence = (occurrences.get(line) ?? 0) + 1;
-			occurrences.set(line, occurrence);
-			return { line, occurrence };
-		});
+function renameJsonProperty(sourceText: string, path: JSONPath, nextName: string): string {
+	const root = parseTree(sourceText);
+	const valueNode = root ? findNodeAtLocation(root, path) : undefined;
+	const propertyNode = valueNode?.parent;
+	const keyNode = propertyNode?.children?.[0];
+	if (!keyNode) return sourceText;
+	return applyEdits(sourceText, [
+		{ offset: keyNode.offset, length: keyNode.length, content: JSON.stringify(nextName) }
+	]);
+}
+
+function applyConfigTextEdits(
+	sourceText: string,
+	sourceConfig: Record<string, unknown>,
+	correctedConfig: Record<string, unknown>,
+	formattingOptions: FormattingOptions
+): string {
+	let result = sourceText;
+
+	function applyModification(path: JSONPath, value: unknown): void {
+		result = applyEdits(result, modify(result, path, value, { formattingOptions }));
 	}
 
-	function sameAnchor(left: LineAnchor, right: LineAnchor): boolean {
-		return left?.line === right?.line && left?.occurrence === right?.occurrence;
-	}
-
-	const sourceAnchors = anchors(sourceLines);
-	const blankRuns: BlankRun[] = [];
-	let sourceContentLineCount = 0;
-	for (let index = 0; index < sourceLines.length; index += 1) {
-		if (sourceLines[index].trim() !== '') {
-			sourceContentLineCount += 1;
-			continue;
+	function visit(path: JSONPath, before: unknown, after: unknown): void {
+		if (isJsonRecord(before) && isJsonRecord(after)) {
+			for (const key of Object.keys(before)) {
+				if (Object.prototype.hasOwnProperty.call(after, key))
+					visit([...path, key], before[key], after[key]);
+			}
+			for (const key of Object.keys(before)) {
+				if (!Object.prototype.hasOwnProperty.call(after, key))
+					applyModification([...path, key], undefined);
+			}
+			for (const key of Object.keys(after)) {
+				if (!Object.prototype.hasOwnProperty.call(before, key))
+					applyModification([...path, key], after[key]);
+			}
+			return;
 		}
-		const start = index;
-		while (index + 1 < sourceLines.length && sourceLines[index + 1].trim() === '') index += 1;
-		blankRuns.push({
-			count: index - start + 1,
-			contentIndex: sourceContentLineCount,
-			previous: sourceAnchors[start - 1] ?? null,
-			next: sourceAnchors[index + 1] ?? null
-		});
+		if (Array.isArray(before) && Array.isArray(after) && before.length === after.length) {
+			for (let index = 0; index < before.length; index += 1) {
+				visit([...path, index], before[index], after[index]);
+			}
+			return;
+		}
+		if (JSON.stringify(before) !== JSON.stringify(after)) applyModification(path, after);
 	}
 
-	const outputLines: string[] = [];
-	const generatedLines = generatedText.split(/\r?\n/);
-	const generatedAnchors = anchors(generatedLines);
-	const appliedRuns = new Set<BlankRun>();
-	let generatedContentLineCount = 0;
-	for (let index = 0; index < generatedLines.length; index += 1) {
-		const run = blankRuns.find(
-			(candidate) =>
-				!appliedRuns.has(candidate) &&
-				((sameAnchor(candidate.previous, generatedAnchors[index - 1] ?? null) &&
-					sameAnchor(candidate.next, generatedAnchors[index] ?? null)) ||
-					candidate.contentIndex === generatedContentLineCount)
-		);
-		if (run) {
-			outputLines.push(...Array(run.count).fill(''));
-			appliedRuns.add(run);
-		}
-		outputLines.push(generatedLines[index]);
-		if (generatedLines[index].trim() !== '') generatedContentLineCount += 1;
-	}
-	const trailingRun = blankRuns.find(
-		(candidate) =>
-			!appliedRuns.has(candidate) &&
-			candidate.next === null &&
-			(sameAnchor(candidate.previous, generatedAnchors[generatedAnchors.length - 1] ?? null) ||
-				candidate.contentIndex === generatedContentLineCount)
-	);
-	if (trailingRun) outputLines.push(...Array(trailingRun.count).fill(''));
-	return outputLines.join(lineEnding);
+	visit([], sourceConfig, correctedConfig);
+	return result;
+}
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

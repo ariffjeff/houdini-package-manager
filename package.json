@@ -44,6 +44,7 @@
 	},
 	"dependencies": {
 		"@lucide/svelte": "^1.45.0",
-		"@xyflow/svelte": "^1.6.6"
+		"@xyflow/svelte": "^1.6.6",
+		"jsonc-parser": "^3.3.1"
 	}
 }
