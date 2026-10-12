@@ -5,7 +5,6 @@
 	let {
 		originalText,
 		previewText,
-		packagePath,
 		loading = false,
 		editable = false,
 		fillHeight = false,
@@ -15,7 +14,6 @@
 	}: {
 		originalText: string;
 		previewText: string;
-		packagePath: string;
 		loading?: boolean;
 		editable?: boolean;
 		fillHeight?: boolean;

@@ -477,7 +477,6 @@
 						<ConfigPreviewPanel
 							originalText={draft.manifestTextInitial}
 							previewText={manifestConfig ? manifestPreviewText : draft.manifestText}
-							packagePath={draft.packageFile}
 							editable
 							fillHeight
 							onReset={resetManifestChanges}
