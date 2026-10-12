@@ -115,6 +115,20 @@
 		onClose();
 	}
 
+	function resetChanges() {
+		const configState = createConfigFixState(editor.config, {
+			defaultHpath: target.sourcePaths?.[0] ?? '',
+			sourcePathFixCandidates: editor.sourcePathFixCandidates,
+			pathAliasConflict: editor.pathAliasConflict,
+			pathAliasLocationIssue: editor.pathAliasLocationIssue,
+			undefinedVariableReferences: editor.undefinedVariableReferences,
+			migrateLegacyPath: editor.config.path !== undefined
+		});
+		configState.applyPathAliasLocationFix = false;
+		configState.migrateLegacyPath = false;
+		editor = { ...editor, ...configState, message: '' };
+	}
+
 	async function openTargetConfigFile() {
 		if (isScanActive || actionState === 'working' || editor.state === 'saving') return;
 
@@ -203,6 +217,7 @@
 				originalText={JSON.stringify(editor.config, null, 2)}
 				previewText={targetConfigPreview}
 				packagePath={editor.packagePath}
+				onReset={resetChanges}
 				loading={editor.state === 'loading'}
 			/>
 			{#if editor.message}

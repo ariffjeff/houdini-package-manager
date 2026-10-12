@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { RotateCcw } from '@lucide/svelte';
 	import { diffPreviewLines } from './config-editor';
 
 	let {
@@ -8,7 +9,8 @@
 		loading = false,
 		editable = false,
 		disabled = false,
-		onEdit
+		onEdit,
+		onReset
 	}: {
 		originalText: string;
 		previewText: string;
@@ -17,6 +19,7 @@
 		editable?: boolean;
 		disabled?: boolean;
 		onEdit?: (text: string) => void;
+		onReset?: () => void;
 	} = $props();
 
 	let showRawOriginal = $state(false);
@@ -24,6 +27,7 @@
 	let previewHeight = $state(260);
 	let diffPreviewElement = $state<HTMLElement | null>(null);
 	let controlsDisabled = $derived(disabled || loading);
+	let resetDisabled = $derived(controlsDisabled || previewText === originalText);
 	let previewLines = $derived(diffPreviewLines(originalText, previewText));
 
 	function syncPreviewHeight(node: HTMLElement, height: number) {
@@ -42,6 +46,11 @@
 
 	function commitEditorText(event: Event): void {
 		onEdit?.((event.currentTarget as HTMLTextAreaElement).value);
+	}
+
+	function resetChanges(): void {
+		if (resetDisabled) return;
+		onReset?.();
 	}
 
 	function syncDiffScroll(event: Event): void {
@@ -76,6 +85,19 @@
 			<code>{packagePath}</code>
 		</div>
 		<div class="config-preview-toggles">
+			{#if editable || onReset}
+				<button
+					type="button"
+					class="config-preview-reset"
+					disabled={resetDisabled}
+					title="Reset changes"
+					aria-label="Reset changes"
+					onclick={resetChanges}
+				>
+					<RotateCcw size={13} strokeWidth={1.9} aria-hidden="true" />
+					<span>Reset changes</span>
+				</button>
+			{/if}
 			<label class="config-preview-toggle">
 				<input
 					type="checkbox"
@@ -228,6 +250,33 @@
 	.config-preview-toggle input {
 		margin: 0;
 		accent-color: #399b82;
+	}
+
+	.config-preview-reset {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 6px;
+		border: 1px solid transparent;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--text-muted);
+		font: inherit;
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.config-preview-reset:hover:not(:disabled),
+	.config-preview-reset:focus-visible:not(:disabled) {
+		border-color: var(--line);
+		background: rgba(57, 155, 130, 0.08);
+		color: var(--text);
+		outline: none;
+	}
+
+	.config-preview-reset:disabled {
+		cursor: default;
+		opacity: 0.45;
 	}
 
 	.config-preview-heading code {

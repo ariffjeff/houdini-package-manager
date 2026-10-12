@@ -184,6 +184,13 @@
 		resetManifestCorrection(manifestText, requestedDestination);
 	}
 
+	function resetManifestChanges() {
+		draft.manifestText = draft.manifestTextInitial;
+		resetManifestCorrection(draft.manifestTextInitial, requestedDestination);
+		manifestFixState.applyPathAliasLocationFix = false;
+		manifestFixState.migrateLegacyPath = false;
+	}
+
 	function resetManifestCorrection(manifestText: string, defaultHpath: string) {
 		const parsedConfig = parseManifestObject(manifestText);
 		manifestConfig = parsedConfig;
@@ -472,6 +479,7 @@
 							previewText={manifestConfig ? manifestPreviewText : draft.manifestText}
 							packagePath={draft.packageFile}
 							editable
+							onReset={resetManifestChanges}
 							disabled={installState === 'working'}
 							onEdit={updateManifestText}
 						/>
