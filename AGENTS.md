@@ -34,3 +34,10 @@ After completing the code, ask the user if they want a playground link. Only cal
 ## Git commit message
 
 At the end of every response you give to the user when you make code changes, provide a short git commit message summarizing the changes for the user to copy.
+
+## Solution Quality Check
+
+- Before implementing a requested feature/fix/etc., identify the underlying problem and the abstraction that owns it.
+- If the requested approach looks like a workaround, briefly point that out and suggest the simplest established or standard solution instead.
+- Prefer root-cause fixes over compensating logic, especially when a parser, library, framework feature, or existing helper already addresses the problem.
+- For non-obvious tradeoffs, explain the recommendation plainly and then proceed with the best-practice option unless the user explicitly requires the workaround.
