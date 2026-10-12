@@ -91,6 +91,14 @@
 		onInstallCandidate(candidate);
 	}
 
+	function isCandidateStaged(candidate: PluginDiscoveryCandidate) {
+		const candidateKey = `${candidate.repositoryUrl}::${candidate.packageFile}`;
+		return pluginDiscoveryState.installQueue.some(
+			(queuedCandidate) =>
+				`${queuedCandidate.repositoryUrl}::${queuedCandidate.packageFile}` === candidateKey
+		);
+	}
+
 	function addCatalogRepository(repositoryUrl: string) {
 		const urls = pluginDiscoveryState.repositoryInput
 			.split(/\r?\n/)
@@ -200,11 +208,15 @@
 								<div class="candidate-header-controls">
 									<button
 										type="button"
+										class:staged={isCandidateStaged(candidate)}
 										class="install-button"
 										disabled={installs.length === 0}
+										aria-pressed={isCandidateStaged(candidate)}
 										onclick={() => installCandidate(candidate)}
 									>
-										<Package size={18} strokeWidth={1.8} aria-hidden="true" /> Install
+										<Package size={18} strokeWidth={1.8} aria-hidden="true" />
+										{isCandidateStaged(candidate) ? 'Staged for Install' : 'Add to Installer'}
+										<ChevronRight size={16} strokeWidth={1.8} aria-hidden="true" />
 									</button>
 								</div>
 							{/if}
@@ -899,6 +911,18 @@
 	.install-button:focus-visible {
 		background: #399575;
 		outline: none;
+	}
+
+	.install-button.staged {
+		background: rgba(57, 155, 130, 0.14);
+		border-color: #55c4a5;
+		color: #9ccfba;
+	}
+
+	.install-button.staged:hover,
+	.install-button.staged:focus-visible {
+		background: rgba(57, 155, 130, 0.22);
+		color: #f2fff9;
 	}
 
 	.resolve-button:disabled,

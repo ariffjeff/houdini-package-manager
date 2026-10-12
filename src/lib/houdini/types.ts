@@ -105,6 +105,30 @@ export type PackagePathAliasConflict = {
 	houdiniPathUsedAsVariable: boolean;
 };
 
+export type PackageConfigIssueCode =
+	| 'invalid-json'
+	| 'non-object'
+	| 'unrecognized-config'
+	| 'path-alias-conflict'
+	| 'path-alias-location'
+	| 'deprecated-path'
+	| 'known-issue'
+	| 'inspection-unavailable'
+	| 'manifest-too-large';
+
+export type PackageConfigIssue = {
+	code: PackageConfigIssueCode;
+	severity: 'fatal' | 'warning';
+	message: string;
+};
+
+export type PackageManifestPreflight = {
+	content?: string;
+	recognized: boolean;
+	fatal: boolean;
+	issues: PackageConfigIssue[];
+};
+
 export type HoudiniDiscoveryResponse = {
 	installs: HoudiniInstall[];
 	plugins: PluginRecord[];
@@ -138,6 +162,7 @@ export type InstallPluginRequest = {
 	pluginId?: string;
 	repositoryUrl?: string;
 	packageFile?: string;
+	correctedConfigText?: string;
 	pluginName?: string;
 	version: string;
 	installIds: string[];

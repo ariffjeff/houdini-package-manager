@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { mkdir, readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -36,6 +37,39 @@ const validInstallRequest = {
 	installIds: ['install:19.5'],
 	destinationPath: path.resolve('plugins', 'AJTools')
 };
+
+function mockGitCheckout(
+	packageFile: string,
+	manifest: Record<string, unknown> | string,
+	refs: { commit?: string; manifestBlobSha?: string } = {}
+) {
+	childProcessMocks.execFile.mockImplementation(
+		(
+			_command: string,
+			args: string[],
+			_options: object,
+			callback: (error: null, result: { stdout: string; stderr: string }) => void
+		) => {
+			if (args[0] === 'clone') {
+				const destination = args.at(-1);
+				if (destination) {
+					mkdirSync(destination, { recursive: true });
+					writeFileSync(
+						path.join(destination, packageFile),
+						typeof manifest === 'string' ? manifest : JSON.stringify(manifest)
+					);
+				}
+			}
+			const stdout =
+				args[0] === 'rev-parse' && args[1] === 'HEAD'
+					? (refs.commit ?? '')
+					: args[0] === 'rev-parse' && args[1] === `HEAD:${packageFile}`
+						? (refs.manifestBlobSha ?? '')
+						: '';
+			callback(null, { stdout, stderr: '' });
+		}
+	);
+}
 
 afterEach(async () => {
 	vi.clearAllMocks();
@@ -513,16 +547,12 @@ describe('Houdini plugin actions', () => {
 		discoveryMocks.discoverHoudiniWorkspace
 			.mockResolvedValueOnce(discovery)
 			.mockResolvedValueOnce(discovery);
-		childProcessMocks.execFile.mockImplementation(
-			(
-				_command: string,
-				_args: string[],
-				_options: object,
-				callback: (error: null, result: { stdout: string; stderr: string }) => void
-			) => {
-				callback(null, { stdout: '', stderr: '' });
-			}
-		);
+		mockGitCheckout('AJTools.json', {
+			hpath: '$AJTOOLS',
+			version: '2.0.0',
+			enable: false,
+			custom: { repository: true }
+		});
 
 		const result = await installHoudiniPlugin({
 			pluginId,
@@ -561,19 +591,117 @@ describe('Houdini plugin actions', () => {
 			) as Record<string, unknown>;
 			expect(packageValue).toMatchObject({
 				hpath: path.normalize(destinationPath),
+				version: '2.0.0',
+				enable: false,
+				custom: { repository: true },
 				hpm: {
 					managed: true,
 					repository: repositoryUrl,
 					version: 'v1.0.0'
 				}
 			});
-			expect(packageValue.version).toBeUndefined();
 			expect(packageValue.path).toBeUndefined();
-			expect(packageValue.enable).toBeUndefined();
 		}
 		await expect(
 			readFile(path.join(packageDirectories[1], 'AJTools.json'), 'utf8')
 		).rejects.toThrow();
+	});
+
+	it('installs a corrected manifest when the repository source is invalid', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-corrected-manifest-'));
+		temporaryDirectories.push(root);
+		const packageDirectory = path.join(root, 'Documents', 'houdini21.0', 'packages');
+		const destinationPath = path.join(root, 'custom', 'AJTools');
+		await mkdir(packageDirectory, { recursive: true });
+		const installId = 'install:21.0';
+		const repositoryUrl = 'https://github.com/example/AJTools';
+		const discovery = {
+			installs: [
+				{
+					id: installId,
+					label: 'Houdini 21.0',
+					version: '21.0',
+					packageDirectory,
+					packageRoots: [{ path: packageDirectory, origin: 'user' as const }]
+				}
+			],
+			plugins: [
+				{
+					id: 'package:ajtools',
+					name: 'AJTools',
+					packageFile: 'AJTools.json',
+					repositoryUrl,
+					availableVersions: ['v1.0.0']
+				}
+			],
+			targets: []
+		} as unknown as HoudiniDiscoveryResponse;
+		discoveryMocks.discoverHoudiniWorkspace
+			.mockResolvedValueOnce(discovery)
+			.mockResolvedValueOnce(discovery);
+		mockGitCheckout('AJTools.json', '{"hpath":');
+
+		await installHoudiniPlugin({
+			pluginId: 'package:ajtools',
+			version: 'v1.0.0',
+			installIds: [installId],
+			destinationPath,
+			correctedConfigText: JSON.stringify({ path: '$AJTOOLS', enable: false, custom: true })
+		});
+
+		expect(
+			JSON.parse(await readFile(path.join(packageDirectory, 'AJTools.json'), 'utf8'))
+		).toMatchObject({
+			hpath: path.normalize(destinationPath),
+			enable: false,
+			custom: true,
+			hpm: { managed: true, repository: repositoryUrl, version: 'v1.0.0' }
+		});
+	});
+
+	it('rejects an invalid repository manifest before writing installed package files', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-invalid-manifest-'));
+		temporaryDirectories.push(root);
+		const packageDirectory = path.join(root, 'Documents', 'houdini21.0', 'packages');
+		const packagePath = path.join(packageDirectory, 'AJTools.json');
+		const destinationPath = path.join(root, 'custom', 'AJTools');
+		await mkdir(packageDirectory, { recursive: true });
+		await writeFile(packagePath, '{"enable":true}\n', 'utf8');
+		const installId = 'install:21.0';
+		const repositoryUrl = 'https://github.com/example/AJTools';
+		const discovery = {
+			installs: [
+				{
+					id: installId,
+					label: 'Houdini 21.0',
+					version: '21.0',
+					packageDirectory,
+					packageRoots: [{ path: packageDirectory, origin: 'user' as const }]
+				}
+			],
+			plugins: [
+				{
+					id: 'package:ajtools',
+					name: 'AJTools',
+					packageFile: 'AJTools.json',
+					repositoryUrl,
+					availableVersions: ['v1.0.0']
+				}
+			],
+			targets: []
+		} as unknown as HoudiniDiscoveryResponse;
+		discoveryMocks.discoverHoudiniWorkspace.mockResolvedValueOnce(discovery);
+		mockGitCheckout('AJTools.json', '{"hpath":');
+
+		await expect(
+			installHoudiniPlugin({
+				pluginId: 'package:ajtools',
+				version: 'v1.0.0',
+				installIds: [installId],
+				destinationPath
+			})
+		).rejects.toThrow('Cannot install AJTools: Package manifest is not valid JSON');
+		expect(await readFile(packagePath, 'utf8')).toBe('{"enable":true}\n');
 	});
 
 	it('verifies the pinned commit and manifest for curated plugins', async () => {
@@ -610,21 +738,10 @@ describe('Houdini plugin actions', () => {
 		discoveryMocks.discoverHoudiniWorkspace
 			.mockResolvedValueOnce(discovery)
 			.mockResolvedValueOnce(discovery);
-		childProcessMocks.execFile.mockImplementation(
-			(
-				_command: string,
-				args: string[],
-				_options: object,
-				callback: (error: null, result: { stdout: string; stderr: string }) => void
-			) => {
-				const stdout =
-					args[0] === 'rev-parse' && args[1] === 'HEAD'
-						? pinnedCommit
-						: args[0] === 'rev-parse' && args[1] === `HEAD:MOPS.json`
-							? manifestBlobSha
-							: '';
-				callback(null, { stdout, stderr: '' });
-			}
+		mockGitCheckout(
+			'MOPS.json',
+			{ hpath: '$MOPS', custom: { repository: true } },
+			{ commit: pinnedCommit, manifestBlobSha }
 		);
 
 		const result = await installHoudiniPlugin({
@@ -698,21 +815,10 @@ describe('Houdini plugin actions', () => {
 		discoveryMocks.discoverHoudiniWorkspace
 			.mockResolvedValueOnce(discovery)
 			.mockResolvedValueOnce(discovery);
-		childProcessMocks.execFile.mockImplementation(
-			(
-				_command: string,
-				args: string[],
-				_options: object,
-				callback: (error: null, result: { stdout: string; stderr: string }) => void
-			) => {
-				const stdout =
-					args[0] === 'rev-parse' && args[1] === 'HEAD'
-						? differentCommit
-						: args[0] === 'rev-parse' && args[1] === `HEAD:MOPS.json`
-							? differentManifest
-							: '';
-				callback(null, { stdout, stderr: '' });
-			}
+		mockGitCheckout(
+			'MOPS.json',
+			{ hpath: '$MOPS', custom: { repository: true } },
+			{ commit: differentCommit, manifestBlobSha: differentManifest }
 		);
 
 		const result = await installHoudiniPlugin({
@@ -946,16 +1052,11 @@ describe('Houdini plugin actions', () => {
 		discoveryMocks.discoverHoudiniWorkspace
 			.mockResolvedValueOnce(discovery)
 			.mockResolvedValueOnce(discovery);
-		childProcessMocks.execFile.mockImplementation(
-			(
-				_command: string,
-				_args: string[],
-				_options: object,
-				callback: (error: null, result: { stdout: string; stderr: string }) => void
-			) => {
-				callback(null, { stdout: '', stderr: '' });
-			}
-		);
+		mockGitCheckout('AJTools.json', {
+			HOUDINI_PATH: 'C:/source/AJTools',
+			enable: true,
+			custom: true
+		});
 
 		await installHoudiniPlugin({
 			pluginId,

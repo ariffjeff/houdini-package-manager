@@ -1,3 +1,5 @@
+import type { PackageManifestPreflight } from '$lib/houdini/types';
+
 export type PluginDiscoveryVersion = {
 	value: string;
 	label?: string;
@@ -26,6 +28,7 @@ export type PluginDiscoveryCandidate = {
 	versions: PluginDiscoveryVersion[];
 	packageFile: string;
 	packageFiles: string[];
+	manifestPreflight: Record<string, PackageManifestPreflight>;
 	manifestSource: PluginManifestSource;
 	warnings: string[];
 	tags: string[];

@@ -56,7 +56,15 @@ describe('plugin repository discovery', () => {
 			name: 'toolkit',
 			packageFile: 'toolkit.json',
 			manifestSource: 'repository',
-			source: 'github'
+			source: 'github',
+			manifestPreflight: {
+				'toolkit.json': {
+					content: '{"hpath":"$TOOLKIT","version":"2.0.0"}',
+					recognized: true,
+					fatal: false,
+					issues: []
+				}
+			}
 		});
 	});
 
@@ -155,6 +163,12 @@ describe('plugin repository discovery', () => {
 		expect(response.results[0].candidate?.warnings).toContain(
 			'No recognizable Houdini package config was found; choose a JSON file in the installer if it is the package manifest.'
 		);
+		expect(response.results[0].candidate?.manifestPreflight?.['metadata.json']).toMatchObject({
+			content: '{"title":"metadata"}',
+			recognized: false,
+			fatal: false,
+			issues: [{ code: 'unrecognized-config', severity: 'warning' }]
+		});
 	});
 
 	it('returns an unavailable candidate when the repository has no JSON files', async () => {

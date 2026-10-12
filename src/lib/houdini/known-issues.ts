@@ -202,12 +202,21 @@ export function packageConfigIssueKinds(context: KnownIssueContext): KnownIssueK
 	return knownIssueKinds(context);
 }
 
-export function packageConfigIssueMessages(context: KnownIssueContext): string[] {
-	if (context.error) return [context.error];
+export type KnownPackageConfigIssue = {
+	kind: KnownIssueKind;
+	message: string;
+};
+
+export function packageConfigIssues(context: KnownIssueContext): KnownPackageConfigIssue[] {
 	return configIssueDefinitions
 		.filter((definition) => definition.appliesTo(context))
-		.map((definition) => definition.message(context))
-		.filter((message): message is string => Boolean(message));
+		.map((definition) => ({ kind: definition.kind, message: definition.message(context) }))
+		.filter((issue): issue is KnownPackageConfigIssue => Boolean(issue.message));
+}
+
+export function packageConfigIssueMessages(context: KnownIssueContext): string[] {
+	if (context.error) return [context.error];
+	return packageConfigIssues(context).map((issue) => issue.message);
 }
 
 export function targetIssueMessages(target: TargetIssue): string[] {

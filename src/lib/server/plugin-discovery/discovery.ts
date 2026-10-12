@@ -5,29 +5,22 @@ import type {
 	PluginDiscoveryResult,
 	ResolvePluginRepositoriesResponse
 } from '../../plugin-discovery/types.js';
+import type { PackageManifestPreflight } from '../../houdini/types.js';
 import {
 	fetchGithubFile,
 	parseGithubRepositoryUrl,
 	resolveGithubRepository,
 	type GithubRepositorySnapshot
 } from './github.js';
+import { inspectPackageConfig, toPackageManifestPreflight } from '../houdini/package-ingester.js';
 
 type PackageFileInference = {
 	packageFile: string;
 	recognized: boolean;
+	manifestPreflight: Record<string, PackageManifestPreflight>;
 };
 
 const maximumRepositories = 20;
-const packageConfigKeys = new Set([
-	'path',
-	'hpath',
-	'HOUDINI_PATH',
-	'env',
-	'enable',
-	'load_package_once',
-	'version'
-]);
-
 export function validateRepositoryInputs(urls: unknown): string[] {
 	if (!Array.isArray(urls) || !urls.length) {
 		throw new Error('At least one GitHub repository URL is required.');
@@ -98,9 +91,9 @@ async function createCandidate(
 	fetcher: typeof fetch
 ): Promise<PluginDiscoveryCandidate> {
 	const inference = catalogEntry
-		? { packageFile: catalogEntry.packageFile, recognized: true }
+		? await inspectPackageFiles(snapshot, [catalogEntry.packageFile], fetcher)
 		: await inferPackageFile(snapshot, fetcher);
-	const packageFile = inference.packageFile;
+	const packageFile = catalogEntry?.packageFile ?? inference.packageFile;
 	const versions = catalogEntry
 		? [
 				...snapshot.versions,
@@ -152,6 +145,7 @@ async function createCandidate(
 		versions,
 		packageFile,
 		packageFiles: catalogEntry ? [catalogEntry.packageFile] : [...snapshot.packageFiles],
+		manifestPreflight: inference.manifestPreflight,
 		manifestSource: catalogEntry ? 'catalog' : 'repository',
 		warnings: [...warnings],
 		tags: [...(catalogEntry?.tags ?? [])]
@@ -162,8 +156,17 @@ async function inferPackageFile(
 	snapshot: GithubRepositorySnapshot,
 	fetcher: typeof fetch
 ): Promise<PackageFileInference> {
+	return inspectPackageFiles(snapshot, snapshot.packageFiles.slice(0, 12), fetcher);
+}
+
+async function inspectPackageFiles(
+	snapshot: GithubRepositorySnapshot,
+	filePaths: string[],
+	fetcher: typeof fetch
+): Promise<PackageFileInference> {
 	const validFiles: string[] = [];
-	for (const filePath of snapshot.packageFiles.slice(0, 12)) {
+	const manifestPreflight: Record<string, PackageManifestPreflight> = {};
+	for (const filePath of filePaths) {
 		try {
 			const content = await fetchGithubFile(
 				snapshot.repository,
@@ -171,24 +174,27 @@ async function inferPackageFile(
 				filePath,
 				fetcher
 			);
-			const parsed = JSON.parse(content) as unknown;
-			if (isPackageConfig(parsed)) validFiles.push(filePath);
+			const inspection = inspectPackageConfig(content);
+			manifestPreflight[filePath] = toPackageManifestPreflight(inspection);
+			if (inspection.recognized && !inspection.fatal) validFiles.push(filePath);
 		} catch {
-			// Invalid JSON and unavailable files are not package manifests.
+			manifestPreflight[filePath] = {
+				recognized: false,
+				fatal: false,
+				issues: [
+					{
+						code: 'inspection-unavailable',
+						severity: 'warning',
+						message: `Could not inspect ${filePath} during discovery; HPM will validate the checked-out file during installation.`
+					}
+				]
+			};
 		}
 	}
 
 	return {
-		packageFile: validFiles[0] ?? snapshot.packageFiles[0] ?? '',
-		recognized: validFiles.length > 0
+		packageFile: validFiles[0] ?? filePaths[0] ?? '',
+		recognized: validFiles.length > 0,
+		manifestPreflight
 	};
-}
-
-function isPackageConfig(value: unknown): value is Record<string, unknown> {
-	if (!isRecord(value)) return false;
-	return Object.keys(value).some((key) => packageConfigKeys.has(key));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

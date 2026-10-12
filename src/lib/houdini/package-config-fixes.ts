@@ -5,10 +5,16 @@ export type PackagePathAliasLocationIssue = {
 	houdiniPath: boolean;
 };
 
+export type PackagePathAliasConflict = {
+	hpathUsedAsVariable: boolean;
+	houdiniPathUsedAsVariable: boolean;
+};
+
 export type PackageConfigFixPlan = {
 	hpath?: string;
 	pathAlias?: PackagePathAlias;
 	writeHpath?: boolean;
+	preserveVersion?: boolean;
 	migrateLegacyPath?: boolean;
 	preservePathAliases?: boolean;
 	keepPathAlias?: PackagePathAlias;
@@ -42,12 +48,25 @@ export function findPathAliasLocationIssue(
 	return issue.hpath || issue.houdiniPath ? issue : null;
 }
 
+export function findPathAliasConflict(
+	value: Record<string, unknown>
+): PackagePathAliasConflict | null {
+	if (!hasJsonKey(value, 'hpath') || !hasJsonKey(value, 'HOUDINI_PATH')) return null;
+
+	const references = new Set<string>();
+	collectVariableReferences(value, references);
+	return {
+		hpathUsedAsVariable: references.has('hpath'),
+		houdiniPathUsedAsVariable: references.has('HOUDINI_PATH')
+	};
+}
+
 export function applyPackageConfigFixes(
 	config: Record<string, unknown>,
 	plan: PackageConfigFixPlan
 ): Record<string, unknown> {
 	const packageValue = cloneJsonRecord(config);
-	delete packageValue.version;
+	if (plan.preserveVersion !== true) delete packageValue.version;
 	const shouldWriteHpath = plan.writeHpath !== false;
 	const targetAlias = plan.pathAlias ?? 'hpath';
 
@@ -145,6 +164,30 @@ function rewritePackageVariableReferences(
 ): void {
 	const reference = new RegExp(`\\$${from}(?![A-Za-z0-9_])`, 'g');
 	rewriteJsonStrings(packageValue, reference, `$${to}`);
+}
+
+function hasJsonKey(value: unknown, key: string): boolean {
+	if (Array.isArray(value)) return value.some((entry) => hasJsonKey(entry, key));
+	if (!isRecord(value)) return false;
+	return (
+		Object.prototype.hasOwnProperty.call(value, key) ||
+		Object.values(value).some((entry) => hasJsonKey(entry, key))
+	);
+}
+
+function collectVariableReferences(value: unknown, references: Set<string>): void {
+	if (typeof value === 'string') {
+		for (const match of value.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)/g)) {
+			references.add(match[1]);
+		}
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) collectVariableReferences(entry, references);
+		return;
+	}
+	if (!isRecord(value)) return;
+	for (const entry of Object.values(value)) collectVariableReferences(entry, references);
 }
 
 function rewriteJsonStrings(value: unknown, pattern: RegExp, replacement: string): void {

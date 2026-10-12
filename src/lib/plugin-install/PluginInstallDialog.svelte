@@ -2,16 +2,16 @@
 	import { onMount } from 'svelte';
 	import houdiniBadge from '$lib/assets/houdini_badge_flat.svg';
 	import { compareVersionLabels } from '$lib/activation-map/plugin-detail';
-	import {
-		FileCheck2,
-		GitCommitHorizontal,
-		ShieldCheck,
-		Tag,
-		TriangleAlert,
-		X
-	} from '@lucide/svelte';
+	import { FileCheck2, GitCommitHorizontal, ShieldCheck, Tag, TriangleAlert } from '@lucide/svelte';
 	import type { ActivationTarget } from '$lib/activation-map/types';
-	import type { HoudiniInstall } from '$lib/houdini/types';
+	import type { HoudiniInstall, PackageManifestPreflight } from '$lib/houdini/types';
+	import ConfigFixesPanel from '$lib/live-json-editor/ConfigFixesPanel.svelte';
+	import ConfigPreviewPanel from '$lib/live-json-editor/ConfigPreviewPanel.svelte';
+	import {
+		correctedConfigText,
+		createConfigFixState,
+		type ConfigFixState
+	} from '$lib/live-json-editor/config-editor';
 	import type {
 		InstallDialogOptions,
 		InstallDialogState,
@@ -26,6 +26,8 @@
 		selectedInstallIds: string[];
 		destinationChoice: string;
 		customDestination: string;
+		manifestText: string;
+		manifestTextInitial: string;
 		openInstalledFolder: boolean;
 		openInstalledConfig: boolean;
 	};
@@ -39,6 +41,7 @@
 		hpmPluginDestination,
 		installState,
 		message,
+		presentation = 'dialog',
 		onClose,
 		onCancel,
 		onInstall
@@ -51,6 +54,7 @@
 		hpmPluginDestination: string;
 		installState: InstallDialogState;
 		message: string;
+		presentation?: 'dialog' | 'page';
 		onClose: () => void;
 		onCancel: () => void;
 		onInstall: (
@@ -65,9 +69,13 @@
 		selectedInstallIds: [],
 		destinationChoice: 'custom',
 		customDestination: '',
+		manifestText: '',
+		manifestTextInitial: '',
 		openInstalledFolder: false,
 		openInstalledConfig: false
 	});
+	let manifestConfig = $state<Record<string, unknown> | null>(null);
+	let manifestFixState = $state<ConfigFixState>(createConfigFixState({}, { defaultHpath: '' }));
 	let showNonTaggedCommits = $state(false);
 	let versionQuery = $state('');
 	let packageFiles = $derived(
@@ -105,9 +113,40 @@
 	let requestedDestination = $derived(
 		draft.destinationChoice === 'custom' ? draft.customDestination.trim() : draft.destinationChoice
 	);
+	let selectedManifestPreflight = $derived<PackageManifestPreflight | undefined>(
+		plugin.manifestPreflight?.[draft.packageFile]
+	);
+	let manifestDraftError = $derived.by(() => {
+		if (!draft.manifestText.trim()) {
+			return draft.manifestTextInitial
+				? 'The corrected manifest cannot be empty. Restore the inspected JSON or enter a JSON object.'
+				: '';
+		}
+		try {
+			const parsed = JSON.parse(draft.manifestText) as unknown;
+			if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+				return 'The corrected manifest must have a JSON object as its root.';
+			}
+		} catch {
+			return 'The corrected manifest is not valid JSON.';
+		}
+		return '';
+	});
+	let manifestPreviewText = $derived(
+		manifestConfig
+			? correctedConfigText(manifestFixState, requestedDestination, draft.manifestTextInitial)
+			: ''
+	);
+	let manifestHasFatalIssue = $derived.by(() => {
+		return (
+			Boolean(manifestDraftError) ||
+			Boolean(selectedManifestPreflight?.fatal && draft.manifestText === draft.manifestTextInitial)
+		);
+	});
 	let canInstall = $derived(
 		installState !== 'working' &&
 			packageFiles.includes(draft.packageFile) &&
+			!manifestHasFatalIssue &&
 			Boolean(requestedVersion) &&
 			visibleVersions.some((version: InstallVersionOption) => version.value === requestedVersion) &&
 			selectedInstallCount > 0 &&
@@ -117,15 +156,80 @@
 	onMount(resetDraft);
 
 	function resetDraft() {
-		const existingSource = remoteSourceOptions[0];
+		const existingSource = remoteSourceOptions[0] ?? hpmPluginDestination;
+		const packageFile = plugin.packageFile ?? packageFiles[0] ?? '';
+		const manifestText = plugin.manifestPreflight?.[packageFile]?.content ?? '';
 		draft = {
-			packageFile: plugin.packageFile ?? packageFiles[0] ?? '',
+			packageFile,
 			version: visibleVersions[0]?.value ?? '',
 			selectedInstallIds: [],
 			destinationChoice: existingSource ?? 'custom',
 			customDestination: existingSource ?? '',
+			manifestText,
+			manifestTextInitial: manifestText,
 			openInstalledFolder: false,
 			openInstalledConfig: false
+		};
+		resetManifestCorrection(manifestText, existingSource ?? '');
+	}
+
+	function selectPackageFile(packageFile: string) {
+		const manifestText = plugin.manifestPreflight?.[packageFile]?.content ?? '';
+		draft = { ...draft, packageFile, manifestText, manifestTextInitial: manifestText };
+		resetManifestCorrection(manifestText, requestedDestination);
+	}
+
+	function updateManifestText(manifestText: string) {
+		draft.manifestText = manifestText;
+		resetManifestCorrection(manifestText, requestedDestination);
+	}
+
+	function resetManifestCorrection(manifestText: string, defaultHpath: string) {
+		const parsedConfig = parseManifestObject(manifestText);
+		manifestConfig = parsedConfig;
+		manifestFixState = createConfigFixState(parsedConfig ?? {}, {
+			defaultHpath,
+			...manifestCorrectionContext(draft.packageFile)
+		});
+	}
+
+	function parseManifestObject(manifestText: string): Record<string, unknown> | null {
+		if (!manifestText.trim()) return null;
+		try {
+			const parsed = JSON.parse(manifestText) as unknown;
+			return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+				? (parsed as Record<string, unknown>)
+				: null;
+		} catch {
+			return null;
+		}
+	}
+
+	function manifestCorrectionContext(packageFile: string) {
+		const relevantTargets: ActivationTarget[] = targets.filter(
+			(target: ActivationTarget) =>
+				target.pluginId === plugin.id && target.packageFile === packageFile
+		);
+		const pathAliasConflict = relevantTargets.find(
+			(target: ActivationTarget) => target.pathAliasConflict
+		)?.pathAliasConflict;
+		const pathAliasLocationIssue = relevantTargets.find(
+			(target: ActivationTarget) => target.pathAliasLocationIssue
+		)?.pathAliasLocationIssue;
+		const undefinedVariableReferences = [
+			...new Set(
+				relevantTargets.flatMap(
+					(target: ActivationTarget) => target.undefinedVariableReferences ?? []
+				)
+			)
+		];
+
+		return {
+			pathAliasConflict,
+			pathAliasLocationIssue,
+			undefinedVariableReferences,
+			migrateLegacyPath:
+				relevantTargets.some((target: ActivationTarget) => target.usesLegacyPath) || undefined
 		};
 	}
 
@@ -198,11 +302,16 @@
 		const installIds = installs
 			.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
 			.map((install: HoudiniInstall) => install.id);
+		const correctedText = manifestConfig ? manifestPreviewText : draft.manifestText;
+		const hasCorrectedManifest =
+			draft.manifestText !== draft.manifestTextInitial ||
+			Boolean(manifestConfig && correctedText !== draft.manifestText);
 		const selection: InstallDialogSelection = {
 			packageFile: draft.packageFile,
 			version: requestedVersion,
 			installIds,
-			destinationPath: requestedDestination
+			destinationPath: requestedDestination,
+			...(hasCorrectedManifest ? { correctedConfigText: correctedText } : {})
 		};
 		const options: InstallDialogOptions = {
 			openInstalledFolder: draft.openInstalledFolder,
@@ -224,17 +333,24 @@
 	}
 </script>
 
-<div class="issues-dialog-backdrop install-dialog-backdrop">
-	<button
-		type="button"
-		class="issues-dialog-dismiss"
-		aria-label="Close install configuration dialog"
-		disabled={installState === 'working'}
-		onclick={closeDialog}
-	></button>
+<div
+	class:issues-dialog-backdrop={presentation === 'dialog'}
+	class:install-page-shell={presentation === 'page'}
+	class="install-dialog-root"
+>
+	{#if presentation === 'dialog'}
+		<button
+			type="button"
+			class="issues-dialog-dismiss"
+			aria-label="Close install configuration dialog"
+			disabled={installState === 'working'}
+			onclick={closeDialog}
+		></button>
+	{/if}
 	<dialog
 		open
 		class="issues-dialog install-dialog"
+		class:install-page-dialog={presentation === 'page'}
 		aria-labelledby="install-dialog-title"
 		aria-describedby="install-dialog-description"
 		aria-busy={installState === 'working'}
@@ -242,20 +358,28 @@
 		<div class="issues-dialog-header">
 			<div>
 				<h2 id="install-dialog-title">Install {plugin.name}</h2>
-				<p id="install-dialog-description">
-					Choose a version, review each install's current version, and preview the change before
-					installing.
-				</p>
 			</div>
-			<button
-				type="button"
-				class="dialog-close-button"
-				aria-label="Close install configuration dialog"
-				disabled={installState === 'working'}
-				onclick={closeDialog}
-			>
-				<X size={18} strokeWidth={1.8} aria-hidden="true" />
-			</button>
+			<div class="install-dialog-header-controls">
+				<div class="install-dialog-actions">
+					{#if installState === 'working'}
+						<button type="button" class="dialog-secondary-button" onclick={cancelInstallation}>
+							Cancel installation
+						</button>
+					{:else if presentation === 'dialog'}
+						<button type="button" class="dialog-secondary-button" onclick={closeDialog}
+							>Close</button
+						>
+					{/if}
+					<button
+						type="button"
+						class="dialog-primary-button"
+						disabled={!canInstall}
+						onclick={submitInstall}
+					>
+						Install plugin
+					</button>
+				</div>
+			</div>
 		</div>
 		<div class="install-dialog-layout">
 			<aside class="version-panel" aria-labelledby="install-version-label">
@@ -316,12 +440,11 @@
 					/>
 					<span>
 						<strong>Show non-tagged commits</strong>
-						<small>Include Git commits that do not have a release tag.</small>
 					</span>
 				</label>
 			</aside>
 
-			<div class="install-dialog-content">
+			<div class="install-dialog-column install-manifest-column">
 				<fieldset class="install-dialog-fieldset">
 					<legend>Package manifest</legend>
 					{#if packageFiles.length === 0}
@@ -332,18 +455,43 @@
 						<label class="install-manifest-select">
 							<span>Choose the Houdini package config to install.</span>
 							<select
+								class="mb-2"
 								aria-label="Houdini package manifest"
-								bind:value={draft.packageFile}
+								value={draft.packageFile}
 								disabled={installState === 'working'}
+								onchange={(event) =>
+									selectPackageFile((event.currentTarget as HTMLSelectElement).value)}
 							>
 								{#each packageFiles as packageFile (packageFile)}
 									<option value={packageFile}>{packageFile}</option>
 								{/each}
 							</select>
 						</label>
+						<ConfigPreviewPanel
+							originalText={draft.manifestTextInitial}
+							previewText={manifestConfig ? manifestPreviewText : draft.manifestText}
+							packagePath={draft.packageFile}
+							editable
+							disabled={installState === 'working'}
+							onEdit={updateManifestText}
+						/>
+						<ConfigFixesPanel
+							bind:state={manifestFixState}
+							disabled={installState === 'working'}
+							idPrefix="install-manifest"
+							hpathOverride={requestedDestination}
+							layout="table"
+							manifestIssues={selectedManifestPreflight?.issues ?? []}
+							manifestFatal={selectedManifestPreflight?.fatal ?? false}
+							manifestUninspected={!selectedManifestPreflight}
+							{manifestDraftError}
+							showSource={Boolean(manifestConfig)}
+						/>
 					{/if}
 				</fieldset>
+			</div>
 
+			<div class="install-dialog-column install-review-column">
 				<fieldset class="install-dialog-fieldset">
 					<legend class="install-fieldset-heading">
 						<span>Houdini installs</span>
@@ -362,6 +510,9 @@
 							>
 						</span>
 					</legend>
+					<p class="install-selection-summary">
+						{selectedInstallCount} of {installs.length} Houdini installs
+					</p>
 					<div class="install-target-options">
 						{#each installs as install (install.id)}
 							<label
@@ -386,7 +537,7 @@
 								<span>
 									<strong class="install-target-version">
 										<img src={houdiniBadge} alt="" width={14} aria-hidden="true" />
-										<span>{install.version}</span>
+										<span>Houdini {install.version}</span>
 										<span class="build-badge" data-tooltip="Build">{install.build}</span>
 									</strong>
 									<span class="install-version-change">
@@ -535,23 +686,6 @@
 				{/if}
 			</div>
 		</div>
-		<div class="install-dialog-actions">
-			{#if installState === 'working'}
-				<button type="button" class="dialog-secondary-button" onclick={cancelInstallation}>
-					Cancel installation
-				</button>
-			{:else}
-				<button type="button" class="dialog-secondary-button" onclick={closeDialog}>Close</button>
-			{/if}
-			<button
-				type="button"
-				class="dialog-primary-button"
-				disabled={!canInstall}
-				onclick={submitInstall}
-			>
-				Install plugin
-			</button>
-		</div>
 	</dialog>
 </div>
 
@@ -564,6 +698,27 @@
 		place-items: center;
 		padding: 24px;
 		background: rgba(9, 14, 15, 0.72);
+	}
+
+	.install-page-shell {
+		display: flex;
+		min-height: 0;
+		height: 100%;
+		width: 100%;
+	}
+
+	.install-page-shell .install-page-dialog {
+		position: static;
+		width: 100%;
+		height: 100%;
+		max-height: none;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		box-shadow: none;
+		overflow: visible;
 	}
 
 	.issues-dialog-dismiss {
@@ -582,7 +737,6 @@
 		display: flex;
 		width: min(640px, 100%);
 		height: min(820px, calc(100dvh - 48px));
-		max-height: min(900px, calc(100dvh - 48px));
 		flex-direction: column;
 		overflow: hidden;
 		padding: 22px;
@@ -596,19 +750,21 @@
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
+		flex-wrap: wrap;
 		gap: 20px;
+	}
+
+	.install-dialog-header-controls {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		margin-left: auto;
 	}
 
 	.issues-dialog-header h2 {
 		margin: 0;
 		font-size: 22px;
 		font-weight: 600;
-	}
-
-	.issues-dialog-header p:last-child {
-		margin: 7px 0 0;
-		color: var(--text-muted);
-		font-size: 12px;
 	}
 
 	.dialog-close-button {
@@ -640,7 +796,7 @@
 
 	.install-dialog-layout {
 		display: grid;
-		grid-template-columns: minmax(220px, 0.62fr) minmax(0, 1.38fr);
+		grid-template-columns: minmax(190px, 0.3fr) minmax(300px, 1fr) minmax(280px, 1fr);
 		min-height: 0;
 		flex: 1 1 auto;
 		gap: 18px;
@@ -650,7 +806,9 @@
 	.version-panel {
 		display: flex;
 		min-height: 0;
+		height: 100%;
 		flex-direction: column;
+		overflow: hidden;
 		padding: 13px;
 		border: 1px solid var(--line);
 		border-radius: 6px;
@@ -737,7 +895,7 @@
 		border-top: 1px solid var(--line);
 	}
 
-	.install-dialog-content {
+	.install-dialog-column {
 		display: flex;
 		min-height: 0;
 		flex: 1 1 auto;
@@ -746,6 +904,11 @@
 		margin-top: 0;
 		overflow-y: auto;
 		padding-right: 2px;
+	}
+
+	.install-manifest-column,
+	.install-review-column {
+		min-width: 0;
 	}
 
 	.install-destination-input {
@@ -826,12 +989,6 @@
 		color: var(--text);
 		font-size: 12px;
 		font-weight: 600;
-	}
-
-	.install-version-toggle small {
-		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 12px;
-		line-height: 1.4;
 	}
 
 	.install-dialog-fieldset {
@@ -1241,7 +1398,7 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: 8px;
-		margin-top: 18px;
+		margin-top: 0;
 	}
 
 	.dialog-secondary-button,
@@ -1261,9 +1418,9 @@
 	}
 
 	.dialog-primary-button {
-		border-color: rgba(211, 155, 56, 0.18);
-		background: rgba(211, 155, 56, 0.1);
-		color: rgba(211, 155, 56, 1);
+		border-color: rgba(57, 155, 130, 0.5);
+		background: #2e8065;
+		color: #f2fff9;
 	}
 
 	.dialog-secondary-button:hover,
@@ -1276,7 +1433,7 @@
 
 	.dialog-primary-button:hover:not(:disabled),
 	.dialog-primary-button:focus-visible:not(:disabled) {
-		background: rgba(211, 155, 56, 0.18);
+		background: #399b82;
 	}
 
 	.dialog-primary-button:disabled {
@@ -1300,6 +1457,15 @@
 			padding: 16px;
 		}
 
+		.install-dialog-header-controls {
+			width: 100%;
+			margin-left: 0;
+		}
+
+		.install-dialog-header-controls .install-dialog-actions {
+			flex: 1 1 auto;
+		}
+
 		.install-dialog-layout {
 			grid-template-columns: minmax(0, 1fr);
 			gap: 14px;
@@ -1309,7 +1475,7 @@
 			max-height: 300px;
 		}
 
-		.install-dialog-content {
+		.install-dialog-column {
 			margin-top: 0;
 		}
 
@@ -1324,7 +1490,7 @@
 
 		.install-dialog-actions {
 			align-items: stretch;
-			flex-direction: column-reverse;
+			flex-direction: row;
 		}
 
 		.install-provenance-grid {
@@ -1332,7 +1498,8 @@
 		}
 
 		.install-dialog-actions button {
-			width: 100%;
+			flex: 1 1 0;
+			min-width: 0;
 		}
 	}
 </style>

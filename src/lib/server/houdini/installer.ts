@@ -3,11 +3,11 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { discoverHoudiniWorkspace } from './discovery.js';
-import { applyPackageConfigFixes } from '../../houdini/package-config-fixes.js';
 import { getPluginCatalog } from '../../plugin-discovery/catalog.js';
 import { runHconfig } from './hconfig.js';
 import { runPluginAction, writableUserPackageDirectory } from './plugin-actions.js';
 import { migratePluginConfigs } from './plugin-migrator.js';
+import { ingestPackageConfig } from './package-ingester.js';
 import { parseGithubRepositoryUrl } from '../plugin-discovery/github.js';
 import { resolvePluginRepository } from '../plugin-discovery/discovery.js';
 import type {
@@ -58,6 +58,9 @@ export async function installHoudiniPlugin(
 	if (!versionIsAllowed) {
 		throw new Error(`${request.version} is not an available Git version for ${plugin.name}.`);
 	}
+	if (!isSafePackageFile(plugin.packageFile)) {
+		throw new Error('The selected Houdini package manifest path is invalid.');
+	}
 
 	const installs = selectInstalls(current.installs, request);
 	if (!installs.length) throw new Error('No Houdini install matched the requested scope.');
@@ -71,6 +74,34 @@ export async function installHoudiniPlugin(
 		plugin.manifestBlobSha,
 		plugin.packageFile
 	);
+	const manifestText =
+		request.correctedConfigText ??
+		(await readFile(path.join(repositoryPath, plugin.packageFile), 'utf8'));
+	const ingestion = ingestPackageConfig(manifestText, {
+		hpath: repositoryPath,
+		hpm: {
+			managed: true,
+			repository: plugin.repositoryUrl,
+			version: request.version,
+			...(provenance.commit ? { commit: provenance.commit } : {}),
+			...(provenance.manifestBlobSha ? { manifestBlobSha: provenance.manifestBlobSha } : {}),
+			...(provenance.hasCuratedProvenance
+				? {
+						verified: provenance.verified,
+						approvedCommit: provenance.approvedCommit,
+						approvedManifestBlobSha: provenance.approvedManifestBlobSha
+					}
+				: {})
+		}
+	});
+	if (!ingestion.config) {
+		const fatalIssues = ingestion.inspection.issues
+			.filter((issue) => issue.severity === 'fatal')
+			.map((issue) => issue.message);
+		throw new Error(
+			`Cannot install ${plugin.name}: ${fatalIssues.join(' ') || 'the package manifest could not be ingested.'}`
+		);
+	}
 
 	for (const install of installs) {
 		throwIfAborted(signal);
@@ -86,14 +117,7 @@ export async function installHoudiniPlugin(
 		const packagePath =
 			existingTarget?.packagePath ?? path.join(packageDirectory, plugin.packageFile);
 		await mkdir(path.dirname(packagePath), { recursive: true });
-		await writeManagedPackage(
-			packagePath,
-			plugin,
-			request.version,
-			repositoryPath,
-			provenance,
-			signal
-		);
+		await writeManagedPackage(packagePath, ingestion.config, signal);
 	}
 
 	throwIfAborted(signal);
@@ -137,6 +161,12 @@ export function validateInstallPluginRequest(request: InstallPluginRequest): voi
 			(typeof request.repositoryUrl !== 'string' || !request.repositoryUrl.trim()))
 	) {
 		throw new Error('A valid plugin id or GitHub repository URL is required.');
+	}
+	if (
+		request.correctedConfigText !== undefined &&
+		typeof request.correctedConfigText !== 'string'
+	) {
+		throw new Error('A corrected package manifest must be JSON text.');
 	}
 	if (Boolean(request.pluginId) === Boolean(request.repositoryUrl)) {
 		throw new Error('Provide exactly one plugin id or GitHub repository URL.');
@@ -313,56 +343,11 @@ async function ensureGitCheckout(
 
 async function writeManagedPackage(
 	packagePath: string,
-	plugin: Pick<PluginRecord, 'name' | 'packageFile' | 'repositoryUrl'>,
-	version: string,
-	repositoryPath: string,
-	provenance: InstalledProvenance,
+	packageValue: Record<string, unknown>,
 	signal?: AbortSignal
 ): Promise<void> {
 	throwIfAborted(signal);
-	let packageValue: Record<string, unknown> = {};
-	try {
-		const existing = JSON.parse(await readFile(packagePath, 'utf8')) as unknown;
-		if (isRecord(existing)) packageValue = existing;
-	} catch (error) {
-		if (await fileExists(packagePath)) {
-			throw new Error(
-				`Cannot update ${plugin.packageFile}: ${error instanceof Error ? error.message : String(error)}`,
-				{ cause: error }
-			);
-		}
-	}
-
-	const pathAlias = hasJsonKey(packageValue, 'HOUDINI_PATH') ? 'HOUDINI_PATH' : 'hpath';
-	packageValue = applyPackageConfigFixes(packageValue, {
-		hpath: repositoryPath,
-		pathAlias,
-		migrateLegacyPath: true
-	});
-	packageValue.hpm = {
-		managed: true,
-		repository: plugin.repositoryUrl,
-		version,
-		...(provenance.commit ? { commit: provenance.commit } : {}),
-		...(provenance.manifestBlobSha ? { manifestBlobSha: provenance.manifestBlobSha } : {}),
-		...(provenance.hasCuratedProvenance
-			? {
-					verified: provenance.verified,
-					approvedCommit: provenance.approvedCommit,
-					approvedManifestBlobSha: provenance.approvedManifestBlobSha
-				}
-			: {})
-	};
 	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
-}
-
-function hasJsonKey(value: unknown, key: string): boolean {
-	if (Array.isArray(value)) return value.some((entry) => hasJsonKey(entry, key));
-	if (!isRecord(value)) return false;
-	return (
-		Object.prototype.hasOwnProperty.call(value, key) ||
-		Object.values(value).some((entry) => hasJsonKey(entry, key))
-	);
 }
 
 async function runGit(cwd: string | undefined, args: string[]): Promise<string> {
@@ -421,16 +406,4 @@ async function isDirectory(filePath: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
-}
-
-async function fileExists(filePath: string): Promise<boolean> {
-	try {
-		return (await stat(filePath)).isFile();
-	} catch {
-		return false;
-	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

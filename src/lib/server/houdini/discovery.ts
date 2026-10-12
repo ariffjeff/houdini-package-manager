@@ -24,7 +24,12 @@ import type {
 	PluginVersionSource
 } from '../../houdini/types.js';
 import { packageConfigIssueKinds, packageConfigIssueMessages } from '../../houdini/known-issues.js';
-import { findPathAliasLocationIssue } from '../../houdini/package-config-fixes.js';
+import {
+	findPathAliasConflict,
+	findPathAliasLocationIssue
+} from '../../houdini/package-config-fixes.js';
+
+export { findPathAliasConflict } from '../../houdini/package-config-fixes.js';
 
 const execFileAsync = promisify(execFile);
 const isWindows = process.platform === 'win32';
@@ -1227,19 +1232,6 @@ export function findUndefinedVariableReferences(
 		.filter((reference) => !recognizedVariables.has(reference))
 		.filter((reference) => !hasJsonKey(value, reference))
 		.sort((left, right) => left.localeCompare(right));
-}
-
-export function findPathAliasConflict(
-	value: Record<string, unknown>
-): PackagePathAliasConflict | null {
-	if (!hasJsonKey(value, 'hpath') || !hasJsonKey(value, 'HOUDINI_PATH')) return null;
-
-	const references = new Set<string>();
-	collectVariableReferences(value, references);
-	return {
-		hpathUsedAsVariable: references.has('hpath'),
-		houdiniPathUsedAsVariable: references.has('HOUDINI_PATH')
-	};
 }
 
 function mergePathAliasConflicts(

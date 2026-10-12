@@ -1,3 +1,4 @@
+import type { PackageManifestPreflight } from '$lib/houdini/types';
 import type { PluginDiscoverySource } from '$lib/plugin-discovery/types';
 
 export type InstallDialogState = 'idle' | 'working' | 'success' | 'error';
@@ -19,6 +20,7 @@ export type InstallDialogSelection = {
 	version: string;
 	installIds: string[];
 	destinationPath: string;
+	correctedConfigText?: string;
 };
 
 export type InstallDialogPlugin = {
@@ -27,6 +29,7 @@ export type InstallDialogPlugin = {
 	repositoryUrl?: string | null;
 	packageFile?: string;
 	packageFiles?: string[];
+	manifestPreflight?: Record<string, PackageManifestPreflight>;
 	provenanceSource?: PluginDiscoverySource;
 	pinnedCommit?: string;
 	manifestBlobSha?: string;

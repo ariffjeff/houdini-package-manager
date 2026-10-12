@@ -5,7 +5,7 @@
 	import HpmLogo from '$lib/assets/HpmLogo.svelte';
 	import { openSettingsDialog, settingsDialogState } from '$lib/settings/settings-dialog.svelte';
 
-	type AppSection = 'library' | 'discover';
+	type AppSection = 'library' | 'discover' | 'install';
 
 	let { activeSection } = $props<{ activeSection: AppSection }>();
 
@@ -22,6 +22,7 @@
 	<nav class="app-nav flex items-center gap-6.5 overflow-x-auto" aria-label="Primary navigation">
 		<a class:active={activeSection === 'library'} href={resolve('/')}>Library</a>
 		<a class:active={activeSection === 'discover'} href={resolve('/discover')}>Discover</a>
+		<a class:active={activeSection === 'install'} href={resolve('/install')}>Install</a>
 		<a
 			href={resolve('/settings')}
 			aria-haspopup="dialog"
