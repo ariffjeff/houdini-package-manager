@@ -33,7 +33,8 @@ describe('config editor helpers', () => {
 		const state = createConfigFixState(
 			{ path: 'C:/legacy/plugin', enable: false },
 			{
-				defaultHpath: 'C:/install/plugin'
+				defaultHpath: 'C:/install/plugin',
+				migrateLegacyPath: true
 			}
 		);
 
@@ -42,10 +43,37 @@ describe('config editor helpers', () => {
 		);
 	});
 
-	it('preserves the source JSON formatting for corrected output', () => {
+	it('uses the selected alias when migrating a deprecated path', () => {
+		const state = createConfigFixState(
+			{ path: 'C:/legacy/plugin', env: [{ SOURCE: '$path/bin' }] },
+			{ defaultHpath: 'C:/install/plugin', migrateLegacyPath: true }
+		);
+		state.legacyPathAlias = 'HOUDINI_PATH';
+
+		expect(correctedConfigText(state, 'C:/install/plugin')).toBe(
+			JSON.stringify(
+				{ env: [{ SOURCE: '$HOUDINI_PATH/bin', HOUDINI_PATH: 'C:/install/plugin' }] },
+				null,
+				2
+			)
+		);
+	});
+
+	it('does not add hpath for an untouched legacy path with a destination override', () => {
 		const state = createConfigFixState(
 			{ path: 'C:/legacy/plugin', enable: false },
 			{ defaultHpath: 'C:/install/plugin' }
+		);
+
+		expect(correctedConfigText(state, 'C:/install/plugin')).toBe(
+			JSON.stringify({ path: 'C:/legacy/plugin', enable: false }, null, 2)
+		);
+	});
+
+	it('preserves the source JSON formatting for corrected output', () => {
+		const state = createConfigFixState(
+			{ path: 'C:/legacy/plugin', enable: false },
+			{ defaultHpath: 'C:/install/plugin', migrateLegacyPath: true }
 		);
 		const sourceText =
 			'{\r\n\r\n    "path": "C:/legacy/plugin",\r\n\r\n    "enable": false\r\n}\r\n';

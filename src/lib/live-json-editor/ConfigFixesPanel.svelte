@@ -280,9 +280,20 @@
 								<span>Remove deprecated <code>path</code> key</span>
 							</label>
 							<p class="config-fix-description">
-								The deprecated <code>path</code> key will be removed and replaced with
-								<code>hpath</code>.
+								The deprecated <code>path</code> key will be removed and references will use
+								<code>${state.legacyPathAlias}</code>.
 							</p>
+							<label class="config-fix-alias-choice">
+								<span>Replace with</span>
+								<select
+									aria-label="Replacement alias for deprecated path"
+									bind:value={state.legacyPathAlias}
+									{disabled}
+								>
+									<option value="hpath">hpath</option>
+									<option value="HOUDINI_PATH">HOUDINI_PATH</option>
+								</select>
+							</label>
 						</div>
 					{/if}
 				</div>
@@ -336,6 +347,24 @@
 		font-size: 12px;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
+	}
+
+	.config-fix-alias-choice {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 0 9px;
+		color: var(--text-muted);
+		font-size: 12px;
+	}
+
+	.config-fix-alias-choice select {
+		padding: 5px 7px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
+		font: inherit;
 	}
 
 	.install-dialog-field select {

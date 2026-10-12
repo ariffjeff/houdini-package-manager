@@ -16,6 +16,7 @@ export type ConfigFixState = {
 	defaultHpath: string;
 	hpath: string;
 	pathAlias: PackagePathAlias;
+	legacyPathAlias: PackagePathAlias;
 	originalPathAlias: PackagePathAlias;
 	sourcePathFixCandidates: string[];
 	applySourcePathFix: boolean;
@@ -59,13 +60,14 @@ export function createConfigFixState(
 		defaultHpath,
 		hpath: configHpath(config, defaultHpath, pathAlias),
 		pathAlias,
+		legacyPathAlias: pathAlias,
 		originalPathAlias: pathAlias,
 		sourcePathFixCandidates: [...new Set((context.sourcePathFixCandidates ?? []).filter(Boolean))],
 		applySourcePathFix: false,
 		sourcePathFixPath: context.sourcePathFixCandidates?.[0] ?? '',
 		applyPathAliasFix: false,
 		applyPathAliasLocationFix: Boolean(pathAliasLocationIssue),
-		migrateLegacyPath: context.migrateLegacyPath ?? config.path !== undefined,
+		migrateLegacyPath: context.migrateLegacyPath ?? false,
 		pathAliasConflict,
 		pathAliasLocationIssue,
 		undefinedVariableReferences: context.undefinedVariableReferences ?? [],
@@ -120,13 +122,13 @@ export function effectiveHpath(state: ConfigFixState, hpathOverride?: string): s
 }
 
 export function configFixPlan(state: ConfigFixState, hpathOverride?: string): PackageConfigFixPlan {
-	const targetAlias = selectedPathAlias(state);
+	const targetAlias = state.migrateLegacyPath ? state.legacyPathAlias : selectedPathAlias(state);
 	const pathAlias = targetAlias ?? state.pathAlias;
 
 	return {
 		hpath: effectiveHpath(state, hpathOverride),
 		pathAlias,
-		writeHpath: shouldWriteHpath(state, targetAlias, hpathOverride) ? undefined : false,
+		writeHpath: shouldWriteHpath(state, targetAlias) ? undefined : false,
 		migrateLegacyPath: state.migrateLegacyPath,
 		preservePathAliases:
 			state.pathAliasConflict && !state.applyPathAliasFix && targetAlias === state.originalPathAlias
@@ -207,19 +209,14 @@ export function diffPreviewLines(originalText: string, previewText: string): Pre
 	return lines;
 }
 
-function shouldWriteHpath(
-	state: ConfigFixState,
-	targetAlias: PackagePathAlias | null,
-	hpathOverride: string | undefined
-): boolean {
+function shouldWriteHpath(state: ConfigFixState, targetAlias: PackagePathAlias | null): boolean {
 	const configuredHpath = configHpath(state.config, state.defaultHpath, state.originalPathAlias);
 	return (
 		state.applySourcePathFix ||
 		state.migrateLegacyPath ||
 		state.applyPathAliasLocationFix ||
 		state.hpath.trim() !== configuredHpath.trim() ||
-		(targetAlias !== null && targetAlias !== state.originalPathAlias) ||
-		(hpathOverride !== undefined && hpathOverride.trim() !== configuredHpath.trim())
+		(targetAlias !== null && targetAlias !== state.originalPathAlias)
 	);
 }
 

@@ -157,10 +157,23 @@
 								{/if}
 							</div>
 						{:else if issue.code === 'deprecated-path' && state.config.path !== undefined}
-							<label class="config-fix-toggle">
-								<input type="checkbox" bind:checked={state.migrateLegacyPath} {disabled} />
-								<span>Remove deprecated <code>path</code></span>
-							</label>
+							<div class="config-table-fix">
+								<label class="config-fix-toggle">
+									<input type="checkbox" bind:checked={state.migrateLegacyPath} {disabled} />
+									<span>Remove deprecated <code>path</code></span>
+								</label>
+								<label class="config-fix-alias-choice">
+									<span>Replace with</span>
+									<select
+										aria-label="Replacement alias for deprecated path"
+										bind:value={state.legacyPathAlias}
+										{disabled}
+									>
+										<option value="hpath">hpath</option>
+										<option value="HOUDINI_PATH">HOUDINI_PATH</option>
+									</select>
+								</label>
+							</div>
 						{:else}
 							<span class="config-table-fix-note">{issueFix(issue)}</span>
 						{/if}
@@ -353,6 +366,23 @@
 		display: grid;
 		min-width: 0;
 		gap: 7px;
+	}
+
+	.config-fix-alias-choice {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--text-muted);
+		font-size: 12px;
+	}
+
+	.config-fix-alias-choice select {
+		padding: 5px 7px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
+		font: inherit;
 	}
 
 	.config-table-fix p,
