@@ -41,3 +41,7 @@ At the end of every response you give to the user when you make code changes, pr
 - If the requested approach looks like a workaround, briefly point that out and suggest the simplest established or standard solution instead.
 - Prefer root-cause fixes over compensating logic, especially when a parser, library, framework feature, or existing helper already addresses the problem.
 - For non-obvious tradeoffs, explain the recommendation plainly and then proceed with the best-practice option unless the user explicitly requires the workaround.
+
+## Dependency Security
+
+Do not add or install dependencies unless the user explicitly requests or authorizes it. A feature request alone does not authorize adding a dependency. If a dependency appears necessary and the user has not authorized it, pause implementation and ask for confirmation before proceeding.
