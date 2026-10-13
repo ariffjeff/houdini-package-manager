@@ -217,6 +217,10 @@
 				originalText={JSON.stringify(editor.config, null, 2)}
 				previewText={targetConfigPreview}
 				evaluatedVariables={install.variables}
+				locked={editor.applySourcePathFix ||
+					editor.applyPathAliasFix ||
+					editor.applyPathAliasLocationFix ||
+					editor.migrateLegacyPath}
 				onReset={resetChanges}
 				loading={editor.state === 'loading'}
 			/>

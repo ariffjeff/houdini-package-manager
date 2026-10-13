@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RotateCcw } from '@lucide/svelte';
+	import { LockKeyhole, RotateCcw } from '@lucide/svelte';
 	import { diffPreviewLines, evaluateConfigVariables, highlightJsonTokens } from './config-editor';
 
 	let {
@@ -10,6 +10,7 @@
 		editable = false,
 		fillHeight = false,
 		disabled = false,
+		locked = false,
 		onEdit,
 		onReset
 	}: {
@@ -20,10 +21,10 @@
 		editable?: boolean;
 		fillHeight?: boolean;
 		disabled?: boolean;
+		locked?: boolean;
 		onEdit?: (text: string) => void;
 		onReset?: () => void;
 	} = $props();
-
 	let showRawOriginal = $state(false);
 	let showDiff = $state(true);
 	let showEvaluatedVariables = $state(false);
@@ -31,6 +32,7 @@
 	let diffPreviewElement = $state<HTMLElement | null>(null);
 	let codePreviewElement = $state<HTMLElement | null>(null);
 	let controlsDisabled = $derived(disabled || loading);
+	let editorDisabled = $derived(controlsDisabled || locked);
 	let resetDisabled = $derived(controlsDisabled || previewText === originalText);
 	let previewLines = $derived(diffPreviewLines(originalText, previewText));
 	let evaluatedPreviewText = $derived(evaluateConfigVariables(previewText, evaluatedVariables));
@@ -114,7 +116,11 @@
 	}
 </script>
 
-<div class:config-preview-panel-fill-height={fillHeight} class="config-preview-panel mb-2">
+<div
+	class:config-preview-panel-fill-height={fillHeight}
+	class:config-preview-panel-locked={locked}
+	class="config-preview-panel mb-2"
+>
 	<div class="config-preview-heading">
 		<div class="config-preview-toggles">
 			{#if editable || onReset}
@@ -159,6 +165,16 @@
 				/>
 				<span>Show evaluated</span>
 			</label>
+			{#if locked}
+				<span
+					class="config-preview-lock"
+					title="Config editing is locked while an autofix is enabled"
+					aria-label="Config editing is locked while an autofix is enabled"
+					role="img"
+				>
+					<LockKeyhole size={14} aria-hidden="true" />
+				</span>
+			{/if}
 		</div>
 	</div>
 	{#if loading}
@@ -210,7 +226,7 @@
 				value={previewText}
 				oninput={commitEditorText}
 				onscroll={syncDiffScroll}
-				{disabled}
+				disabled={editorDisabled}
 				spellcheck="false"
 				{@attach (node) => syncPreviewHeight(node, previewHeight)}></textarea>
 		</div>
@@ -233,7 +249,7 @@
 				value={previewText}
 				oninput={commitEditorText}
 				onscroll={syncCodeScroll}
-				{disabled}
+				disabled={editorDisabled}
 				spellcheck="false"
 				{@attach (node) => syncPreviewHeight(node, previewHeight)}></textarea>
 		</div>
@@ -498,6 +514,20 @@
 	.config-preview-panel textarea:focus-visible {
 		outline: 2px solid rgba(57, 155, 130, 0.55);
 		outline-offset: -2px;
+	}
+
+	.config-preview-panel-locked .config-code-editor,
+	.config-preview-panel-locked .config-diff-editor {
+		cursor: not-allowed;
+	}
+
+	.config-preview-lock {
+		display: inline-flex;
+		align-items: center;
+		flex: 0 0 auto;
+		margin: 4px 2px 0 auto;
+		color: #e6b878;
+		cursor: help;
 	}
 
 	.config-editable-diff {

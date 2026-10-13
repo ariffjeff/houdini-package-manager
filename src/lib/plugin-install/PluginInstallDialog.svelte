@@ -481,6 +481,10 @@
 							{evaluatedVariables}
 							editable
 							fillHeight
+							locked={manifestFixState.applySourcePathFix ||
+								manifestFixState.applyPathAliasFix ||
+								manifestFixState.applyPathAliasLocationFix ||
+								manifestFixState.migrateLegacyPath}
 							onReset={resetManifestChanges}
 							disabled={installState === 'working'}
 							onEdit={updateManifestText}
