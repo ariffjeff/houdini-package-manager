@@ -131,6 +131,55 @@ export function effectiveHpath(state: ConfigFixState, hpathOverride?: string): s
 	return hpathOverride ?? state.hpath;
 }
 
+export function evaluateConfigVariables(text: string, variables: Record<string, string>): string {
+	const evaluatedVariables = { ...variables };
+	try {
+		const config = JSON.parse(text) as { env?: unknown };
+		const addEnvEntry = (entry: unknown): void => {
+			if (!isJsonRecord(entry)) return;
+			if (typeof entry.var === 'string') {
+				if (typeof entry.value === 'string') evaluatedVariables[entry.var] = entry.value;
+				else if (Array.isArray(entry.value)) {
+					evaluatedVariables[entry.var] = entry.value
+						.filter((value): value is string => typeof value === 'string')
+						.join(';');
+				}
+			}
+			for (const [name, value] of Object.entries(entry)) {
+				if (name !== 'var' && name !== 'value' && name !== 'method' && typeof value === 'string') {
+					evaluatedVariables[name] = value;
+				}
+			}
+		};
+		if (Array.isArray(config.env)) config.env.forEach(addEnvEntry);
+		else if (isJsonRecord(config.env)) {
+			for (const [name, value] of Object.entries(config.env)) {
+				if (typeof value === 'string') evaluatedVariables[name] = value;
+			}
+		}
+	} catch {
+		// Continue with external variables while the draft is temporarily invalid JSON.
+	}
+
+	function resolveValue(value: string, resolving: string[] = []): string {
+		return value.replace(
+			/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g,
+			(match, bracedName, plainName) => {
+				const name = bracedName ?? plainName;
+				if (
+					!Object.prototype.hasOwnProperty.call(evaluatedVariables, name) ||
+					resolving.includes(name)
+				) {
+					return match;
+				}
+				return resolveValue(evaluatedVariables[name], [...resolving, name]);
+			}
+		);
+	}
+
+	return resolveValue(text);
+}
+
 export function configFixPlan(state: ConfigFixState, hpathOverride?: string): PackageConfigFixPlan {
 	const targetAlias = state.migrateLegacyPath ? state.legacyPathAlias : selectedPathAlias(state);
 	const pathAlias = targetAlias ?? state.pathAlias;

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { RotateCcw } from '@lucide/svelte';
-	import { diffPreviewLines } from './config-editor';
+	import { diffPreviewLines, evaluateConfigVariables } from './config-editor';
 
 	let {
 		originalText,
 		previewText,
+		evaluatedVariables = {},
 		loading = false,
 		editable = false,
 		fillHeight = false,
@@ -14,6 +15,7 @@
 	}: {
 		originalText: string;
 		previewText: string;
+		evaluatedVariables?: Record<string, string>;
 		loading?: boolean;
 		editable?: boolean;
 		fillHeight?: boolean;
@@ -24,11 +26,14 @@
 
 	let showRawOriginal = $state(false);
 	let showDiff = $state(true);
+	let showEvaluatedVariables = $state(false);
 	let previewHeight = $state(260);
 	let diffPreviewElement = $state<HTMLElement | null>(null);
 	let controlsDisabled = $derived(disabled || loading);
 	let resetDisabled = $derived(controlsDisabled || previewText === originalText);
 	let previewLines = $derived(diffPreviewLines(originalText, previewText));
+	let evaluatedPreviewText = $derived(evaluateConfigVariables(previewText, evaluatedVariables));
+	let canShowEvaluatedVariables = $derived(evaluatedPreviewText !== previewText);
 
 	function syncPreviewHeight(node: HTMLElement, height: number) {
 		node.style.removeProperty('height');
@@ -71,12 +76,26 @@
 
 	function toggleDiff(event: Event): void {
 		showDiff = (event.currentTarget as HTMLInputElement).checked;
-		if (showDiff) showRawOriginal = false;
+		if (showDiff) {
+			showRawOriginal = false;
+			showEvaluatedVariables = false;
+		}
 	}
 
 	function toggleRawOriginal(event: Event): void {
 		showRawOriginal = (event.currentTarget as HTMLInputElement).checked;
-		if (showRawOriginal) showDiff = false;
+		if (showRawOriginal) {
+			showDiff = false;
+			showEvaluatedVariables = false;
+		}
+	}
+
+	function toggleEvaluatedVariables(event: Event): void {
+		showEvaluatedVariables = (event.currentTarget as HTMLInputElement).checked;
+		if (showEvaluatedVariables) {
+			showDiff = false;
+			showRawOriginal = false;
+		}
 	}
 </script>
 
@@ -113,9 +132,18 @@
 						onchange={toggleRawOriginal}
 						disabled={controlsDisabled}
 					/>
-					<span>Show raw original</span>
+					<span>Show raw</span>
 				</label>
 			{/if}
+			<label class="config-preview-toggle">
+				<input
+					type="checkbox"
+					checked={showEvaluatedVariables}
+					onchange={toggleEvaluatedVariables}
+					disabled={controlsDisabled || !canShowEvaluatedVariables}
+				/>
+				<span>Show evaluated</span>
+			</label>
 		</div>
 	</div>
 	{#if loading}
@@ -124,6 +152,11 @@
 		<pre
 			class="config-raw-original"
 			{@attach (node) => syncPreviewHeight(node, previewHeight)}>{originalText || '(empty)'}</pre>
+	{:else if showEvaluatedVariables}
+		<pre
+			class="config-plain-preview"
+			{@attach (node) => syncPreviewHeight(node, previewHeight)}>{evaluatedPreviewText ||
+				'(empty)'}</pre>
 	{:else if editable && showDiff}
 		<div class="config-editable-diff" style:height={`${previewHeight}px`}>
 			<pre

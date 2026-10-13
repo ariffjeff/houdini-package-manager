@@ -216,6 +216,7 @@
 			<ConfigPreviewPanel
 				originalText={JSON.stringify(editor.config, null, 2)}
 				previewText={targetConfigPreview}
+				evaluatedVariables={install.variables}
 				onReset={resetChanges}
 				loading={editor.state === 'loading'}
 			/>

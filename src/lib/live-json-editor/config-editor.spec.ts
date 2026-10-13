@@ -4,7 +4,8 @@ import {
 	correctedConfigText,
 	createConfigFixState,
 	diffPreviewLines,
-	effectiveHpath
+	effectiveHpath,
+	evaluateConfigVariables
 } from './config-editor';
 
 describe('config editor helpers', () => {
@@ -137,5 +138,35 @@ describe('config editor helpers', () => {
 			{ text: '  "path": "old"', kind: 'removed', changed: false },
 			{ text: '}', kind: 'unchanged', changed: false }
 		]);
+	});
+
+	it('resolves known variables without changing unknown or cyclic references', () => {
+		expect(
+			evaluateConfigVariables('A=$ROOT; B=${CHILD}; C=$UNKNOWN; D=$CYCLE', {
+				ROOT: 'C:/houdini',
+				CHILD: '$ROOT/packages',
+				CYCLE: '$CYCLE'
+			})
+		).toBe('A=C:/houdini; B=C:/houdini/packages; C=$UNKNOWN; D=$CYCLE');
+	});
+
+	it('resolves variables declared in the package env array', () => {
+		const source = JSON.stringify(
+			{ path: '$QLIB', env: [{ QLIB: '$HOUDINI_USER_PREF_DIR/qLib-master' }] },
+			null,
+			2
+		);
+
+		expect(evaluateConfigVariables(source, { HOUDINI_USER_PREF_DIR: 'C:/Users/test' })).toContain(
+			'"path": "C:/Users/test/qLib-master"'
+		);
+	});
+
+	it('resolves variables declared in a package env object', () => {
+		const source = JSON.stringify({ path: '$QLIB', env: { QLIB: '$ROOT/qLib-master' } });
+
+		expect(evaluateConfigVariables(source, { ROOT: 'C:/Users/test' })).toContain(
+			'"path":"C:/Users/test/qLib-master"'
+		);
 	});
 });

@@ -137,6 +137,7 @@
 			? correctedConfigText(manifestFixState, requestedDestination, draft.manifestText)
 			: ''
 	);
+	let evaluatedVariables = $derived(installs[0]?.variables ?? {});
 	let manifestHasFatalIssue = $derived.by(() => {
 		return (
 			Boolean(manifestDraftError) ||
@@ -477,6 +478,7 @@
 						<ConfigPreviewPanel
 							originalText={draft.manifestTextInitial}
 							previewText={manifestConfig ? manifestPreviewText : draft.manifestText}
+							{evaluatedVariables}
 							editable
 							fillHeight
 							onReset={resetManifestChanges}
