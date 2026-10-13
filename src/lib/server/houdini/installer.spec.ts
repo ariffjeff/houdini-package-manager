@@ -659,6 +659,65 @@ describe('Houdini plugin actions', () => {
 		});
 	});
 
+	it('writes the generated live config without changing variables or formatting', async () => {
+		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-generated-manifest-'));
+		temporaryDirectories.push(root);
+		const packageDirectory = path.join(root, 'Documents', 'houdini21.0', 'packages');
+		const destinationPath = path.join(root, 'custom', 'AJTools');
+		await mkdir(packageDirectory, { recursive: true });
+		const installId = 'install:21.0';
+		const repositoryUrl = 'https://github.com/example/AJTools';
+		const discovery = {
+			installs: [
+				{
+					id: installId,
+					label: 'Houdini 21.0',
+					version: '21.0',
+					packageDirectory,
+					packageRoots: [{ path: packageDirectory, origin: 'user' as const }]
+				}
+			],
+			plugins: [
+				{
+					id: 'package:ajtools',
+					name: 'AJTools',
+					packageFile: 'AJTools.json',
+					repositoryUrl,
+					availableVersions: ['v1.0.0']
+				}
+			],
+			targets: []
+		} as unknown as HoudiniDiscoveryResponse;
+		discoveryMocks.discoverHoudiniWorkspace
+			.mockResolvedValueOnce(discovery)
+			.mockResolvedValueOnce(discovery);
+		mockGitCheckout('AJTools.json', '{"hpath":');
+		const generatedConfigText =
+			'{\r\n' +
+			'    "hpath": "$AJTOOLS",\r\n' +
+			'\r\n' +
+			'    "enable": false,\r\n' +
+			'    "hpm": {\r\n' +
+			'        "managed": true,\r\n' +
+			'        "repository": "https://github.com/example/AJTools",\r\n' +
+			'        "version": "v1.0.0"\r\n' +
+			'    }\r\n' +
+			'}\r\n';
+
+		await installHoudiniPlugin({
+			pluginId: 'package:ajtools',
+			version: 'v1.0.0',
+			installIds: [installId],
+			destinationPath,
+			includeHpmMetadata: true,
+			generatedConfigText
+		});
+
+		expect(await readFile(path.join(packageDirectory, 'AJTools.json'), 'utf8')).toBe(
+			generatedConfigText
+		);
+	});
+
 	it('rejects an invalid repository manifest before writing installed package files', async () => {
 		const root = await mkdtemp(path.join(os.tmpdir(), 'hpm-invalid-manifest-'));
 		temporaryDirectories.push(root);

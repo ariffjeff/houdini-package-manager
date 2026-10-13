@@ -1,4 +1,8 @@
-import type { HoudiniDiscoveryResponse, HoudiniInstall } from '$lib/houdini/types';
+import type {
+	HoudiniDiscoveryResponse,
+	HoudiniInstall,
+	InstallPluginRequest
+} from '$lib/houdini/types';
 import { installHoudiniPlugin, runHoudiniPluginAction } from '$lib/houdini/client';
 import type { ActivityEventStatus } from '$lib/activity/types';
 import type {
@@ -22,6 +26,23 @@ export type InstallWorkflowCallbacks = {
 	getErrorMessage: (error: unknown) => string;
 };
 
+export function createInstallPluginRequest(
+	identity: Pick<InstallPluginRequest, 'pluginId' | 'repositoryUrl' | 'packageFile'>,
+	selection: InstallDialogSelection
+): InstallPluginRequest {
+	return {
+		...identity,
+		version: selection.version,
+		installIds: selection.installIds,
+		destinationPath: selection.destinationPath,
+		includeHpmMetadata: selection.includeHpmMetadata,
+		generatedConfigText: selection.generatedConfigText,
+		...(selection.correctedConfigText !== undefined
+			? { correctedConfigText: selection.correctedConfigText }
+			: {})
+	};
+}
+
 export async function runPluginInstall(
 	plugin: InstallDialogPlugin,
 	selection: InstallDialogSelection,
@@ -29,16 +50,7 @@ export async function runPluginInstall(
 	installs: HoudiniInstall[],
 	callbacks: InstallWorkflowCallbacks
 ): Promise<void> {
-	const request = {
-		pluginId: plugin.id,
-		version: selection.version,
-		installIds: selection.installIds,
-		destinationPath: selection.destinationPath,
-		includeHpmMetadata: selection.includeHpmMetadata,
-		...(selection.correctedConfigText !== undefined
-			? { correctedConfigText: selection.correctedConfigText }
-			: {})
-	};
+	const request = createInstallPluginRequest({ pluginId: plugin.id }, selection);
 	const destinationLabels = request.installIds.map(
 		(installId) => installs.find((install) => install.id === installId)?.label ?? installId
 	);

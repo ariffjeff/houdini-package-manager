@@ -21,6 +21,7 @@ export type InstallDialogSelection = {
 	installIds: string[];
 	destinationPath: string;
 	includeHpmMetadata: boolean;
+	generatedConfigText: string;
 	correctedConfigText?: string;
 };
 

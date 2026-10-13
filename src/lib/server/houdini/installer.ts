@@ -7,7 +7,7 @@ import { getPluginCatalog } from '../../plugin-discovery/catalog.js';
 import { runHconfig } from './hconfig.js';
 import { runPluginAction, writableUserPackageDirectory } from './plugin-actions.js';
 import { migratePluginConfigs } from './plugin-migrator.js';
-import { ingestPackageConfig } from '../../houdini/package-ingester.js';
+import { ingestPackageConfig, inspectPackageConfig } from '../../houdini/package-ingester.js';
 import { parseGithubRepositoryUrl } from '../plugin-discovery/github.js';
 import { resolvePluginRepository } from '../plugin-discovery/discovery.js';
 import type {
@@ -99,7 +99,17 @@ export async function installHoudiniPlugin(
 					}
 				})
 	};
-	const ingestion = ingestPackageConfig(manifestText, ingestionOptions);
+	const generatedInspection =
+		request.generatedConfigText !== undefined
+			? inspectPackageConfig(request.generatedConfigText)
+			: undefined;
+	const ingestion = generatedInspection
+		? {
+				inspection: generatedInspection,
+				config: generatedInspection.config,
+				text: request.generatedConfigText
+			}
+		: ingestPackageConfig(manifestText, ingestionOptions);
 	if (!ingestion.config) {
 		const fatalIssues = ingestion.inspection.issues
 			.filter((issue) => issue.severity === 'fatal')
@@ -167,6 +177,12 @@ export function validateInstallPluginRequest(request: InstallPluginRequest): voi
 			(typeof request.repositoryUrl !== 'string' || !request.repositoryUrl.trim()))
 	) {
 		throw new Error('A valid plugin id or GitHub repository URL is required.');
+	}
+	if (
+		request.generatedConfigText !== undefined &&
+		typeof request.generatedConfigText !== 'string'
+	) {
+		throw new Error('A generated package manifest must be JSON text.');
 	}
 	if (
 		request.correctedConfigText !== undefined &&
@@ -354,7 +370,7 @@ async function writeManagedPackage(
 	packageText?: string
 ): Promise<void> {
 	throwIfAborted(signal);
-	await writeFile(packagePath, `${packageText ?? JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
+	await writeFile(packagePath, packageText ?? `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
 }
 
 async function runGit(cwd: string | undefined, args: string[]): Promise<string> {

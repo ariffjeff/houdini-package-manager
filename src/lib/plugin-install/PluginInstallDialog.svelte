@@ -344,6 +344,7 @@
 			installIds,
 			destinationPath: requestedDestination,
 			includeHpmMetadata,
+			generatedConfigText: installPreviewText,
 			...(hasCorrectedManifest ? { correctedConfigText: correctedText } : {})
 		};
 		const options: InstallDialogOptions = {

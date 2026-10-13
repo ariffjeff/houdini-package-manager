@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { X } from '@lucide/svelte';
 	import type { ActivationTarget, PluginRecord } from '$lib/activation-map/types';
-	import type { HoudiniInstall, InstallPluginRequest } from '$lib/houdini/types';
+	import type { HoudiniInstall } from '$lib/houdini/types';
 	import {
 		fetchHoudiniDiscovery,
 		fetchHoudiniDiscoverySnapshot,
@@ -18,6 +18,7 @@
 		InstallDialogSelection,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
+	import { createInstallPluginRequest } from '$lib/plugin-install/install-workflow';
 	import PluginDiscoverySection from './PluginDiscoverySection.svelte';
 	import {
 		cancelDiscoveryInstall,
@@ -182,17 +183,10 @@
 		) {
 			return;
 		}
-		const request: InstallPluginRequest = {
-			repositoryUrl: candidate.repositoryUrl,
-			packageFile: selection.packageFile,
-			version: selection.version,
-			installIds: selection.installIds,
-			destinationPath: selection.destinationPath,
-			includeHpmMetadata: selection.includeHpmMetadata,
-			...(selection.correctedConfigText !== undefined
-				? { correctedConfigText: selection.correctedConfigText }
-				: {})
-		};
+		const request = createInstallPluginRequest(
+			{ repositoryUrl: candidate.repositoryUrl, packageFile: selection.packageFile },
+			selection
+		);
 
 		pluginDiscoveryState.installState = 'working';
 		pluginDiscoveryState.installMessage = '';

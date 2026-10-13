@@ -162,6 +162,7 @@ export type InstallPluginRequest = {
 	pluginId?: string;
 	repositoryUrl?: string;
 	packageFile?: string;
+	generatedConfigText?: string;
 	correctedConfigText?: string;
 	includeHpmMetadata?: boolean;
 	pluginName?: string;
