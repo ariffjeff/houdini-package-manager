@@ -7,7 +7,7 @@ import { getPluginCatalog } from '../../plugin-discovery/catalog.js';
 import { runHconfig } from './hconfig.js';
 import { runPluginAction, writableUserPackageDirectory } from './plugin-actions.js';
 import { migratePluginConfigs } from './plugin-migrator.js';
-import { ingestPackageConfig } from './package-ingester.js';
+import { ingestPackageConfig } from '../../houdini/package-ingester.js';
 import { parseGithubRepositoryUrl } from '../plugin-discovery/github.js';
 import { resolvePluginRepository } from '../plugin-discovery/discovery.js';
 import type {
@@ -77,23 +77,29 @@ export async function installHoudiniPlugin(
 	const manifestText =
 		request.correctedConfigText ??
 		(await readFile(path.join(repositoryPath, plugin.packageFile), 'utf8'));
-	const ingestion = ingestPackageConfig(manifestText, {
+	const ingestionOptions = {
 		hpath: repositoryPath,
-		hpm: {
-			managed: true,
-			repository: plugin.repositoryUrl,
-			version: request.version,
-			...(provenance.commit ? { commit: provenance.commit } : {}),
-			...(provenance.manifestBlobSha ? { manifestBlobSha: provenance.manifestBlobSha } : {}),
-			...(provenance.hasCuratedProvenance
-				? {
-						verified: provenance.verified,
-						approvedCommit: provenance.approvedCommit,
-						approvedManifestBlobSha: provenance.approvedManifestBlobSha
+		...(request.correctedConfigText !== undefined ? { applyPathFixes: false } : {}),
+		...(request.includeHpmMetadata === false
+			? {}
+			: {
+					hpm: {
+						managed: true,
+						repository: plugin.repositoryUrl,
+						version: request.version,
+						...(provenance.commit ? { commit: provenance.commit } : {}),
+						...(provenance.manifestBlobSha ? { manifestBlobSha: provenance.manifestBlobSha } : {}),
+						...(provenance.hasCuratedProvenance
+							? {
+									verified: provenance.verified,
+									approvedCommit: provenance.approvedCommit,
+									approvedManifestBlobSha: provenance.approvedManifestBlobSha
+								}
+							: {})
 					}
-				: {})
-		}
-	});
+				})
+	};
+	const ingestion = ingestPackageConfig(manifestText, ingestionOptions);
 	if (!ingestion.config) {
 		const fatalIssues = ingestion.inspection.issues
 			.filter((issue) => issue.severity === 'fatal')
@@ -117,7 +123,7 @@ export async function installHoudiniPlugin(
 		const packagePath =
 			existingTarget?.packagePath ?? path.join(packageDirectory, plugin.packageFile);
 		await mkdir(path.dirname(packagePath), { recursive: true });
-		await writeManagedPackage(packagePath, ingestion.config, signal);
+		await writeManagedPackage(packagePath, ingestion.config, signal, ingestion.text);
 	}
 
 	throwIfAborted(signal);
@@ -344,10 +350,11 @@ async function ensureGitCheckout(
 async function writeManagedPackage(
 	packagePath: string,
 	packageValue: Record<string, unknown>,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	packageText?: string
 ): Promise<void> {
 	throwIfAborted(signal);
-	await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
+	await writeFile(packagePath, `${packageText ?? JSON.stringify(packageValue, null, 2)}\n`, 'utf8');
 }
 
 async function runGit(cwd: string | undefined, args: string[]): Promise<string> {

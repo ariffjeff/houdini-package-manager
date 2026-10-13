@@ -8,6 +8,7 @@
 	import type { HoudiniInstall, PackageManifestPreflight } from '$lib/houdini/types';
 	import ConfigFixesPanel from '$lib/live-json-editor/ConfigFixesPanel.svelte';
 	import ConfigPreviewPanel from '$lib/live-json-editor/ConfigPreviewPanel.svelte';
+	import { ingestPackageConfig } from '$lib/houdini/package-ingester';
 	import {
 		correctedConfigText,
 		createConfigFixState,
@@ -77,6 +78,8 @@
 	});
 	let manifestConfig = $state<Record<string, unknown> | null>(null);
 	let manifestFixState = $state<ConfigFixState>(createConfigFixState({}, { defaultHpath: '' }));
+	let includeHpmMetadata = $state(true);
+	let hpmMetadataChanged = $state(false);
 	let showNonTaggedCommits = $state(false);
 	let versionQuery = $state('');
 	let packageFiles = $derived(
@@ -138,6 +141,24 @@
 			? correctedConfigText(manifestFixState, requestedDestination, draft.manifestText)
 			: ''
 	);
+	let installPreviewText = $derived.by(() => {
+		const sourceText = manifestConfig ? manifestPreviewText : draft.manifestText;
+		if (!includeHpmMetadata) return sourceText;
+		const ingestion = ingestPackageConfig(sourceText, {
+			hpath: requestedDestination,
+			applyPathFixes: false,
+			hpm: {
+				managed: true,
+				repository: plugin.repositoryUrl ?? '',
+				version: requestedVersion,
+				...(plugin.pinnedCommit ? { approvedCommit: plugin.pinnedCommit } : {}),
+				...(plugin.manifestBlobSha ? { approvedManifestBlobSha: plugin.manifestBlobSha } : {})
+			}
+		});
+		return (
+			ingestion.text ?? (ingestion.config ? JSON.stringify(ingestion.config, null, 2) : sourceText)
+		);
+	});
 	let evaluatedVariables = $derived(installs[0]?.variables ?? {});
 	let manifestHasFatalIssue = $derived.by(() => {
 		return (
@@ -188,6 +209,8 @@
 
 	function resetManifestChanges() {
 		draft.manifestText = draft.manifestTextInitial;
+		includeHpmMetadata = false;
+		hpmMetadataChanged = false;
 		resetManifestCorrection(draft.manifestTextInitial, requestedDestination);
 		manifestFixState.applyPathAliasLocationFix = false;
 		manifestFixState.migrateLegacyPath = false;
@@ -320,6 +343,7 @@
 			version: requestedVersion,
 			installIds,
 			destinationPath: requestedDestination,
+			includeHpmMetadata,
 			...(hasCorrectedManifest ? { correctedConfigText: correctedText } : {})
 		};
 		const options: InstallDialogOptions = {
@@ -489,10 +513,11 @@
 						</label>
 						<ConfigPreviewPanel
 							originalText={draft.manifestTextInitial}
-							previewText={manifestConfig ? manifestPreviewText : draft.manifestText}
+							previewText={installPreviewText}
 							{evaluatedVariables}
 							editable
 							fillHeight
+							resetAvailable={hpmMetadataChanged}
 							locked={manifestFixState.applySourcePathFix ||
 								manifestFixState.applyPathAliasFix ||
 								manifestFixState.applyPathAliasLocationFix ||
@@ -514,6 +539,9 @@
 							disabled={installState === 'working'}
 							idPrefix="install-manifest"
 							layout="table"
+							showHpmMetadataToggle
+							bind:includeHpmMetadata
+							onHpmMetadataChange={(value) => (hpmMetadataChanged = value !== true)}
 							manifestIssues={selectedManifestPreflight?.issues ?? []}
 							manifestFatal={selectedManifestPreflight?.fatal ?? false}
 							manifestUninspected={!selectedManifestPreflight}

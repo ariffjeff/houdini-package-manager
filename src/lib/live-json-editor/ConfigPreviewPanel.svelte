@@ -11,6 +11,7 @@
 		fillHeight = false,
 		disabled = false,
 		locked = false,
+		resetAvailable = false,
 		onEdit,
 		onReset
 	}: {
@@ -22,6 +23,7 @@
 		fillHeight?: boolean;
 		disabled?: boolean;
 		locked?: boolean;
+		resetAvailable?: boolean;
 		onEdit?: (text: string) => void;
 		onReset?: () => void;
 	} = $props();
@@ -33,7 +35,9 @@
 	let codePreviewElement = $state<HTMLElement | null>(null);
 	let controlsDisabled = $derived(disabled || loading);
 	let editorDisabled = $derived(controlsDisabled || locked);
-	let resetDisabled = $derived(controlsDisabled || previewText === originalText);
+	let resetDisabled = $derived(
+		controlsDisabled || (!resetAvailable && previewText === originalText)
+	);
 	let previewLines = $derived(diffPreviewLines(originalText, previewText));
 	let evaluatedPreviewText = $derived(evaluateConfigVariables(previewText, evaluatedVariables));
 	let canShowEvaluatedVariables = $derived(evaluatedPreviewText !== previewText);

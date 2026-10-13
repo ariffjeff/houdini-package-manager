@@ -652,7 +652,7 @@ describe('Houdini plugin actions', () => {
 		expect(
 			JSON.parse(await readFile(path.join(packageDirectory, 'AJTools.json'), 'utf8'))
 		).toMatchObject({
-			hpath: path.normalize(destinationPath),
+			path: '$AJTOOLS',
 			enable: false,
 			custom: true,
 			hpm: { managed: true, repository: repositoryUrl, version: 'v1.0.0' }

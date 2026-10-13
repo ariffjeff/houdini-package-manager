@@ -35,6 +35,44 @@ describe('package config ingester', () => {
 		});
 	});
 
+	it('leaves HPM metadata out when no metadata options are supplied', () => {
+		const result = ingestPackageConfig('{"hpath":"$PLUGIN_ROOT","enable":true}', {
+			hpath: 'C:/HPM/plugins/example'
+		});
+
+		expect(result.config).toEqual({
+			hpath: 'C:/HPM/plugins/example',
+			enable: true
+		});
+	});
+
+	it('preserves source formatting when adding HPM metadata without path fixes', () => {
+		const source =
+			'{\r\n' +
+			'    "enable": true,\r\n' +
+			'\r\n' +
+			'    "custom": {\r\n' +
+			'        "keep": "value"\r\n' +
+			'    }\r\n' +
+			'}\r\n';
+		const result = ingestPackageConfig(source, {
+			hpath: 'C:/HPM/plugins/example',
+			applyPathFixes: false,
+			hpm: ingestionOptions.hpm
+		});
+
+		expect(result.text).toBe(
+			source.slice(0, -5) +
+				',\r\n' +
+				'    "hpm": {\r\n' +
+				'        "managed": true,\r\n' +
+				'        "repository": "https://github.com/example/plugin",\r\n' +
+				'        "version": "v1.0.0"\r\n' +
+				'    }\r\n' +
+				'}\r\n'
+		);
+	});
+
 	it('rejects malformed and non-object manifests', () => {
 		const malformed = inspectPackageConfig('{"hpath":');
 		expect(malformed.fatal).toBe(true);

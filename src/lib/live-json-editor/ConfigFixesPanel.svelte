@@ -13,6 +13,9 @@
 		manifestFatal?: boolean;
 		manifestUninspected?: boolean;
 		manifestDraftError?: string;
+		showHpmMetadataToggle?: boolean;
+		includeHpmMetadata?: boolean;
+		onHpmMetadataChange?: (value: boolean) => void;
 	};
 
 	let {
@@ -23,7 +26,10 @@
 		manifestIssues = [],
 		manifestFatal = false,
 		manifestUninspected = false,
-		manifestDraftError = ''
+		manifestDraftError = '',
+		showHpmMetadataToggle = false,
+		includeHpmMetadata = $bindable(true),
+		onHpmMetadataChange
 	}: Props = $props();
 
 	function toggleFixCard(event: MouseEvent | KeyboardEvent, toggle: () => void): void {
@@ -36,6 +42,31 @@
 </script>
 
 <div class:config-fix-table-mode={layout === 'table'} class="config-fix-mode">
+	{#if showHpmMetadataToggle}
+		<section
+			class="config-final-preview-section"
+			aria-labelledby={`${idPrefix}-final-config-title`}
+		>
+			<div class="config-final-preview-heading">
+				<div>
+					<strong id={`${idPrefix}-final-config-title`}>Apply HPM Metadata</strong>
+					<p>Adds repository and version details so HPM can identify and track this plugin.</p>
+				</div>
+				<label class="config-final-preview-toggle">
+					<input
+						type="checkbox"
+						checked={includeHpmMetadata}
+						onchange={(event) => {
+							includeHpmMetadata = (event.currentTarget as HTMLInputElement).checked;
+							onHpmMetadataChange?.(includeHpmMetadata);
+						}}
+						{disabled}
+					/>
+					<span>Append HPM metadata</span>
+				</label>
+			</div>
+		</section>
+	{/if}
 	<ConfigFixTable
 		bind:state
 		{disabled}
@@ -322,6 +353,48 @@
 		border: 1px solid rgba(211, 155, 56, 0.38);
 		border-radius: 5px;
 		background: rgba(211, 155, 56, 0.06);
+	}
+
+	.config-final-preview-section {
+		display: grid;
+		gap: 10px;
+		padding: 12px;
+		border: 1px solid rgba(57, 155, 130, 0.35);
+		border-radius: 5px;
+		background: rgba(57, 155, 130, 0.06);
+	}
+
+	.config-final-preview-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.config-final-preview-heading strong {
+		color: #b8ded2;
+		font-size: 12px;
+	}
+
+	.config-final-preview-heading p {
+		margin: 4px 0 0;
+		color: var(--text-muted);
+		font-size: 11px;
+		line-height: 1.4;
+	}
+
+	.config-final-preview-toggle {
+		display: inline-flex;
+		align-items: center;
+		flex: 0 0 auto;
+		gap: 6px;
+		color: var(--text-muted);
+		font-size: 11px;
+	}
+
+	.config-final-preview-toggle input {
+		margin: 0;
+		accent-color: #399b82;
 	}
 
 	.config-fix-layout {

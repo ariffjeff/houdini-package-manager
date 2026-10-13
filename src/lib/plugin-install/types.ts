@@ -20,6 +20,7 @@ export type InstallDialogSelection = {
 	version: string;
 	installIds: string[];
 	destinationPath: string;
+	includeHpmMetadata: boolean;
 	correctedConfigText?: string;
 };
 

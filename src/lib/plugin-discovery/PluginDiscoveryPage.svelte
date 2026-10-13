@@ -188,6 +188,7 @@
 			version: selection.version,
 			installIds: selection.installIds,
 			destinationPath: selection.destinationPath,
+			includeHpmMetadata: selection.includeHpmMetadata,
 			...(selection.correctedConfigText !== undefined
 				? { correctedConfigText: selection.correctedConfigText }
 				: {})

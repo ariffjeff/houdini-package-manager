@@ -163,6 +163,7 @@ export type InstallPluginRequest = {
 	repositoryUrl?: string;
 	packageFile?: string;
 	correctedConfigText?: string;
+	includeHpmMetadata?: boolean;
 	pluginName?: string;
 	version: string;
 	installIds: string[];

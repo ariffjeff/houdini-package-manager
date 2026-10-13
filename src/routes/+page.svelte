@@ -50,11 +50,7 @@
 		PluginRecord
 	} from '$lib/activation-map/types';
 	import { targetIssueMessages, targetIssueSummary } from '$lib/houdini/known-issues';
-	import type {
-		HoudiniDiscoveryResponse,
-		HoudiniPluginMigrationRequest,
-		InstallPluginRequest
-	} from '$lib/houdini/types';
+	import type { HoudiniDiscoveryResponse, HoudiniPluginMigrationRequest } from '$lib/houdini/types';
 	import {
 		responseStageTimestamp,
 		scanStages,
@@ -76,11 +72,8 @@
 		readLibraryDiscoveryCache,
 		setLibraryDiscoveryCache
 	} from '$lib/library-state.svelte';
-	import {
-		fetchHoudiniDiscoverySnapshot,
-		installHoudiniPlugin,
-		runHoudiniPluginAction
-	} from '$lib/houdini/client';
+	import { fetchHoudiniDiscoverySnapshot, runHoudiniPluginAction } from '$lib/houdini/client';
+	import { runPluginInstall } from '$lib/plugin-install/install-workflow';
 	import { HPM_STORAGE_KEYS } from '$lib/settings/local-storage';
 	import Tooltip from '$lib/Tooltip.svelte';
 	import { curatedPluginCatalog } from '$lib/plugin-discovery/catalog';
@@ -860,83 +853,17 @@
 		) {
 			return;
 		}
-		const plugin = installPlugin;
-		const request: InstallPluginRequest = {
-			pluginId: selectedPlugin.id,
-			version: selection.version,
-			installIds: selection.installIds,
-			destinationPath: selection.destinationPath
-		};
-
-		installState = 'working';
-		installMessage = '';
-		const destinationLabels = request.installIds.map(
-			(installId) =>
-				activationInstalls.find((install) => install.id === installId)?.label ?? installId
-		);
-		const controller = new AbortController();
-		installController = controller;
-		try {
-			const result = await installHoudiniPlugin(request, controller.signal);
-			applyDiscovery(result.discovery, 'all');
-			installState = 'success';
-			const postInstallMessages = [result.message];
-			installDialogOpen = false;
-			if (options.openInstalledFolder) {
-				try {
-					await runHoudiniPluginAction({
-						pluginId: plugin.id,
-						action: 'open-source',
-						sourcePath: request.destinationPath
-					});
-				} catch (error) {
-					postInstallMessages.push(getErrorMessage(error));
-				}
-			}
-			if (options.openInstalledConfig) {
-				try {
-					await runHoudiniPluginAction({
-						pluginId: plugin.id,
-						action: 'open-config',
-						installId: request.installIds[0]
-					});
-				} catch (error) {
-					postInstallMessages.push(getErrorMessage(error));
-				}
-			}
-			installMessage = postInstallMessages.join(' ');
-			recordActivity({
-				kind: 'install',
-				status: 'success',
-				title: `Installed ${plugin.name}`,
-				detail: `${request.version} · ${destinationLabels.join(', ')}`
-			});
-		} catch (error) {
-			if (
-				controller.signal.aborted ||
-				(error instanceof DOMException && error.name === 'AbortError')
-			) {
-				installState = 'idle';
-				installMessage = 'Installation cancelled.';
-				recordActivity({
-					kind: 'install',
-					status: 'cancelled',
-					title: `Installation cancelled for ${plugin.name}`,
-					detail: `${request.version} · ${destinationLabels.join(', ')}`
-				});
-			} else {
-				installState = 'error';
-				installMessage = getErrorMessage(error);
-				recordActivity({
-					kind: 'install',
-					status: 'error',
-					title: `Installation failed for ${plugin.name}`,
-					detail: installMessage
-				});
-			}
-		} finally {
-			if (installController === controller) installController = null;
-		}
+		await runPluginInstall(installPlugin, selection, options, activationInstalls, {
+			applyDiscovery: (response) => {
+				applyDiscovery(response, 'all');
+				installDialogOpen = false;
+			},
+			setState: (state) => (installState = state),
+			setMessage: (message) => (installMessage = message),
+			setController: (controller) => (installController = controller),
+			recordActivity,
+			getErrorMessage
+		});
 	}
 
 	function cancelInstall() {
