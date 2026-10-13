@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import GithubLogo from '$lib/assets/GithubLogo.svelte';
 	import houdiniBadge from '$lib/assets/houdini_badge_flat.svg';
 	import { compareVersionLabels } from '$lib/activation-map/plugin-detail';
 	import { FileCheck2, GitCommitHorizontal, ShieldCheck, Tag, TriangleAlert } from '@lucide/svelte';
@@ -364,7 +365,18 @@
 		aria-busy={installState === 'working'}
 	>
 		<div class="issues-dialog-header">
-			<div>
+			<div class="install-dialog-title-row">
+				{#if plugin.repositoryUrl}
+					<a
+						class="install-dialog-github-link"
+						href={plugin.repositoryUrl}
+						target="_blank"
+						rel="external noopener noreferrer"
+						aria-label={`Open ${plugin.name} on GitHub`}
+					>
+						<GithubLogo size={18} aria-hidden="true" />
+					</a>
+				{/if}
 				<h2 id="install-dialog-title">Install {plugin.name}</h2>
 			</div>
 			<div class="install-dialog-header-controls">
@@ -787,6 +799,32 @@
 		margin: 0;
 		font-size: 22px;
 		font-weight: 600;
+	}
+
+	.install-dialog-title-row {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 9px;
+	}
+
+	.install-dialog-github-link {
+		display: inline-flex;
+		width: 30px;
+		height: 30px;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		color: var(--text-muted);
+	}
+
+	.install-dialog-github-link:hover,
+	.install-dialog-github-link:focus-visible {
+		border-color: #399b82;
+		color: #b8ded2;
+		outline: none;
 	}
 
 	.dialog-close-button {
