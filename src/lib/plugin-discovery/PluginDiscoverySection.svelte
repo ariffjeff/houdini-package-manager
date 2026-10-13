@@ -259,15 +259,6 @@
 										</button>
 									{/if}
 								</div>
-								{#if candidate.warnings.length}
-									<div class="warning-list" role="note">
-										<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-										<div>
-											<strong>Review before installing</strong>
-											{#each candidate.warnings as warning (warning)}<p>{warning}</p>{/each}
-										</div>
-									</div>
-								{/if}
 								{#if installs.length === 0}
 									<p class="install-hint">
 										No Houdini installs detected. Scan for an install before installing.
@@ -1154,33 +1145,6 @@
 		border-color: var(--line-strong);
 		color: var(--text);
 		outline: none;
-	}
-
-	.warning-list {
-		display: flex;
-		gap: 7px;
-		padding: 7px 9px;
-		border: 1px solid rgba(226, 169, 92, 0.3);
-		border-radius: 5px;
-		background: rgba(226, 169, 92, 0.08);
-		color: #eac18d;
-		font-size: 12px;
-		line-height: 1.35;
-	}
-
-	.warning-list :global(svg) {
-		flex: 0 0 auto;
-		margin-top: 1px;
-	}
-
-	.warning-list strong {
-		display: block;
-		margin-bottom: 3px;
-		font-weight: 650;
-	}
-
-	.warning-list p {
-		margin: 0;
 	}
 
 	.install-hint {
