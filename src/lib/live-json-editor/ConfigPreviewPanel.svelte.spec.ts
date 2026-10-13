@@ -8,7 +8,6 @@ describe('ConfigPreviewPanel.svelte', () => {
 		render(ConfigPreviewPanel, {
 			originalText: '{\n  "path": "old"\n}',
 			previewText: '{\n  "hpath": "new"\n}',
-			packagePath: 'package.json',
 			editable: true
 		});
 
