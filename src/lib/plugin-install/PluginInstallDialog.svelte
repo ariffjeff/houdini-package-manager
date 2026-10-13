@@ -1518,7 +1518,7 @@
 	}
 
 	.dialog-primary-button:disabled {
-		cursor: wait;
+		cursor: default;
 		opacity: 0.55;
 	}
 
