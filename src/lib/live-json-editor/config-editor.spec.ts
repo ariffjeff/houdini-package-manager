@@ -29,7 +29,7 @@ describe('config editor helpers', () => {
 		});
 	});
 
-	it('renders the exact corrected JSON for a destination override', () => {
+	it('renames a deprecated path without changing its value', () => {
 		const state = createConfigFixState(
 			{ path: 'C:/legacy/plugin', enable: false },
 			{
@@ -39,7 +39,7 @@ describe('config editor helpers', () => {
 		);
 
 		expect(correctedConfigText(state, 'C:/install/plugin')).toBe(
-			JSON.stringify({ hpath: 'C:/install/plugin', enable: false }, null, 2)
+			JSON.stringify({ hpath: 'C:/legacy/plugin', enable: false }, null, 2)
 		);
 	});
 
@@ -52,7 +52,7 @@ describe('config editor helpers', () => {
 
 		expect(correctedConfigText(state, 'C:/install/plugin')).toBe(
 			JSON.stringify(
-				{ env: [{ SOURCE: '$HOUDINI_PATH/bin', HOUDINI_PATH: 'C:/install/plugin' }] },
+				{ env: [{ SOURCE: '$HOUDINI_PATH/bin', HOUDINI_PATH: 'C:/legacy/plugin' }] },
 				null,
 				2
 			)
@@ -79,7 +79,7 @@ describe('config editor helpers', () => {
 			'{\r\n\r\n    "path": "C:/legacy/plugin",\r\n\r\n    "enable": false\r\n}\r\n';
 
 		expect(correctedConfigText(state, 'C:/install/plugin', sourceText)).toBe(
-			'{\r\n\r\n    "hpath": "C:/install/plugin",\r\n\r\n    "enable": false\r\n}\r\n'
+			'{\r\n\r\n    "hpath": "C:/legacy/plugin",\r\n\r\n    "enable": false\r\n}\r\n'
 		);
 	});
 

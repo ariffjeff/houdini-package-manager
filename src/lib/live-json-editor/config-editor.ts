@@ -126,7 +126,9 @@ export function selectedPathAlias(state: ConfigFixState): PackagePathAlias | nul
 }
 
 export function effectiveHpath(state: ConfigFixState, hpathOverride?: string): string {
-	return hpathOverride ?? (state.applySourcePathFix ? state.sourcePathFixPath : state.hpath);
+	if (state.applySourcePathFix) return state.sourcePathFixPath;
+	if (state.migrateLegacyPath) return state.hpath;
+	return hpathOverride ?? state.hpath;
 }
 
 export function configFixPlan(state: ConfigFixState, hpathOverride?: string): PackageConfigFixPlan {
