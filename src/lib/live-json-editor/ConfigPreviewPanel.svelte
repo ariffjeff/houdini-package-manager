@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { RotateCcw } from '@lucide/svelte';
-	import { diffPreviewLines, evaluateConfigVariables } from './config-editor';
+	import { diffPreviewLines, evaluateConfigVariables, highlightJsonTokens } from './config-editor';
 
 	let {
 		originalText,
@@ -29,6 +29,7 @@
 	let showEvaluatedVariables = $state(false);
 	let previewHeight = $state(260);
 	let diffPreviewElement = $state<HTMLElement | null>(null);
+	let codePreviewElement = $state<HTMLElement | null>(null);
 	let controlsDisabled = $derived(disabled || loading);
 	let resetDisabled = $derived(controlsDisabled || previewText === originalText);
 	let previewLines = $derived(diffPreviewLines(originalText, previewText));
@@ -67,10 +68,24 @@
 		diffPreviewElement.scrollLeft = textarea.scrollLeft;
 	}
 
+	function syncCodeScroll(event: Event): void {
+		const textarea = event.currentTarget as HTMLTextAreaElement;
+		if (!codePreviewElement) return;
+		codePreviewElement.scrollTop = textarea.scrollTop;
+		codePreviewElement.scrollLeft = textarea.scrollLeft;
+	}
+
 	function attachDiffPreview(node: HTMLElement) {
 		diffPreviewElement = node;
 		return () => {
 			if (diffPreviewElement === node) diffPreviewElement = null;
+		};
+	}
+
+	function attachCodePreview(node: HTMLElement) {
+		codePreviewElement = node;
+		return () => {
+			if (codePreviewElement === node) codePreviewElement = null;
 		};
 	}
 
@@ -151,12 +166,23 @@
 	{:else if editable && showRawOriginal}
 		<pre
 			class="config-raw-original"
-			{@attach (node) => syncPreviewHeight(node, previewHeight)}>{originalText || '(empty)'}</pre>
+			{@attach (node) =>
+				syncPreviewHeight(
+					node,
+					previewHeight
+				)}>{#each highlightJsonTokens(originalText || '(empty)') as token, tokenIndex (tokenIndex)}<span
+					class={token.className}>{token.text}</span
+				>{/each}</pre>
 	{:else if showEvaluatedVariables}
 		<pre
 			class="config-plain-preview"
-			{@attach (node) => syncPreviewHeight(node, previewHeight)}>{evaluatedPreviewText ||
-				'(empty)'}</pre>
+			{@attach (node) =>
+				syncPreviewHeight(
+					node,
+					previewHeight
+				)}>{#each highlightJsonTokens(evaluatedPreviewText || '(empty)') as token, tokenIndex (tokenIndex)}<span
+					class={token.className}>{token.text}</span
+				>{/each}</pre>
 	{:else if editable && showDiff}
 		<div class="config-editable-diff" style:height={`${previewHeight}px`}>
 			<pre
@@ -171,7 +197,10 @@
 							line.changed ? 'is-changed' : '',
 							line.kind === 'removed' ? 'is-removed' : ''
 						]}
-						data-diff-kind={line.kind}>{line.text}</span
+						data-diff-kind={line.kind}
+						>{#each highlightJsonTokens(line.text) as token, tokenIndex (tokenIndex)}<span
+								class={token.className}>{token.text}</span
+							>{/each}</span
 					>
 				{/each}
 			</pre>
@@ -186,17 +215,38 @@
 				{@attach (node) => syncPreviewHeight(node, previewHeight)}></textarea>
 		</div>
 	{:else if editable}
-		<textarea
-			aria-label="Corrected package manifest JSON"
-			value={previewText}
-			oninput={commitEditorText}
-			{disabled}
-			spellcheck="false"
-			{@attach (node) => syncPreviewHeight(node, previewHeight)}></textarea>
+		<div class="config-editable-code" style:height={`${previewHeight}px`}>
+			<pre
+				class="config-code-preview"
+				aria-hidden="true"
+				{@attach attachCodePreview}
+				{@attach (node) =>
+					syncPreviewHeight(
+						node,
+						previewHeight
+					)}>{#each highlightJsonTokens(previewText || '(empty)') as token, tokenIndex (tokenIndex)}<span
+						class={token.className}>{token.text}</span
+					>{/each}</pre>
+			<textarea
+				class="config-code-editor"
+				aria-label="Corrected package manifest JSON"
+				value={previewText}
+				oninput={commitEditorText}
+				onscroll={syncCodeScroll}
+				{disabled}
+				spellcheck="false"
+				{@attach (node) => syncPreviewHeight(node, previewHeight)}></textarea>
+		</div>
 	{:else if !showDiff}
 		<pre
 			class="config-plain-preview"
-			{@attach (node) => syncPreviewHeight(node, previewHeight)}>{previewText || '(empty)'}</pre>
+			{@attach (node) =>
+				syncPreviewHeight(
+					node,
+					previewHeight
+				)}>{#each highlightJsonTokens(previewText || '(empty)') as token, tokenIndex (tokenIndex)}<span
+					class={token.className}>{token.text}</span
+				>{/each}</pre>
 	{:else}
 		<pre
 			class="config-diff-preview"
@@ -209,7 +259,10 @@
 						line.changed ? 'is-changed' : '',
 						line.kind === 'removed' ? 'is-removed' : ''
 					]}
-					data-diff-kind={line.kind}>{line.text}</span
+					data-diff-kind={line.kind}
+					>{#each highlightJsonTokens(line.text) as token, tokenIndex (tokenIndex)}<span
+							class={token.className}>{token.text}</span
+						>{/each}</span
 				>
 			{/each}
 		</pre>
@@ -366,13 +419,73 @@
 	}
 
 	.config-preview-panel-fill-height > pre,
-	.config-preview-panel-fill-height > textarea,
+	.config-preview-panel-fill-height > .config-editable-code,
 	.config-preview-panel-fill-height > .config-editable-diff {
 		box-sizing: border-box;
 		min-height: 0;
 		height: auto !important;
 		max-height: none;
 		flex: 1 1 0;
+	}
+
+	.config-editable-code {
+		position: relative;
+		min-height: 260px;
+		max-height: min(560px, 58dvh);
+		overflow: hidden;
+	}
+
+	.config-editable-code .config-code-preview,
+	.config-editable-code .config-code-editor {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		max-height: none;
+	}
+
+	.config-editable-code .config-code-preview {
+		overflow: hidden;
+	}
+
+	.config-editable-code .config-code-editor {
+		z-index: 1;
+		background: transparent;
+		color: transparent;
+		caret-color: var(--text);
+		-webkit-text-fill-color: transparent;
+	}
+
+	.config-preview-panel-fill-height .config-editable-code .config-code-preview,
+	.config-preview-panel-fill-height .config-editable-code .config-code-editor {
+		min-height: 0;
+		height: 100% !important;
+		max-height: none;
+	}
+
+	.json-token-key {
+		color: #86c7e8;
+	}
+
+	.json-token-string {
+		color: #c8d99b;
+	}
+
+	.json-token-number {
+		color: #e6b878;
+	}
+
+	.json-token-boolean {
+		color: #d9a7df;
+	}
+
+	.json-token-null {
+		color: #a9a9b8;
+	}
+
+	.json-token-comment {
+		color: var(--text-muted);
+		font-style: italic;
 	}
 
 	.config-preview-panel-fill-height .config-editable-diff .config-diff-layer,

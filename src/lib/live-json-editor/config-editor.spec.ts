@@ -5,7 +5,8 @@ import {
 	createConfigFixState,
 	diffPreviewLines,
 	effectiveHpath,
-	evaluateConfigVariables
+	evaluateConfigVariables,
+	highlightJsonTokens
 } from './config-editor';
 
 describe('config editor helpers', () => {
@@ -168,5 +169,23 @@ describe('config editor helpers', () => {
 		expect(evaluateConfigVariables(source, { ROOT: 'C:/Users/test' })).toContain(
 			'"path":"C:/Users/test/qLib-master"'
 		);
+	});
+
+	it('tokenizes JSON values for syntax highlighting', () => {
+		expect(highlightJsonTokens('{"enabled": true, "count": 2, "value": null}')).toEqual([
+			{ text: '{' },
+			{ text: '"enabled"', className: 'json-token-key' },
+			{ text: ': ' },
+			{ text: 'true', className: 'json-token-boolean' },
+			{ text: ', ' },
+			{ text: '"count"', className: 'json-token-key' },
+			{ text: ': ' },
+			{ text: '2', className: 'json-token-number' },
+			{ text: ', ' },
+			{ text: '"value"', className: 'json-token-key' },
+			{ text: ': ' },
+			{ text: 'null', className: 'json-token-null' },
+			{ text: '}' }
+		]);
 	});
 });

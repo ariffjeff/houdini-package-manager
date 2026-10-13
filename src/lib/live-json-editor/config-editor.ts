@@ -53,6 +53,40 @@ export type PreviewLine = {
 	changed: boolean;
 };
 
+export type JsonToken = {
+	text: string;
+	className?: string;
+};
+
+export function highlightJsonTokens(text: string): JsonToken[] {
+	const tokens: JsonToken[] = [];
+	const tokenPattern =
+		/(\/\/[^\r\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"(?=\s*:))|("(?:\\.|[^"\\])*")|(-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(true|false)\b|\bnull\b/g;
+	let lastIndex = 0;
+	let match: RegExpExecArray | null;
+	while ((match = tokenPattern.exec(text))) {
+		if (match.index > lastIndex) tokens.push({ text: text.slice(lastIndex, match.index) });
+		const [, comment, key, string, number, boolean] = match;
+		tokens.push({
+			text: match[0],
+			className: comment
+				? 'json-token-comment'
+				: key
+					? 'json-token-key'
+					: string
+						? 'json-token-string'
+						: number
+							? 'json-token-number'
+							: boolean
+								? 'json-token-boolean'
+								: 'json-token-null'
+		});
+		lastIndex = tokenPattern.lastIndex;
+	}
+	if (lastIndex < text.length) tokens.push({ text: text.slice(lastIndex) });
+	return tokens;
+}
+
 export function createConfigFixState(
 	config: Record<string, unknown>,
 	context: ConfigFixStateContext = {}
