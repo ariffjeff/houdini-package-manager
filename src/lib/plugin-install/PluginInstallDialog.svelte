@@ -12,6 +12,7 @@
 	import {
 		correctedConfigText,
 		createConfigFixState,
+		findConfigControlRanges,
 		type ConfigFixState
 	} from '$lib/live-json-editor/config-editor';
 	import { configuredPluginDestination } from './destination';
@@ -80,6 +81,7 @@
 	let manifestConfig = $state<Record<string, unknown> | null>(null);
 	let manifestDestination = $state('');
 	let manifestFixState = $state<ConfigFixState>(createConfigFixState({}, { defaultHpath: '' }));
+	let hoveredConfigController = $state<string | null>(null);
 	let includeHpmMetadata = $state(true);
 	let hpmMetadataChanged = $state(false);
 	let showNonTaggedCommits = $state(false);
@@ -166,6 +168,22 @@
 			ingestion.text ?? (ingestion.config ? JSON.stringify(ingestion.config, null, 2) : sourceText)
 		);
 	});
+	let destinationLockedRanges = $derived(
+		findConfigControlRanges(
+			installPreviewText,
+			['path', 'hpath', 'HOUDINI_PATH'],
+			'plugin-destination',
+			'Plugin destination',
+			manifestFixState.migrateLegacyPath
+				? 'deprecated-path'
+				: manifestFixState.applySourcePathFix
+					? 'source-path-fix'
+					: undefined,
+			manifestFixState.migrateLegacyPath
+				? 'Remove deprecated path'
+				: 'Restore source path from another config'
+		)
+	);
 	let evaluatedVariables = $derived(installs[0]?.variables ?? {});
 	let manifestHasFatalIssue = $derived.by(() => {
 		return (
@@ -553,12 +571,14 @@
 							editable
 							fillHeight
 							resetAvailable={hpmMetadataChanged}
-							locked={manifestFixState.applySourcePathFix ||
-								manifestFixState.applyPathAliasFix ||
+							lockedRanges={destinationLockedRanges}
+							locked={manifestFixState.applyPathAliasFix ||
 								manifestFixState.applyPathAliasLocationFix ||
 								manifestFixState.migrateLegacyPath}
 							onReset={resetManifestChanges}
 							disabled={installState === 'working'}
+							onLockedRangeHover={(range) =>
+								(hoveredConfigController = range?.controllerId ?? null)}
 							onEdit={updateManifestText}
 						/>
 					{/if}
@@ -566,7 +586,12 @@
 			</div>
 
 			<div class="install-dialog-column install-fixes-column">
-				<fieldset class="install-dialog-fieldset">
+				<fieldset
+					class={[
+						'install-dialog-fieldset',
+						hoveredConfigController === 'plugin-destination' ? 'is-controller-highlighted' : ''
+					]}
+				>
 					<legend>Plugin destination</legend>
 					<p>Git will clone or update the remote source at this exact folder.</p>
 					{#each remoteSourceOptions as sourcePath (sourcePath)}
@@ -625,6 +650,8 @@
 							manifestFatal={selectedManifestPreflight?.fatal ?? false}
 							manifestUninspected={!selectedManifestPreflight}
 							{manifestDraftError}
+							highlightedControllerId={hoveredConfigController}
+							onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
 						/>
 					{:else}
 						<p class="install-manifest-empty">No package manifest is available.</p>
@@ -1140,6 +1167,11 @@
 		padding: 0 12px 12px 12px;
 		border: 1px solid var(--line);
 		border-radius: 5px;
+	}
+
+	.install-dialog-fieldset.is-controller-highlighted {
+		border-color: rgba(239, 190, 83, 0.85);
+		box-shadow: 0 0 0 2px rgba(211, 155, 56, 0.16);
 	}
 
 	.install-dialog-fieldset legend {

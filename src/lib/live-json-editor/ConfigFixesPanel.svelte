@@ -16,6 +16,8 @@
 		showHpmMetadataToggle?: boolean;
 		includeHpmMetadata?: boolean;
 		onHpmMetadataChange?: (value: boolean) => void;
+		highlightedControllerId?: string | null;
+		onControllerHover?: (controllerId: string | null) => void;
 	};
 
 	let {
@@ -29,7 +31,9 @@
 		manifestDraftError = '',
 		showHpmMetadataToggle = false,
 		includeHpmMetadata = $bindable(true),
-		onHpmMetadataChange
+		onHpmMetadataChange,
+		highlightedControllerId = null,
+		onControllerHover
 	}: Props = $props();
 
 	function toggleFixCard(event: MouseEvent | KeyboardEvent, toggle: () => void): void {
@@ -74,6 +78,8 @@
 		{manifestIssues}
 		{manifestUninspected}
 		{manifestDraftError}
+		{highlightedControllerId}
+		{onControllerHover}
 	/>
 
 	<div class:config-fix-legacy-hidden={layout === 'table'} class="config-fix-layout">
@@ -156,9 +162,13 @@
 					{/if}
 					{#if state.sourcePathFixCandidates.length}
 						<div
+							class:config-fix-controller-highlighted={highlightedControllerId ===
+								'source-path-fix'}
 							class="config-fix-option"
 							role="button"
 							tabindex="0"
+							onpointerenter={() => onControllerHover?.('source-path-fix')}
+							onpointerleave={() => onControllerHover?.(null)}
 							aria-pressed={state.applySourcePathFix}
 							onclick={(event) =>
 								toggleFixCard(event, () => (state.applySourcePathFix = !state.applySourcePathFix))}
@@ -269,9 +279,13 @@
 					{/if}
 					{#if state.config.path !== undefined}
 						<div
+							class:config-fix-controller-highlighted={highlightedControllerId ===
+								'deprecated-path'}
 							class="config-fix-option"
 							role="button"
 							tabindex="0"
+							onpointerenter={() => onControllerHover?.('deprecated-path')}
+							onpointerleave={() => onControllerHover?.(null)}
 							aria-pressed={state.migrateLegacyPath}
 							onclick={(event) =>
 								toggleFixCard(event, () => (state.migrateLegacyPath = !state.migrateLegacyPath))}
@@ -492,6 +506,11 @@
 	.config-fix-option:focus-visible {
 		border-color: rgba(57, 155, 130, 0.55);
 		outline: none;
+	}
+
+	.config-fix-option.config-fix-controller-highlighted {
+		border-color: rgba(239, 190, 83, 0.85);
+		box-shadow: 0 0 0 2px rgba(211, 155, 56, 0.16);
 	}
 
 	.config-fix-toggle {

@@ -15,6 +15,7 @@
 		createConfigFixState,
 		effectiveHpath,
 		configuredPathAlias,
+		findConfigControlRanges,
 		type ConfigFixState
 	} from './config-editor';
 
@@ -43,8 +44,19 @@
 		message: ''
 	});
 	let actionState = $state<ActionState>('idle');
+	let hoveredConfigController = $state<string | null>(null);
 
 	let targetConfigPreview = $derived(correctedConfigText(editor));
+	let controlledConfigRanges = $derived(
+		editor.applySourcePathFix
+			? findConfigControlRanges(
+					targetConfigPreview,
+					['path', 'hpath', 'HOUDINI_PATH'],
+					'source-path-fix',
+					'Restore source path from another config'
+				)
+			: []
+	);
 
 	onMount(() => {
 		editor = createEditor(target);
@@ -212,16 +224,20 @@
 				bind:state={editor}
 				disabled={editor.state === 'loading' || editor.state === 'saving'}
 				idPrefix={`live-${install.id}`}
+				highlightedControllerId={hoveredConfigController}
+				onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
 			/>
 			<ConfigPreviewPanel
 				originalText={JSON.stringify(editor.config, null, 2)}
 				previewText={targetConfigPreview}
 				evaluatedVariables={install.variables}
+				lockedRanges={controlledConfigRanges}
 				locked={editor.applySourcePathFix ||
 					editor.applyPathAliasFix ||
 					editor.applyPathAliasLocationFix ||
 					editor.migrateLegacyPath}
 				onReset={resetChanges}
+				onLockedRangeHover={(range) => (hoveredConfigController = range?.controllerId ?? null)}
 				loading={editor.state === 'loading'}
 			/>
 			{#if editor.message}

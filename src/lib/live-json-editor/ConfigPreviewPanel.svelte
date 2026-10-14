@@ -1,6 +1,17 @@
 <script lang="ts">
 	import { LockKeyhole, RotateCcw } from '@lucide/svelte';
-	import { diffPreviewLines, evaluateConfigVariables, highlightJsonTokens } from './config-editor';
+	import {
+		diffPreviewLines,
+		evaluateConfigVariables,
+		highlightJsonTokens,
+		type ConfigLockedRange
+	} from './config-editor';
+
+	type RenderToken = {
+		text: string;
+		className?: string;
+		lockedRange?: ConfigLockedRange;
+	};
 
 	let {
 		originalText,
@@ -11,9 +22,11 @@
 		fillHeight = false,
 		disabled = false,
 		locked = false,
+		lockedRanges = [],
 		resetAvailable = false,
 		onEdit,
-		onReset
+		onReset,
+		onLockedRangeHover
 	}: {
 		originalText: string;
 		previewText: string;
@@ -23,9 +36,11 @@
 		fillHeight?: boolean;
 		disabled?: boolean;
 		locked?: boolean;
+		lockedRanges?: readonly ConfigLockedRange[];
 		resetAvailable?: boolean;
 		onEdit?: (text: string) => void;
 		onReset?: () => void;
+		onLockedRangeHover?: (range: ConfigLockedRange | null) => void;
 	} = $props();
 	let showRawOriginal = $state(false);
 	let showDiff = $state(true);
@@ -41,6 +56,14 @@
 	let previewLines = $derived(diffPreviewLines(originalText, previewText));
 	let evaluatedPreviewText = $derived(evaluateConfigVariables(previewText, evaluatedVariables));
 	let canShowEvaluatedVariables = $derived(evaluatedPreviewText !== previewText);
+	let normalizedPreviewText = $derived(previewText.replace(/\r\n/g, '\n'));
+	let normalizedLockedRanges = $derived(
+		lockedRanges.map((range) => ({
+			...range,
+			start: normalizeOffset(previewText, range.start),
+			end: normalizeOffset(previewText, range.end)
+		}))
+	);
 
 	function syncPreviewHeight(node: HTMLElement, height: number) {
 		node.style.removeProperty('height');
@@ -59,7 +82,141 @@
 	}
 
 	function commitEditorText(event: Event): void {
-		onEdit?.((event.currentTarget as HTMLTextAreaElement).value);
+		const textarea = event.currentTarget as HTMLTextAreaElement;
+		const nextText = textarea.value;
+		const changedRange = findChangedRange(normalizedPreviewText, nextText);
+		if (changedRange && findLockedRange(changedRange.start, changedRange.end)) {
+			textarea.value = normalizedPreviewText;
+			return;
+		}
+		onEdit?.(nextText);
+	}
+
+	function rejectLockedEdit(event: InputEvent): void {
+		const textarea = event.currentTarget as HTMLTextAreaElement;
+		const editRange = inputRange(textarea, event);
+		if (!editRange || !findLockedRange(editRange.start, editRange.end)) return;
+		event.preventDefault();
+	}
+
+	function inputRange(
+		textarea: HTMLTextAreaElement,
+		event: InputEvent
+	): { start: number; end: number } {
+		const start = textarea.selectionStart ?? 0;
+		const selectionEnd = textarea.selectionEnd ?? start;
+		if (event.inputType === 'deleteContentBackward' && start === selectionEnd) {
+			return { start: Math.max(0, start - 1), end: start };
+		}
+		if (event.inputType === 'deleteContentForward' && start === selectionEnd) {
+			return { start, end: Math.min(textarea.value.length, start + 1) };
+		}
+		if (event.inputType === 'historyUndo' || event.inputType === 'historyRedo') {
+			return { start: 0, end: textarea.value.length };
+		}
+		const insertedText = event.data ?? event.dataTransfer?.getData('text/plain') ?? '';
+		const insertedLength = insertedText.length || (start === selectionEnd ? 1 : 0);
+		return { start, end: Math.max(selectionEnd, start + insertedLength) };
+	}
+
+	function findLockedRange(start: number, end: number): ConfigLockedRange | undefined {
+		return normalizedLockedRanges.find((range) => start < range.end && end > range.start);
+	}
+
+	function findChangedRange(before: string, after: string): { start: number; end: number } | null {
+		let start = 0;
+		while (start < before.length && start < after.length && before[start] === after[start])
+			start += 1;
+		if (start === before.length && start === after.length) return null;
+		let beforeEnd = before.length;
+		let afterEnd = after.length;
+		while (beforeEnd > start && afterEnd > start && before[beforeEnd - 1] === after[afterEnd - 1]) {
+			beforeEnd -= 1;
+			afterEnd -= 1;
+		}
+		return { start, end: afterEnd };
+	}
+
+	function normalizeOffset(text: string, offset: number): number {
+		return text.slice(0, offset).replace(/\r\n/g, '\n').length;
+	}
+
+	function handleEditorPointerMove(event: PointerEvent): void {
+		if (!normalizedLockedRanges.length) return;
+		const textarea = event.currentTarget as HTMLTextAreaElement;
+		const style = getComputedStyle(textarea);
+		const rect = textarea.getBoundingClientRect();
+		const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+		const paddingLeft = parseFloat(style.paddingLeft) || 0;
+		const paddingTop = parseFloat(style.paddingTop) || 0;
+		const canvas = document.createElement('canvas');
+		const context = canvas.getContext('2d');
+		if (!context) return;
+		context.font = style.font;
+		const characterWidth = context.measureText('M').width || 1;
+		const lineIndex = Math.max(
+			0,
+			Math.floor((event.clientY - rect.top - paddingTop + textarea.scrollTop) / lineHeight)
+		);
+		const lines = normalizedPreviewText.split('\n');
+		let lineStart = 0;
+		for (let index = 0; index < lineIndex && index < lines.length; index += 1) {
+			lineStart += lines[index].length + 1;
+		}
+		const line = lines[Math.min(lineIndex, lines.length - 1)] ?? '';
+		const column = Math.max(
+			0,
+			Math.min(
+				line.length,
+				Math.round((event.clientX - rect.left - paddingLeft + textarea.scrollLeft) / characterWidth)
+			)
+		);
+		onLockedRangeHover?.(findLockedRange(lineStart + column, lineStart + column + 1) ?? null);
+	}
+
+	function clearLockedRangeHover(): void {
+		onLockedRangeHover?.(null);
+	}
+
+	function previewTokenRuns(text: string, baseOffset = 0): RenderToken[] {
+		const runs: RenderToken[] = [];
+		let offset = baseOffset;
+		for (const token of highlightJsonTokens(text)) {
+			const tokenStart = offset;
+			const tokenEnd = offset + token.text.length;
+			const boundaries = [
+				tokenStart,
+				tokenEnd,
+				...lockedRanges.flatMap((range) =>
+					range.start < tokenEnd && range.end > tokenStart
+						? [Math.max(tokenStart, range.start), Math.min(tokenEnd, range.end)]
+						: []
+				)
+			].sort((left, right) => left - right);
+			for (let index = 0; index < boundaries.length - 1; index += 1) {
+				const start = boundaries[index];
+				const end = boundaries[index + 1];
+				if (end <= start) continue;
+				const lockedRange = lockedRanges.find((range) => start < range.end && end > range.start);
+				runs.push({
+					text: token.text.slice(start - tokenStart, end - tokenStart),
+					className: token.className,
+					...(lockedRange ? { lockedRange } : {})
+				});
+			}
+			offset = tokenEnd;
+		}
+		return runs;
+	}
+
+	function diffLinePreviewOffset(lineIndex: number): number {
+		const previewLineIndex = previewLines
+			.slice(0, lineIndex)
+			.filter((line) => line.kind !== 'removed').length;
+		return previewText
+			.split('\n')
+			.slice(0, previewLineIndex)
+			.reduce((offset, line) => offset + line.length + 1, 0);
 	}
 
 	function resetChanges(): void {
@@ -210,7 +367,7 @@
 				aria-hidden="true"
 				{@attach attachDiffPreview}
 				{@attach (node) => syncPreviewHeight(node, previewHeight)}>
-				{#each previewLines as line (line)}
+				{#each previewLines as line, lineIndex (line)}
 					<span
 						class={[
 							'config-preview-line',
@@ -218,8 +375,12 @@
 							line.kind === 'removed' ? 'is-removed' : ''
 						]}
 						data-diff-kind={line.kind}
-						>{#each highlightJsonTokens(line.text) as token, tokenIndex (tokenIndex)}<span
-								class={token.className}>{token.text}</span
+						>{#each previewTokenRuns(line.text, diffLinePreviewOffset(lineIndex)) as token, tokenIndex (tokenIndex)}<span
+								class={[token.className, token.lockedRange ? 'config-locked-token' : '']}
+								role="presentation"
+								onpointerenter={() => token.lockedRange && onLockedRangeHover?.(token.lockedRange)}
+								onpointerleave={() => token.lockedRange && onLockedRangeHover?.(null)}
+								>{token.text}</span
 							>{/each}</span
 					>
 				{/each}
@@ -228,7 +389,10 @@
 				class="config-diff-editor"
 				aria-label="Corrected package manifest JSON"
 				value={previewText}
+				onbeforeinput={rejectLockedEdit}
 				oninput={commitEditorText}
+				onpointermove={handleEditorPointerMove}
+				onpointerleave={clearLockedRangeHover}
 				onscroll={syncDiffScroll}
 				disabled={editorDisabled}
 				spellcheck="false"
@@ -244,14 +408,21 @@
 					syncPreviewHeight(
 						node,
 						previewHeight
-					)}>{#each highlightJsonTokens(previewText || '(empty)') as token, tokenIndex (tokenIndex)}<span
-						class={token.className}>{token.text}</span
+					)}>{#each previewTokenRuns(previewText || '(empty)') as token, tokenIndex (tokenIndex)}<span
+						class={[token.className, token.lockedRange ? 'config-locked-token' : '']}
+						role="presentation"
+						onpointerenter={() => token.lockedRange && onLockedRangeHover?.(token.lockedRange)}
+						onpointerleave={() => token.lockedRange && onLockedRangeHover?.(null)}
+						>{token.text}</span
 					>{/each}</pre>
 			<textarea
 				class="config-code-editor"
 				aria-label="Corrected package manifest JSON"
 				value={previewText}
+				onbeforeinput={rejectLockedEdit}
 				oninput={commitEditorText}
+				onpointermove={handleEditorPointerMove}
+				onpointerleave={clearLockedRangeHover}
 				onscroll={syncCodeScroll}
 				disabled={editorDisabled}
 				spellcheck="false"
@@ -272,7 +443,7 @@
 			class="config-diff-preview"
 			aria-label="Configuration diff"
 			{@attach (node) => syncPreviewHeight(node, previewHeight)}>
-			{#each previewLines as line (line)}
+			{#each previewLines as line, lineIndex (line)}
 				<span
 					class={[
 						'config-preview-line',
@@ -280,8 +451,12 @@
 						line.kind === 'removed' ? 'is-removed' : ''
 					]}
 					data-diff-kind={line.kind}
-					>{#each highlightJsonTokens(line.text) as token, tokenIndex (tokenIndex)}<span
-							class={token.className}>{token.text}</span
+					>{#each previewTokenRuns(line.text, diffLinePreviewOffset(lineIndex)) as token, tokenIndex (tokenIndex)}<span
+							class={[token.className, token.lockedRange ? 'config-locked-token' : '']}
+							role="presentation"
+							onpointerenter={() => token.lockedRange && onLockedRangeHover?.(token.lockedRange)}
+							onpointerleave={() => token.lockedRange && onLockedRangeHover?.(null)}
+							>{token.text}</span
 						>{/each}</span
 				>
 			{/each}
@@ -506,6 +681,13 @@
 	.json-token-comment {
 		color: var(--text-muted);
 		font-style: italic;
+	}
+
+	.config-locked-token {
+		border-radius: 2px;
+		background: rgba(211, 155, 56, 0.2);
+		box-shadow: inset 0 -1px 0 rgba(239, 190, 83, 0.7);
+		cursor: not-allowed;
 	}
 
 	.config-preview-panel-fill-height .config-editable-diff .config-diff-layer,

@@ -29,4 +29,24 @@ describe('ConfigPreviewPanel.svelte', () => {
 		await expect.element(diffToggle).not.toBeChecked();
 		await expect.element(page.getByText('"path": "old"')).toBeInTheDocument();
 	});
+
+	it('rejects edits that touch a controlled config range', async () => {
+		const source = '{\n  "path": "old",\n  "enabled": true\n}';
+		const pathStart = source.indexOf('"path"');
+		const pathEnd = source.indexOf(',', pathStart);
+		let editedText = '';
+
+		render(ConfigPreviewPanel, {
+			originalText: source,
+			previewText: source,
+			editable: true,
+			lockedRanges: [{ start: pathStart, end: pathEnd, controllerId: 'plugin-destination' }],
+			onEdit: (text: string) => (editedText = text)
+		});
+
+		const editor = page.getByRole('textbox', { name: 'Corrected package manifest JSON' });
+		await editor.fill(source.replace('"old"', '"custom"'));
+		await expect.element(editor).toHaveValue(source);
+		expect(editedText).toBe('');
+	});
 });

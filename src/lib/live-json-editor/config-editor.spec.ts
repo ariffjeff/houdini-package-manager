@@ -6,6 +6,7 @@ import {
 	diffPreviewLines,
 	effectiveHpath,
 	evaluateConfigVariables,
+	findConfigControlRanges,
 	highlightJsonTokens
 } from './config-editor';
 
@@ -92,6 +93,36 @@ describe('config editor helpers', () => {
 		expect(correctedConfigText(state, 'C:/selected/plugin', undefined, true)).toBe(
 			JSON.stringify({ hpath: 'C:/selected/plugin', enable: false }, null, 2)
 		);
+	});
+
+	it('finds the destination property range for a controller', () => {
+		const source = '{\n  "enable": true,\n  "hpath": "C:/plugins/example"\n}';
+		const [range] = findConfigControlRanges(
+			source,
+			['path', 'hpath', 'HOUDINI_PATH'],
+			'plugin-destination',
+			'Plugin destination'
+		);
+
+		expect(source.slice(range.start, range.end)).toBe('"hpath": "C:/plugins/example"');
+		expect(range.controllerId).toBe('plugin-destination');
+	});
+
+	it('assigns the path key and value to separate controllers', () => {
+		const source = '{\n  "path": "$QLIB"\n}';
+		const ranges = findConfigControlRanges(
+			source,
+			['path'],
+			'plugin-destination',
+			'Plugin destination',
+			'deprecated-path',
+			'Remove deprecated path'
+		);
+
+		expect(source.slice(ranges[0].start, ranges[0].end)).toBe('"path"');
+		expect(ranges[0].controllerId).toBe('deprecated-path');
+		expect(source.slice(ranges[2].start, ranges[2].end)).toBe('"$QLIB"');
+		expect(ranges[2].controllerId).toBe('plugin-destination');
 	});
 
 	it('lets an explicit destination override an enabled source path autofix', () => {

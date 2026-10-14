@@ -13,7 +13,8 @@ import {
 	modify,
 	parseTree,
 	type FormattingOptions,
-	type JSONPath
+	type JSONPath,
+	type Node
 } from 'jsonc-parser';
 
 export type PathAliasResolution =
@@ -58,6 +59,73 @@ export type JsonToken = {
 	className?: string;
 };
 
+export type ConfigLockedRange = {
+	start: number;
+	end: number;
+	controllerId: string;
+	label?: string;
+};
+
+export function findConfigControlRanges(
+	text: string,
+	keys: readonly string[],
+	controllerId: string,
+	label?: string,
+	keyControllerId?: string,
+	keyLabel?: string
+): ConfigLockedRange[] {
+	const root = parseTree(text);
+	if (!root) return [];
+
+	for (const key of keys) {
+		const property = findPropertyByKey(root, key);
+		if (property) {
+			if (keyControllerId) {
+				const keyNode = property.children?.[0];
+				const valueNode = property.children?.[1];
+				if (keyNode && valueNode) {
+					return [
+						{
+							start: property.offset,
+							end: keyNode.offset + keyNode.length,
+							controllerId: keyControllerId,
+							...(keyLabel ? { label: keyLabel } : {})
+						},
+						{
+							start: keyNode.offset + keyNode.length,
+							end: valueNode.offset,
+							controllerId,
+							...(label ? { label } : {})
+						},
+						{
+							start: valueNode.offset,
+							end: valueNode.offset + valueNode.length,
+							controllerId,
+							...(label ? { label } : {})
+						},
+						{
+							start: valueNode.offset + valueNode.length,
+							end: property.offset + property.length,
+							controllerId,
+							...(label ? { label } : {})
+						}
+					];
+				}
+			}
+			return [
+				{
+					start: property.offset,
+					end: property.offset + property.length,
+					controllerId,
+					...(label ? { label } : {})
+				}
+			];
+		}
+	}
+
+	return [];
+}
+
 export function highlightJsonTokens(text: string): JsonToken[] {
 	const tokens: JsonToken[] = [];
 	const tokenPattern =
@@ -85,6 +153,15 @@ export function highlightJsonTokens(text: string): JsonToken[] {
 	}
 	if (lastIndex < text.length) tokens.push({ text: text.slice(lastIndex) });
 	return tokens;
+}
+
+function findPropertyByKey(node: Node, key: string): Node | undefined {
+	if (node.type === 'property' && node.children?.[0]?.value === key) return node;
+	for (const child of node.children ?? []) {
+		const property = findPropertyByKey(child, key);
+		if (property) return property;
+	}
+	return undefined;
 }
 
 export function createConfigFixState(

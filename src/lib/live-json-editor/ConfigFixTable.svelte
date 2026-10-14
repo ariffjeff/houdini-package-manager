@@ -10,6 +10,8 @@
 		manifestIssues?: PackageConfigIssue[];
 		manifestUninspected?: boolean;
 		manifestDraftError?: string;
+		highlightedControllerId?: string | null;
+		onControllerHover?: (controllerId: string | null) => void;
 	};
 
 	let {
@@ -18,7 +20,9 @@
 		idPrefix = 'config',
 		manifestIssues = [],
 		manifestUninspected = false,
-		manifestDraftError = ''
+		manifestDraftError = '',
+		highlightedControllerId = null,
+		onControllerHover
 	}: Props = $props();
 
 	function issueFix(issue: PackageConfigIssue): string {
@@ -48,7 +52,13 @@
 		</thead>
 		<tbody>
 			{#each manifestIssues as issue (issue.code)}
-				<tr>
+				<tr
+					class:config-fix-controller-highlighted={issue.code === 'deprecated-path' &&
+						highlightedControllerId === 'deprecated-path'}
+					onpointerenter={() =>
+						issue.code === 'deprecated-path' && onControllerHover?.('deprecated-path')}
+					onpointerleave={() => issue.code === 'deprecated-path' && onControllerHover?.(null)}
+				>
 					<td class:has-fatal={issue.severity === 'fatal'}>
 						<div class="config-table-issue">
 							<TriangleAlert size={16} strokeWidth={1.9} aria-hidden="true" />
@@ -194,7 +204,11 @@
 				</tr>
 			{/if}
 			{#if state.sourcePathFixCandidates.length}
-				<tr>
+				<tr
+					class:config-fix-controller-highlighted={highlightedControllerId === 'source-path-fix'}
+					onpointerenter={() => onControllerHover?.('source-path-fix')}
+					onpointerleave={() => onControllerHover?.(null)}
+				>
 					<td><span class="config-table-issue">The managed plugin source is missing.</span></td>
 					<td>
 						<label class="config-fix-toggle">
@@ -219,7 +233,11 @@
 				</tr>
 			{/if}
 			{#if state.config.path !== undefined && !manifestIssues.some((issue) => issue.code === 'deprecated-path')}
-				<tr>
+				<tr
+					class:config-fix-controller-highlighted={highlightedControllerId === 'deprecated-path'}
+					onpointerenter={() => onControllerHover?.('deprecated-path')}
+					onpointerleave={() => onControllerHover?.(null)}
+				>
 					<td><span class="config-table-issue">The deprecated path key is present.</span></td>
 					<td>
 						<label class="config-fix-toggle">
@@ -297,6 +315,13 @@
 
 	.config-fix-table tbody tr:hover td {
 		background: rgba(57, 155, 130, 0.055);
+	}
+
+	.config-fix-table tbody tr.config-fix-controller-highlighted td {
+		background: rgba(211, 155, 56, 0.14);
+		box-shadow:
+			inset 0 1px 0 rgba(239, 190, 83, 0.45),
+			inset 0 -1px 0 rgba(239, 190, 83, 0.45);
 	}
 
 	.config-fix-table td.has-fatal {
