@@ -72,6 +72,43 @@ describe('config editor helpers', () => {
 		);
 	});
 
+	it('updates a legacy path when the destination is explicitly selected', () => {
+		const state = createConfigFixState(
+			{ path: 'C:/legacy/plugin', enable: false },
+			{ defaultHpath: 'C:/legacy/plugin' }
+		);
+
+		expect(correctedConfigText(state, 'C:/selected/plugin', undefined, true)).toBe(
+			JSON.stringify({ path: 'C:/selected/plugin', enable: false }, null, 2)
+		);
+	});
+
+	it('updates an existing alias when the destination is explicitly selected', () => {
+		const state = createConfigFixState(
+			{ hpath: '$QLIB', enable: false },
+			{ defaultHpath: 'C:/legacy/plugin' }
+		);
+
+		expect(correctedConfigText(state, 'C:/selected/plugin', undefined, true)).toBe(
+			JSON.stringify({ hpath: 'C:/selected/plugin', enable: false }, null, 2)
+		);
+	});
+
+	it('lets an explicit destination override an enabled source path autofix', () => {
+		const state = createConfigFixState(
+			{ hpath: 'C:/legacy/plugin', enable: false },
+			{
+				defaultHpath: 'C:/legacy/plugin',
+				sourcePathFixCandidates: ['C:/autofix/plugin']
+			}
+		);
+		state.applySourcePathFix = true;
+
+		expect(correctedConfigText(state, 'C:/custom/plugin', undefined, true)).toBe(
+			JSON.stringify({ hpath: 'C:/custom/plugin', enable: false }, null, 2)
+		);
+	});
+
 	it('preserves the source JSON formatting for corrected output', () => {
 		const state = createConfigFixState(
 			{ path: 'C:/legacy/plugin', enable: false },

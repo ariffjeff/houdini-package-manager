@@ -14,6 +14,7 @@
 		createConfigFixState,
 		type ConfigFixState
 	} from '$lib/live-json-editor/config-editor';
+	import { configuredPluginDestination } from './destination';
 	import type {
 		InstallDialogOptions,
 		InstallDialogState,
@@ -77,6 +78,7 @@
 		openInstalledConfig: false
 	});
 	let manifestConfig = $state<Record<string, unknown> | null>(null);
+	let manifestDestination = $state('');
 	let manifestFixState = $state<ConfigFixState>(createConfigFixState({}, { defaultHpath: '' }));
 	let includeHpmMetadata = $state(true);
 	let hpmMetadataChanged = $state(false);
@@ -138,7 +140,12 @@
 	});
 	let manifestPreviewText = $derived(
 		manifestConfig
-			? correctedConfigText(manifestFixState, requestedDestination, draft.manifestText)
+			? correctedConfigText(
+					manifestFixState,
+					requestedDestination,
+					draft.manifestText,
+					requestedDestination !== manifestDestination
+				)
 			: ''
 	);
 	let installPreviewText = $derived.by(() => {
@@ -182,24 +189,47 @@
 		const existingSource = remoteSourceOptions[0] ?? hpmPluginDestination;
 		const packageFile = plugin.packageFile ?? packageFiles[0] ?? '';
 		const manifestText = plugin.manifestPreflight?.[packageFile]?.content ?? '';
+		const configuredDestination = configuredPluginDestination(
+			manifestText,
+			evaluatedVariables,
+			existingSource ?? ''
+		);
 		draft = {
 			packageFile,
 			version: visibleVersions[0]?.value ?? '',
 			selectedInstallIds: [],
-			destinationChoice: existingSource ?? 'custom',
-			customDestination: existingSource ?? '',
+			destinationChoice: remoteSourceOptions.includes(configuredDestination)
+				? configuredDestination
+				: 'custom',
+			customDestination: configuredDestination,
 			manifestText,
 			manifestTextInitial: manifestText,
 			openInstalledFolder: false,
 			openInstalledConfig: false
 		};
-		resetManifestCorrection(manifestText, existingSource ?? '');
+		manifestDestination = configuredDestination;
+		resetManifestCorrection(manifestText, configuredDestination);
 	}
 
 	function selectPackageFile(packageFile: string) {
 		const manifestText = plugin.manifestPreflight?.[packageFile]?.content ?? '';
-		draft = { ...draft, packageFile, manifestText, manifestTextInitial: manifestText };
-		resetManifestCorrection(manifestText, requestedDestination);
+		const configuredDestination = configuredPluginDestination(
+			manifestText,
+			evaluatedVariables,
+			requestedDestination
+		);
+		draft = {
+			...draft,
+			packageFile,
+			manifestText,
+			manifestTextInitial: manifestText,
+			destinationChoice: remoteSourceOptions.includes(configuredDestination)
+				? configuredDestination
+				: 'custom',
+			customDestination: configuredDestination
+		};
+		manifestDestination = configuredDestination;
+		resetManifestCorrection(manifestText, configuredDestination);
 	}
 
 	function updateManifestText(manifestText: string) {
@@ -209,6 +239,10 @@
 
 	function resetManifestChanges() {
 		draft.manifestText = draft.manifestTextInitial;
+		draft.destinationChoice = remoteSourceOptions.includes(manifestDestination)
+			? manifestDestination
+			: 'custom';
+		draft.customDestination = manifestDestination;
 		includeHpmMetadata = false;
 		hpmMetadataChanged = false;
 		resetManifestCorrection(draft.manifestTextInitial, requestedDestination);
@@ -533,6 +567,50 @@
 
 			<div class="install-dialog-column install-fixes-column">
 				<fieldset class="install-dialog-fieldset">
+					<legend>Plugin destination</legend>
+					<p>Git will clone or update the remote source at this exact folder.</p>
+					{#each remoteSourceOptions as sourcePath (sourcePath)}
+						<label class="install-destination-option">
+							<input
+								type="radio"
+								name="install-destination"
+								checked={draft.destinationChoice === sourcePath}
+								disabled={installState === 'working'}
+								onchange={() => (draft.destinationChoice = sourcePath)}
+							/>
+							<span>
+								<strong>{sourcePath === hpmPluginDestination ? 'HPM' : 'Discovered source'}</strong>
+								<small>{sourcePath}</small>
+							</span>
+						</label>
+					{/each}
+					<label class="install-destination-option">
+						<input
+							type="radio"
+							name="install-destination"
+							checked={draft.destinationChoice === 'custom'}
+							disabled={installState === 'working'}
+							onchange={() => (draft.destinationChoice = 'custom')}
+						/>
+						<span>
+							<strong>Custom folder</strong>
+							<input
+								class="install-destination-input"
+								type="text"
+								aria-label="Custom plugin destination"
+								value={draft.customDestination}
+								placeholder={`C:\\Plugins\\${plugin.name}`}
+								readonly={draft.destinationChoice !== 'custom'}
+								disabled={installState === 'working'}
+								onclick={activateCustomDestination}
+								onfocus={activateCustomDestination}
+								oninput={(event) =>
+									(draft.customDestination = (event.currentTarget as HTMLInputElement).value)}
+							/>
+						</span>
+					</label>
+				</fieldset>
+				<fieldset class="install-dialog-fieldset">
 					<legend>Issue fixes</legend>
 					{#if packageFiles.length > 0}
 						<ConfigFixesPanel
@@ -627,51 +705,6 @@
 							</label>
 						{/each}
 					</div>
-				</fieldset>
-
-				<fieldset class="install-dialog-fieldset">
-					<legend>Plugin destination</legend>
-					<p>Git will clone or update the remote source at this exact folder.</p>
-					{#each remoteSourceOptions as sourcePath (sourcePath)}
-						<label class="install-destination-option">
-							<input
-								type="radio"
-								name="install-destination"
-								checked={draft.destinationChoice === sourcePath}
-								disabled={installState === 'working'}
-								onchange={() => (draft.destinationChoice = sourcePath)}
-							/>
-							<span>
-								<strong>{sourcePath === hpmPluginDestination ? 'HPM' : 'Discovered source'}</strong>
-								<small>{sourcePath}</small>
-							</span>
-						</label>
-					{/each}
-					<label class="install-destination-option">
-						<input
-							type="radio"
-							name="install-destination"
-							checked={draft.destinationChoice === 'custom'}
-							disabled={installState === 'working'}
-							onchange={() => (draft.destinationChoice = 'custom')}
-						/>
-						<span>
-							<strong>Custom folder</strong>
-							<input
-								class="install-destination-input"
-								type="text"
-								aria-label="Custom plugin destination"
-								value={draft.customDestination}
-								placeholder={`C:\\Plugins\\${plugin.name}`}
-								readonly={draft.destinationChoice !== 'custom'}
-								disabled={installState === 'working'}
-								onclick={activateCustomDestination}
-								onfocus={activateCustomDestination}
-								oninput={(event) =>
-									(draft.customDestination = (event.currentTarget as HTMLInputElement).value)}
-							/>
-						</span>
-					</label>
 				</fieldset>
 
 				<fieldset class="install-dialog-fieldset">

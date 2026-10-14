@@ -159,7 +159,12 @@ export function selectedPathAlias(state: ConfigFixState): PackagePathAlias | nul
 	return state.applyPathAliasFix ? pathAliasTarget(state.pathAliasResolution) : state.pathAlias;
 }
 
-export function effectiveHpath(state: ConfigFixState, hpathOverride?: string): string {
+export function effectiveHpath(
+	state: ConfigFixState,
+	hpathOverride?: string,
+	forceDestination = false
+): string {
+	if (forceDestination && hpathOverride !== undefined) return hpathOverride;
 	if (state.applySourcePathFix) return state.sourcePathFixPath;
 	if (state.migrateLegacyPath) return state.hpath;
 	return hpathOverride ?? state.hpath;
@@ -214,14 +219,31 @@ export function evaluateConfigVariables(text: string, variables: Record<string, 
 	return resolveValue(text);
 }
 
-export function configFixPlan(state: ConfigFixState, hpathOverride?: string): PackageConfigFixPlan {
+export function configFixPlan(
+	state: ConfigFixState,
+	hpathOverride?: string,
+	forceDestination = false
+): PackageConfigFixPlan {
 	const targetAlias = state.migrateLegacyPath ? state.legacyPathAlias : selectedPathAlias(state);
 	const pathAlias = targetAlias ?? state.pathAlias;
+	const preserveLegacyPath =
+		forceDestination &&
+		hpathOverride !== undefined &&
+		Object.prototype.hasOwnProperty.call(state.config, 'path') &&
+		!state.migrateLegacyPath;
 
 	return {
-		hpath: effectiveHpath(state, hpathOverride),
+		hpath: effectiveHpath(state, hpathOverride, forceDestination),
+		...(forceDestination && hpathOverride !== undefined
+			? { destinationOverride: hpathOverride }
+			: {}),
 		pathAlias,
-		writeHpath: shouldWriteHpath(state, targetAlias) ? undefined : false,
+		writeHpath:
+			preserveLegacyPath ||
+			(forceDestination && hpathOverride !== undefined) ||
+			shouldWriteHpath(state, targetAlias)
+				? undefined
+				: false,
 		migrateLegacyPath: state.migrateLegacyPath,
 		preservePathAliases:
 			state.pathAliasConflict && !state.applyPathAliasFix && targetAlias === state.originalPathAlias
@@ -364,9 +386,10 @@ function oppositePathAlias(alias: PackagePathAlias): PackagePathAlias {
 export function correctedConfigText(
 	state: ConfigFixState,
 	hpathOverride?: string,
-	sourceText?: string
+	sourceText?: string,
+	forceDestination = false
 ): string {
-	const plan = configFixPlan(state, hpathOverride);
+	const plan = configFixPlan(state, hpathOverride, forceDestination);
 	const correctedConfig = applyPackageConfigFixes(state.config, plan);
 	if (
 		sourceText !== undefined &&

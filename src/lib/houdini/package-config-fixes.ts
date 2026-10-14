@@ -12,6 +12,7 @@ export type PackagePathAliasConflict = {
 
 export type PackageConfigFixPlan = {
 	hpath?: string;
+	destinationOverride?: string;
 	pathAlias?: PackagePathAlias;
 	writeHpath?: boolean;
 	preserveVersion?: boolean;
@@ -69,6 +70,11 @@ export function applyPackageConfigFixes(
 	if (plan.preserveVersion !== true) delete packageValue.version;
 	const shouldWriteHpath = plan.writeHpath !== false;
 	const targetAlias = plan.pathAlias ?? 'hpath';
+	const preserveLegacyPath =
+		plan.destinationOverride !== undefined &&
+		Object.prototype.hasOwnProperty.call(packageValue, 'path') &&
+		plan.migrateLegacyPath !== true;
+	if (preserveLegacyPath) packageValue.path = plan.destinationOverride;
 
 	if (plan.migrateLegacyPath !== false) {
 		rewritePackageVariableReferences(packageValue, 'path', targetAlias);
@@ -79,7 +85,9 @@ export function applyPackageConfigFixes(
 		}
 	}
 
-	if (plan.replacePathAlias) {
+	if (preserveLegacyPath) {
+		return packageValue;
+	} else if (plan.replacePathAlias) {
 		const replacedAlias = oppositePathAlias(plan.replacePathAlias);
 		rewritePackageVariableReferences(packageValue, replacedAlias, plan.replacePathAlias);
 		removePackageVariable(packageValue, replacedAlias);
