@@ -3,7 +3,14 @@
 	import GithubLogo from '$lib/assets/GithubLogo.svelte';
 	import houdiniBadge from '$lib/assets/houdini_badge_flat.svg';
 	import { compareVersionLabels } from '$lib/activation-map/plugin-detail';
-	import { FileCheck2, GitCommitHorizontal, ShieldCheck, Tag, TriangleAlert } from '@lucide/svelte';
+	import {
+		FileCheck2,
+		GitCommitHorizontal,
+		RotateCcw,
+		ShieldCheck,
+		Tag,
+		TriangleAlert
+	} from '@lucide/svelte';
 	import type { ActivationTarget } from '$lib/activation-map/types';
 	import type { HoudiniInstall, PackageManifestPreflight } from '$lib/houdini/types';
 	import ConfigFixesPanel from '$lib/live-json-editor/ConfigFixesPanel.svelte';
@@ -120,6 +127,9 @@
 	);
 	let requestedDestination = $derived(
 		draft.destinationChoice === 'custom' ? draft.customDestination.trim() : draft.destinationChoice
+	);
+	let customDestinationChanged = $derived(
+		draft.destinationChoice === 'custom' && draft.customDestination.trim() !== manifestDestination
 	);
 	let selectedManifestPreflight = $derived<PackageManifestPreflight | undefined>(
 		plugin.manifestPreflight?.[draft.packageFile]
@@ -359,6 +369,11 @@
 		draft.destinationChoice = 'custom';
 	}
 
+	function resetCustomDestination() {
+		draft.destinationChoice = 'custom';
+		draft.customDestination = manifestDestination;
+	}
+
 	function targetForInstall(installId: string) {
 		return targets.find(
 			(target: ActivationTarget) => target.pluginId === plugin.id && target.installId === installId
@@ -595,43 +610,57 @@
 					<legend>Plugin destination</legend>
 					<p>Git will clone or update the remote source at this exact folder.</p>
 					{#each remoteSourceOptions as sourcePath (sourcePath)}
-						<label class="install-destination-option">
+						<label class="install-destination-card">
 							<input
+								class="install-destination-radio"
 								type="radio"
 								name="install-destination"
 								checked={draft.destinationChoice === sourcePath}
 								disabled={installState === 'working'}
 								onchange={() => (draft.destinationChoice = sourcePath)}
 							/>
-							<span>
+							<span class="install-destination-content">
 								<strong>{sourcePath === hpmPluginDestination ? 'HPM' : 'Discovered source'}</strong>
 								<small>{sourcePath}</small>
 							</span>
 						</label>
 					{/each}
-					<label class="install-destination-option">
+					<label class="install-destination-card">
 						<input
+							class="install-destination-radio"
 							type="radio"
 							name="install-destination"
 							checked={draft.destinationChoice === 'custom'}
 							disabled={installState === 'working'}
 							onchange={() => (draft.destinationChoice = 'custom')}
 						/>
-						<span>
+						<span class="install-destination-content">
 							<strong>Custom folder</strong>
-							<input
-								class="install-destination-input"
-								type="text"
-								aria-label="Custom plugin destination"
-								value={draft.customDestination}
-								placeholder={`C:\\Plugins\\${plugin.name}`}
-								readonly={draft.destinationChoice !== 'custom'}
-								disabled={installState === 'working'}
-								onclick={activateCustomDestination}
-								onfocus={activateCustomDestination}
-								oninput={(event) =>
-									(draft.customDestination = (event.currentTarget as HTMLInputElement).value)}
-							/>
+							<div class="install-destination-custom-control">
+								<input
+									class="install-destination-input"
+									type="text"
+									aria-label="Custom plugin destination"
+									value={draft.customDestination}
+									placeholder={`C:\\Plugins\\${plugin.name}`}
+									readonly={draft.destinationChoice !== 'custom'}
+									disabled={installState === 'working'}
+									onclick={activateCustomDestination}
+									onfocus={activateCustomDestination}
+									oninput={(event) =>
+										(draft.customDestination = (event.currentTarget as HTMLInputElement).value)}
+								/>
+								<button
+									type="button"
+									class="install-destination-reset"
+									title="Reset custom destination"
+									aria-label="Reset custom destination"
+									disabled={!customDestinationChanged}
+									onclick={resetCustomDestination}
+								>
+									<RotateCcw size={13} strokeWidth={1.9} aria-hidden="true" />
+								</button>
+							</div>
 						</span>
 					</label>
 				</fieldset>
@@ -1081,20 +1110,6 @@
 		overflow-y: auto;
 	}
 
-	.install-destination-input {
-		box-sizing: border-box;
-		align-self: stretch;
-		flex: 1 1 100%;
-		width: 100%;
-		min-width: 0;
-		padding: 9px 10px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--surface-raised);
-		color: var(--text);
-		font-size: 12px;
-	}
-
 	.version-select-option {
 		display: flex;
 		align-items: center;
@@ -1221,7 +1236,7 @@
 	}
 
 	.install-dialog-fieldset p,
-	.install-destination-option small {
+	.install-destination-card small {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;
@@ -1265,7 +1280,6 @@
 	}
 
 	.install-target-option,
-	.install-destination-option,
 	.install-open-folder-option {
 		display: flex;
 		min-width: 0;
@@ -1279,7 +1293,6 @@
 	}
 
 	.install-target-option:hover,
-	.install-destination-option:hover,
 	.install-open-folder-option:hover {
 		border-color: var(--line-strong);
 		background: rgba(255, 255, 255, 0.04);
@@ -1291,7 +1304,6 @@
 	}
 
 	.install-target-option input,
-	.install-destination-option input,
 	.install-open-folder-option input {
 		accent-color: #399b82;
 		flex: 0 0 auto;
@@ -1369,7 +1381,6 @@
 	}
 
 	.install-target-option span,
-	.install-destination-option span,
 	.install-open-folder-option span {
 		display: flex;
 		min-width: 0;
@@ -1377,13 +1388,7 @@
 		gap: 3px;
 	}
 
-	.install-destination-option > span {
-		width: 100%;
-		flex: 1 1 0;
-	}
-
 	.install-target-option strong,
-	.install-destination-option strong,
 	.install-open-folder-option strong {
 		font-size: 12px;
 		font-weight: 600;
@@ -1418,7 +1423,7 @@
 		line-height: 1.2;
 	}
 
-	.install-destination-option small {
+	.install-destination-card small {
 		overflow-wrap: anywhere;
 	}
 
@@ -1460,15 +1465,85 @@
 		color: #f08a24;
 	}
 
-	.install-destination-option,
-	.install-open-folder-option {
+	.install-destination-card {
+		display: flex;
+		min-width: 0;
+		align-items: flex-start;
+		gap: 9px;
+		margin-top: 8px;
+		padding: 9px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.02);
+		cursor: pointer;
+	}
+
+	.install-destination-card:hover {
+		border-color: var(--line-strong);
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	.install-destination-radio {
+		accent-color: #399b82;
+		flex: 0 0 auto;
+		margin: 2px 0 0;
+	}
+
+	.install-destination-content {
+		display: grid;
+		min-width: 0;
+		flex: 1 1 0;
+		gap: 3px;
+	}
+
+	.install-destination-custom-control {
+		display: flex;
+		min-width: 0;
+		gap: 6px;
 		margin-top: 8px;
 	}
 
 	.install-destination-input {
-		margin-top: 8px;
+		box-sizing: border-box;
+		width: 0;
+		min-width: 0;
+		flex: 1 1 0;
+		margin: 0;
+		padding: 9px 10px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;
+	}
+
+	.install-destination-reset {
+		display: inline-flex;
+		align-items: center;
+		align-self: stretch;
+		justify-content: center;
+		width: 26px;
+		flex: 0 0 auto;
+		padding: 0;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.install-destination-reset:hover,
+	.install-destination-reset:focus-visible {
+		border-color: rgba(57, 155, 130, 0.55);
+		background: rgba(57, 155, 130, 0.1);
+		color: var(--text);
+		outline: none;
+	}
+
+	.install-destination-reset:disabled {
+		cursor: wait;
+		opacity: 0.5;
 	}
 
 	.install-destination-input:read-only {
