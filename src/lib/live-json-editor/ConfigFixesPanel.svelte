@@ -7,6 +7,7 @@
 	type Props = {
 		state: ConfigFixState;
 		disabled?: boolean;
+		fixesDisabled?: boolean;
 		idPrefix?: string;
 		layout?: 'stacked' | 'table';
 		manifestIssues?: PackageConfigIssue[];
@@ -23,6 +24,7 @@
 	let {
 		state = $bindable(),
 		disabled = false,
+		fixesDisabled = disabled,
 		idPrefix = 'config',
 		layout = 'stacked',
 		manifestIssues = [],
@@ -37,7 +39,7 @@
 	}: Props = $props();
 
 	function toggleFixCard(event: MouseEvent | KeyboardEvent, toggle: () => void): void {
-		if (disabled) return;
+		if (fixesDisabled) return;
 		if (event.target instanceof HTMLElement && event.target.closest('input, label, select')) return;
 		if (event instanceof KeyboardEvent && event.key !== 'Enter' && event.key !== ' ') return;
 		if (event instanceof KeyboardEvent) event.preventDefault();
@@ -73,7 +75,7 @@
 	{/if}
 	<ConfigFixTable
 		bind:state
-		{disabled}
+		disabled={fixesDisabled}
 		{idPrefix}
 		{manifestIssues}
 		{manifestUninspected}
@@ -150,7 +152,11 @@
 								)}
 						>
 							<label class="config-fix-toggle">
-								<input type="checkbox" bind:checked={state.applyPathAliasLocationFix} {disabled} />
+								<input
+									type="checkbox"
+									bind:checked={state.applyPathAliasLocationFix}
+									disabled={fixesDisabled}
+								/>
 								<span>Normalize path alias locations</span>
 							</label>
 							<p class="config-fix-description">
@@ -176,7 +182,11 @@
 								toggleFixCard(event, () => (state.applySourcePathFix = !state.applySourcePathFix))}
 						>
 							<label class="config-fix-toggle">
-								<input type="checkbox" bind:checked={state.applySourcePathFix} {disabled} />
+								<input
+									type="checkbox"
+									bind:checked={state.applySourcePathFix}
+									disabled={fixesDisabled}
+								/>
 								<span>Restore source path from another config</span>
 							</label>
 							<p class="config-fix-description">
@@ -189,7 +199,7 @@
 									<select
 										aria-label="Existing plugin source"
 										bind:value={state.sourcePathFixPath}
-										disabled={!state.applySourcePathFix || disabled}
+										disabled={!state.applySourcePathFix || fixesDisabled}
 									>
 										{#each state.sourcePathFixCandidates as candidate (candidate)}
 											<option value={candidate}>{candidate}</option>
@@ -213,7 +223,11 @@
 								toggleFixCard(event, () => (state.applyPathAliasFix = !state.applyPathAliasFix))}
 						>
 							<label class="config-fix-toggle">
-								<input type="checkbox" bind:checked={state.applyPathAliasFix} {disabled} />
+								<input
+									type="checkbox"
+									bind:checked={state.applyPathAliasFix}
+									disabled={fixesDisabled}
+								/>
 								<span>Fix duplicate path aliases</span>
 							</label>
 							<p class="config-fix-description">
@@ -232,7 +246,7 @@
 												name={`${idPrefix}-path-alias`}
 												value="keep-hpath"
 												bind:group={state.pathAliasResolution}
-												{disabled}
+												disabled={fixesDisabled}
 											/>
 											<span>Keep <code>hpath</code></span>
 										</label>
@@ -244,7 +258,7 @@
 												name={`${idPrefix}-path-alias`}
 												value="keep-HOUDINI_PATH"
 												bind:group={state.pathAliasResolution}
-												{disabled}
+												disabled={fixesDisabled}
 											/>
 											<span>Keep <code>HOUDINI_PATH</code></span>
 										</label>
@@ -256,7 +270,7 @@
 												name={`${idPrefix}-path-alias`}
 												value="replace-HOUDINI_PATH"
 												bind:group={state.pathAliasResolution}
-												{disabled}
+												disabled={fixesDisabled}
 											/>
 											<span>Replace <code>$hpath</code> with <code>$HOUDINI_PATH</code></span>
 										</label>
@@ -268,7 +282,7 @@
 												name={`${idPrefix}-path-alias`}
 												value="replace-hpath"
 												bind:group={state.pathAliasResolution}
-												{disabled}
+												disabled={fixesDisabled}
 											/>
 											<span>Replace <code>$HOUDINI_PATH</code> with <code>$hpath</code></span>
 										</label>
@@ -293,7 +307,11 @@
 								toggleFixCard(event, () => (state.migrateLegacyPath = !state.migrateLegacyPath))}
 						>
 							<label class="config-fix-toggle">
-								<input type="checkbox" bind:checked={state.migrateLegacyPath} {disabled} />
+								<input
+									type="checkbox"
+									bind:checked={state.migrateLegacyPath}
+									disabled={fixesDisabled}
+								/>
 								<span>Remove deprecated <code>path</code> key</span>
 							</label>
 							<p class="config-fix-description">
@@ -305,7 +323,7 @@
 								<select
 									aria-label="Replacement alias for deprecated path"
 									bind:value={state.legacyPathAlias}
-									{disabled}
+									disabled={fixesDisabled}
 								>
 									<option value="hpath">hpath</option>
 									<option value="HOUDINI_PATH">HOUDINI_PATH</option>

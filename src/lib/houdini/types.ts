@@ -195,6 +195,7 @@ export type HoudiniPluginAction =
 			action: 'update-config';
 			pluginId: string;
 			installId: string;
+			configText?: string;
 	  } & PackageConfigFixPlan)
 	| { action: 'open-package-folder'; pluginId: string; installId: string }
 	| { action: 'open-source'; pluginId: string; sourcePath: string }

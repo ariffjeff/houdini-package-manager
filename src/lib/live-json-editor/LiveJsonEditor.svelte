@@ -7,6 +7,7 @@
 	import type { HoudiniDiscoveryResponse, HoudiniInstall, PluginRecord } from '$lib/houdini/types';
 	import type { ActivationTarget } from '$lib/activation-map/types';
 	import ConfigFixesPanel from './ConfigFixesPanel.svelte';
+	import PackageConfigControls from './PackageConfigControls.svelte';
 	import ConfigPreviewPanel from './ConfigPreviewPanel.svelte';
 	import {
 		configFixPlan,
@@ -21,6 +22,7 @@
 
 	type EditorState = 'loading' | 'ready' | 'saving' | 'saved' | 'error';
 	type ActionState = 'idle' | 'working' | 'success' | 'error';
+	type ConfigEditMode = 'controls' | 'manual';
 	type TargetConfigEditor = ConfigFixState & {
 		packagePath: string;
 		state: EditorState;
@@ -45,6 +47,10 @@
 	});
 	let actionState = $state<ActionState>('idle');
 	let hoveredConfigController = $state<string | null>(null);
+	let editMode = $state<ConfigEditMode>('controls');
+	let manualConfigText = $state('');
+	let manualConfigOriginalText = $state('');
+	let manualModeError = $state('');
 
 	let targetConfigPreview = $derived(correctedConfigText(editor));
 	let controlledConfigRanges = $derived(
@@ -57,6 +63,16 @@
 				)
 			: []
 	);
+	let manualConfigError = $derived.by(() => {
+		if (!manualConfigText.trim()) return 'Manual JSON cannot be empty.';
+		try {
+			const parsed = JSON.parse(manualConfigText) as unknown;
+			if (!isConfigObject(parsed)) return 'Manual JSON root must be an object.';
+		} catch {
+			return 'Manual JSON is not valid JSON.';
+		}
+		return '';
+	});
 
 	onMount(() => {
 		editor = createEditor(target);
@@ -116,9 +132,11 @@
 			editor.sourcePathFixPath = editor.sourcePathFixCandidates[0] ?? '';
 			editor.migrateLegacyPath = false;
 			editor.state = 'ready';
+			resetManualState(correctedConfigText(editor));
 		} catch (error) {
 			editor.state = 'error';
 			editor.message = getErrorMessage(error);
+			resetManualState('');
 		}
 	}
 
@@ -139,6 +157,64 @@
 		configState.applyPathAliasLocationFix = false;
 		configState.migrateLegacyPath = false;
 		editor = { ...editor, ...configState, message: '' };
+		resetManualState(correctedConfigText(editor));
+	}
+
+	function resetManualState(text: string): void {
+		editMode = 'controls';
+		manualConfigText = text;
+		manualConfigOriginalText = text;
+		manualModeError = '';
+	}
+
+	function updateEditorConfig(config: Record<string, unknown>): void {
+		editor.config = { ...config };
+	}
+
+	function updateManualConfigText(text: string): void {
+		manualConfigText = text;
+		manualModeError = '';
+	}
+
+	function setEditMode(nextMode: ConfigEditMode): void {
+		if (nextMode === 'manual') {
+			const correctedText = targetConfigPreview;
+			editMode = 'manual';
+			manualConfigText = correctedText;
+			manualConfigOriginalText = correctedText;
+			manualModeError = '';
+			return;
+		}
+
+		const parsed = parseManualConfig(manualConfigText);
+		if (!parsed) {
+			manualModeError = 'Control mode requires valid JSON with an object root.';
+			return;
+		}
+
+		const configState = createConfigFixState(parsed, {
+			defaultHpath: target.sourcePaths?.[0] ?? '',
+			sourcePathFixCandidates: editor.sourcePathFixCandidates,
+			undefinedVariableReferences: editor.undefinedVariableReferences,
+			migrateLegacyPath: false
+		});
+		configState.applyPathAliasLocationFix = false;
+		editor = { ...editor, ...configState };
+		resetManualState(correctedConfigText(editor));
+	}
+
+	function parseManualConfig(text: string): Record<string, unknown> | null {
+		if (!text.trim()) return null;
+		try {
+			const parsed = JSON.parse(text) as unknown;
+			return isConfigObject(parsed) ? parsed : null;
+		} catch {
+			return null;
+		}
+	}
+
+	function isConfigObject(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null && !Array.isArray(value);
 	}
 
 	async function openTargetConfigFile() {
@@ -162,27 +238,44 @@
 	async function saveTargetConfig() {
 		if (
 			isScanActive ||
-			!effectiveHpath(editor).trim() ||
-			(editor.applyPathAliasFix && editor.pathAliasConflict && !editor.pathAliasResolution) ||
+			(editMode === 'controls' && !effectiveHpath(editor).trim()) ||
+			(editMode === 'controls' &&
+				editor.applyPathAliasFix &&
+				editor.pathAliasConflict &&
+				!editor.pathAliasResolution) ||
+			(editMode === 'manual' && Boolean(manualConfigError)) ||
 			editor.state === 'saving'
 		)
 			return;
 
 		editor.state = 'saving';
 		editor.message = '';
-		const fixPlan = configFixPlan(editor);
+		const saveMode = editMode;
+		const configText = manualConfigText;
+		const fixPlan = saveMode === 'controls' ? configFixPlan(editor) : undefined;
 		try {
 			const result = await runHoudiniPluginAction({
 				pluginId: plugin.id,
 				action: 'update-config',
 				installId: install.id,
-				...fixPlan
+				...(saveMode === 'manual' ? { configText } : fixPlan)
 			});
 			if (result.discovery) onDiscovery(result.discovery);
-			editor.config = applyPackageConfigFixes(editor.config, fixPlan);
-			editor.hpath = effectiveHpath(editor).trim();
+			if (saveMode === 'manual') {
+				const parsed = parseManualConfig(configText);
+				if (parsed) {
+					editor.config = parsed;
+					const pathAlias = configuredPathAlias(parsed, null);
+					editor.pathAlias = pathAlias;
+					editor.hpath = configHpath(parsed, target.sourcePaths?.[0] ?? '', pathAlias).trim();
+				}
+			} else if (fixPlan) {
+				editor.config = applyPackageConfigFixes(editor.config, fixPlan);
+				editor.hpath = effectiveHpath(editor).trim();
+			}
 			editor.state = 'saved';
 			editor.message = result.message;
+			resetManualState(correctedConfigText(editor));
 			closeEditor();
 		} catch (error) {
 			editor.state = 'error';
@@ -222,22 +315,71 @@
 		<div class="target-config-content">
 			<ConfigFixesPanel
 				bind:state={editor}
-				disabled={editor.state === 'loading' || editor.state === 'saving'}
+				disabled={editor.state === 'loading' || editor.state === 'saving' || editMode === 'manual'}
 				idPrefix={`live-${install.id}`}
 				highlightedControllerId={hoveredConfigController}
 				onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
 			/>
+			<div class="editor-mode-switch">
+				<span class="editor-mode-label" id="live-config-edit-mode-label">Edit mode</span>
+				<div
+					class="editor-mode-options"
+					role="radiogroup"
+					aria-labelledby="live-config-edit-mode-label"
+				>
+					<label class={['editor-mode-option', editMode === 'controls' ? 'is-selected' : '']}>
+						<input
+							type="radio"
+							name="live-config-edit-mode"
+							value="controls"
+							checked={editMode === 'controls'}
+							disabled={editor.state === 'loading' || editor.state === 'saving'}
+							onchange={() => setEditMode('controls')}
+						/>
+						<span>Control mode</span>
+					</label>
+					<label class={['editor-mode-option', editMode === 'manual' ? 'is-selected' : '']}>
+						<input
+							type="radio"
+							name="live-config-edit-mode"
+							value="manual"
+							checked={editMode === 'manual'}
+							disabled={editor.state === 'loading' || editor.state === 'saving'}
+							onchange={() => setEditMode('manual')}
+						/>
+						<span>Manual edit</span>
+					</label>
+				</div>
+			</div>
+			{#if editMode === 'manual' && (manualModeError || manualConfigError)}
+				<p class="editor-mode-error" role="alert">
+					{manualModeError || manualConfigError}
+				</p>
+			{/if}
+			{#if editMode === 'controls'}
+				<PackageConfigControls
+					config={editor.config}
+					disabled={editor.state === 'loading' || editor.state === 'saving'}
+					onChange={updateEditorConfig}
+				/>
+			{/if}
 			<ConfigPreviewPanel
-				originalText={JSON.stringify(editor.config, null, 2)}
-				previewText={targetConfigPreview}
+				originalText={editMode === 'manual'
+					? manualConfigOriginalText
+					: JSON.stringify(editor.config, null, 2)}
+				previewText={editMode === 'manual' ? manualConfigText : targetConfigPreview}
 				evaluatedVariables={install.variables}
-				lockedRanges={controlledConfigRanges}
-				locked={editor.applySourcePathFix ||
-					editor.applyPathAliasFix ||
-					editor.applyPathAliasLocationFix ||
-					editor.migrateLegacyPath}
+				lockedRanges={editMode === 'controls' ? controlledConfigRanges : []}
+				editable={editMode === 'manual'}
+				locked={editMode === 'controls' &&
+					(editor.applySourcePathFix ||
+						editor.applyPathAliasFix ||
+						editor.applyPathAliasLocationFix ||
+						editor.migrateLegacyPath)}
 				onReset={resetChanges}
+				onEdit={editMode === 'manual' ? updateManualConfigText : undefined}
 				onLockedRangeHover={(range) => (hoveredConfigController = range?.controllerId ?? null)}
+				disabled={editor.state === 'saving'}
 				loading={editor.state === 'loading'}
 			/>
 			{#if editor.message}
@@ -274,8 +416,12 @@
 				class="dialog-primary-button"
 				disabled={editor.state === 'loading' ||
 					editor.state === 'saving' ||
-					!effectiveHpath(editor).trim() ||
-					(editor.applyPathAliasFix && editor.pathAliasConflict && !editor.pathAliasResolution)}
+					(editMode === 'controls' && !effectiveHpath(editor).trim()) ||
+					(editMode === 'controls' &&
+						editor.applyPathAliasFix &&
+						editor.pathAliasConflict &&
+						!editor.pathAliasResolution) ||
+					(editMode === 'manual' && Boolean(manualConfigError))}
 				onclick={() => void saveTargetConfig()}
 			>
 				{editor.state === 'saving' ? 'Saving...' : 'Save and close'}
@@ -371,6 +517,62 @@
 		flex-direction: column;
 		gap: 16px;
 		margin: 20px 0;
+	}
+
+	.editor-mode-switch {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.editor-mode-label {
+		color: var(--text-dim);
+		font-size: 11px;
+	}
+
+	.editor-mode-options {
+		display: inline-flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 4px;
+	}
+
+	.editor-mode-option {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 7px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.02);
+		color: var(--text-muted);
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.editor-mode-option.is-selected {
+		border-color: rgba(57, 155, 130, 0.55);
+		background: rgba(57, 155, 130, 0.12);
+		color: var(--text);
+	}
+
+	.editor-mode-option:focus-within {
+		outline: 2px solid rgba(57, 155, 130, 0.3);
+		outline-offset: 1px;
+	}
+
+	.editor-mode-option input {
+		margin: 0;
+		accent-color: #399b82;
+	}
+
+	.editor-mode-error {
+		margin: -8px 0 0;
+		color: #df6d58;
+		font-size: 11px;
+		line-height: 1.4;
 	}
 
 	.editor-actions {

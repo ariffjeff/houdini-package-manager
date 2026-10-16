@@ -68,6 +68,16 @@ export async function runPluginAction(
 		};
 	}
 	if (request.action === 'update-config') {
+		if (request.configText !== undefined) {
+			if (typeof request.configText !== 'string' || !request.configText.trim()) {
+				throw new Error('Manual config text must be a non-empty JSON string.');
+			}
+			await writePackageConfigText(target.packagePath, request.configText);
+			return {
+				message: `Updated ${target.packageFile}.`,
+				discovery: await scanHoudiniWorkspace({ stage: 'plugins', pluginIds: [request.pluginId] })
+			};
+		}
 		if (
 			request.writeHpath !== false &&
 			request.keepPathAlias !== 'HOUDINI_PATH' &&
@@ -136,6 +146,24 @@ export async function readPackageValue(packagePath: string): Promise<Record<stri
 			{ cause: error }
 		);
 	}
+}
+
+export async function writePackageConfigText(
+	packagePath: string,
+	configText: string
+): Promise<void> {
+	if (!configText.trim()) throw new Error('Manual config text must be a non-empty JSON string.');
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(configText) as unknown;
+	} catch (error) {
+		throw new Error(
+			`Manual config text must be valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error }
+		);
+	}
+	if (!isRecord(parsed)) throw new Error('Manual config JSON root must be an object.');
+	await writeFile(packagePath, `${configText.trimEnd()}\n`, 'utf8');
 }
 
 export async function writePackageValue(

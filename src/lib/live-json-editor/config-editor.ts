@@ -475,11 +475,8 @@ export function correctedConfigText(
 		return sourceText;
 	}
 	if (sourceText === undefined) return JSON.stringify(correctedConfig, null, 2);
-
-	const lineEnding = sourceText.includes('\r\n') ? '\r\n' : '\n';
-	const formattingOptions = detectFormattingOptions(sourceText, lineEnding);
 	let workingSource = sourceText;
-	let sourceConfig = state.config;
+	let workingSourceConfig = state.config;
 	if (
 		plan.migrateLegacyPath &&
 		plan.pathAlias === 'hpath' &&
@@ -487,11 +484,23 @@ export function correctedConfigText(
 		Object.prototype.hasOwnProperty.call(correctedConfig, 'hpath')
 	) {
 		workingSource = renameJsonProperty(workingSource, ['path'], 'hpath');
-		sourceConfig = { ...state.config, hpath: state.config.path };
-		delete sourceConfig.path;
+		workingSourceConfig = { ...state.config, hpath: state.config.path };
+		delete workingSourceConfig.path;
 	}
 
-	return applyConfigTextEdits(workingSource, sourceConfig, correctedConfig, formattingOptions);
+	return updatePackageConfigText(workingSource, workingSourceConfig, correctedConfig);
+}
+
+export function updatePackageConfigText(
+	sourceText: string,
+	sourceConfig: Record<string, unknown>,
+	nextConfig: Record<string, unknown>
+): string {
+	if (JSON.stringify(sourceConfig) === JSON.stringify(nextConfig)) return sourceText;
+
+	const lineEnding = sourceText.includes('\r\n') ? '\r\n' : '\n';
+	const formattingOptions = detectFormattingOptions(sourceText, lineEnding);
+	return applyConfigTextEdits(sourceText, sourceConfig, nextConfig, formattingOptions);
 }
 
 function detectFormattingOptions(sourceText: string, lineEnding: string): FormattingOptions {

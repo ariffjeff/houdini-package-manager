@@ -4,6 +4,7 @@ import {
 	type PackagePathAlias
 } from './package-config-fixes';
 import { packageConfigIssues } from './known-issues';
+import { houdiniPackageConfigKeys } from './package-config-schema';
 import { applyEdits, modify, type FormattingOptions } from 'jsonc-parser';
 import type {
 	PackageConfigIssue,
@@ -14,12 +15,8 @@ import type {
 } from './types';
 
 export const standardPackageConfigKeys = new Set([
-	'path',
-	'hpath',
+	...houdiniPackageConfigKeys,
 	'HOUDINI_PATH',
-	'env',
-	'enable',
-	'load_package_once',
 	'version'
 ]);
 

@@ -43,10 +43,9 @@
 		onLockedRangeHover?: (range: ConfigLockedRange | null) => void;
 	} = $props();
 	let showRawOriginal = $state(false);
-	let showDiff = $state(true);
+	let showDiff = $state(false);
 	let showEvaluatedVariables = $state(false);
 	let previewHeight = $state(260);
-	let diffPreviewElement = $state<HTMLElement | null>(null);
 	let codePreviewElement = $state<HTMLElement | null>(null);
 	let controlsDisabled = $derived(disabled || loading);
 	let editorDisabled = $derived(controlsDisabled || locked);
@@ -224,25 +223,11 @@
 		onReset?.();
 	}
 
-	function syncDiffScroll(event: Event): void {
-		const textarea = event.currentTarget as HTMLTextAreaElement;
-		if (!diffPreviewElement) return;
-		diffPreviewElement.scrollTop = textarea.scrollTop;
-		diffPreviewElement.scrollLeft = textarea.scrollLeft;
-	}
-
 	function syncCodeScroll(event: Event): void {
 		const textarea = event.currentTarget as HTMLTextAreaElement;
 		if (!codePreviewElement) return;
 		codePreviewElement.scrollTop = textarea.scrollTop;
 		codePreviewElement.scrollLeft = textarea.scrollLeft;
-	}
-
-	function attachDiffPreview(node: HTMLElement) {
-		diffPreviewElement = node;
-		return () => {
-			if (diffPreviewElement === node) diffPreviewElement = null;
-		};
 	}
 
 	function attachCodePreview(node: HTMLElement) {
@@ -362,29 +347,28 @@
 				>{/each}</pre>
 	{:else if editable && showDiff}
 		<div class="config-editable-diff" style:height={`${previewHeight}px`}>
-			<pre
-				class="config-diff-preview config-diff-layer"
-				aria-hidden="true"
-				{@attach attachDiffPreview}
-				{@attach (node) => syncPreviewHeight(node, previewHeight)}>
-				{#each previewLines as line, lineIndex (line)}
-					<span
-						class={[
-							'config-preview-line',
-							line.changed ? 'is-changed' : '',
-							line.kind === 'removed' ? 'is-removed' : ''
-						]}
-						data-diff-kind={line.kind}
-						>{#each previewTokenRuns(line.text, diffLinePreviewOffset(lineIndex)) as token, tokenIndex (tokenIndex)}<span
-								class={[token.className, token.lockedRange ? 'config-locked-token' : '']}
-								role="presentation"
-								onpointerenter={() => token.lockedRange && onLockedRangeHover?.(token.lockedRange)}
-								onpointerleave={() => token.lockedRange && onLockedRangeHover?.(null)}
-								>{token.text}</span
-							>{/each}</span
-					>
-				{/each}
-			</pre>
+			<div class="config-diff-pane">
+				<pre class="config-diff-preview config-diff-layer" aria-hidden="true">
+					{#each previewLines as line, lineIndex (lineIndex)}
+						<span
+							class={[
+								'config-preview-line',
+								line.changed ? 'is-changed' : '',
+								line.kind === 'removed' ? 'is-removed' : ''
+							]}
+							data-diff-kind={line.kind}
+							>{#each previewTokenRuns(line.text, diffLinePreviewOffset(lineIndex)) as token, tokenIndex (tokenIndex)}<span
+									class={[token.className, token.lockedRange ? 'config-locked-token' : '']}
+									role="presentation"
+									onpointerenter={() =>
+										token.lockedRange && onLockedRangeHover?.(token.lockedRange)}
+									onpointerleave={() => token.lockedRange && onLockedRangeHover?.(null)}
+									>{token.text}</span
+								>{/each}</span
+						>
+					{/each}
+				</pre>
+			</div>
 			<textarea
 				class="config-diff-editor"
 				aria-label="Corrected package manifest JSON"
@@ -393,7 +377,6 @@
 				oninput={commitEditorText}
 				onpointermove={handleEditorPointerMove}
 				onpointerleave={clearLockedRangeHover}
-				onscroll={syncDiffScroll}
 				disabled={editorDisabled}
 				spellcheck="false"
 				{@attach (node) => syncPreviewHeight(node, previewHeight)}></textarea>
@@ -443,7 +426,7 @@
 			class="config-diff-preview"
 			aria-label="Configuration diff"
 			{@attach (node) => syncPreviewHeight(node, previewHeight)}>
-			{#each previewLines as line, lineIndex (line)}
+			{#each previewLines as line, lineIndex (lineIndex)}
 				<span
 					class={[
 						'config-preview-line',
@@ -690,7 +673,7 @@
 		cursor: not-allowed;
 	}
 
-	.config-preview-panel-fill-height .config-editable-diff .config-diff-layer,
+	.config-preview-panel-fill-height .config-editable-diff .config-diff-pane,
 	.config-preview-panel-fill-height .config-editable-diff .config-diff-editor {
 		min-height: 0;
 		height: 100% !important;
@@ -717,32 +700,38 @@
 	}
 
 	.config-editable-diff {
-		position: relative;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		min-height: 260px;
 		max-height: min(560px, 58dvh);
 		overflow: hidden;
 	}
 
-	.config-editable-diff .config-diff-layer,
+	.config-editable-diff .config-diff-pane,
 	.config-editable-diff .config-diff-editor {
-		position: absolute;
-		inset: 0;
-		width: 100%;
+		min-width: 0;
+		min-height: 0;
 		height: 100%;
 		max-height: none;
 	}
 
-	.config-editable-diff .config-diff-layer {
-		pointer-events: none;
-		overflow: hidden;
+	.config-editable-diff .config-diff-pane {
+		overflow: auto;
+		border-right: 1px solid var(--line);
+		background: rgba(255, 255, 255, 0.018);
 	}
 
 	.config-editable-diff .config-diff-editor {
-		z-index: 1;
-		background: transparent;
-		color: transparent;
+		resize: none;
+		background: rgba(0, 0, 0, 0.08);
 		caret-color: var(--text);
-		-webkit-text-fill-color: transparent;
+	}
+
+	.config-editable-diff .config-diff-layer {
+		min-height: 100%;
+		height: auto;
+		overflow: visible;
+		resize: none;
 	}
 
 	.config-raw-original {
@@ -803,6 +792,16 @@
 
 		.config-preview-toggles {
 			justify-content: flex-start;
+		}
+
+		.config-editable-diff {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+		}
+
+		.config-editable-diff .config-diff-pane {
+			border-right: 0;
+			border-bottom: 1px solid var(--line);
 		}
 	}
 </style>

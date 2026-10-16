@@ -14,13 +14,15 @@
 	import type { ActivationTarget } from '$lib/activation-map/types';
 	import type { HoudiniInstall, PackageManifestPreflight } from '$lib/houdini/types';
 	import ConfigFixesPanel from '$lib/live-json-editor/ConfigFixesPanel.svelte';
+	import PackageConfigControls from '$lib/live-json-editor/PackageConfigControls.svelte';
 	import ConfigPreviewPanel from '$lib/live-json-editor/ConfigPreviewPanel.svelte';
 	import { ingestPackageConfig } from '$lib/houdini/package-ingester';
 	import {
 		correctedConfigText,
 		createConfigFixState,
 		findConfigControlRanges,
-		type ConfigFixState
+		type ConfigFixState,
+		updatePackageConfigText
 	} from '$lib/live-json-editor/config-editor';
 	import { configuredPluginDestination } from './destination';
 	import type {
@@ -42,6 +44,8 @@
 		openInstalledFolder: boolean;
 		openInstalledConfig: boolean;
 	};
+
+	type ManifestEditMode = 'controls' | 'manual';
 
 	let {
 		plugin,
@@ -86,6 +90,8 @@
 		openInstalledConfig: false
 	});
 	let manifestConfig = $state<Record<string, unknown> | null>(null);
+	let manifestEditMode = $state<ManifestEditMode>('controls');
+	let manifestModeError = $state('');
 	let manifestDestination = $state('');
 	let manifestFixState = $state<ConfigFixState>(createConfigFixState({}, { defaultHpath: '' }));
 	let hoveredConfigController = $state<string | null>(null);
@@ -161,7 +167,8 @@
 			: ''
 	);
 	let installPreviewText = $derived.by(() => {
-		const sourceText = manifestConfig ? manifestPreviewText : draft.manifestText;
+		const sourceText =
+			manifestEditMode === 'controls' && manifestConfig ? manifestPreviewText : draft.manifestText;
 		if (!includeHpmMetadata) return sourceText;
 		const ingestion = ingestPackageConfig(sourceText, {
 			hpath: requestedDestination,
@@ -237,6 +244,7 @@
 		};
 		manifestDestination = configuredDestination;
 		resetManifestCorrection(manifestText, configuredDestination);
+		resetManifestEditMode(manifestText);
 	}
 
 	function selectPackageFile(packageFile: string) {
@@ -258,11 +266,36 @@
 		};
 		manifestDestination = configuredDestination;
 		resetManifestCorrection(manifestText, configuredDestination);
+		resetManifestEditMode(manifestText);
 	}
 
-	function updateManifestText(manifestText: string) {
+	function updateManifestText(manifestText: string, preserveFixChoices = false) {
 		draft.manifestText = manifestText;
-		resetManifestCorrection(manifestText, requestedDestination);
+		manifestModeError = '';
+		resetManifestCorrection(manifestText, requestedDestination, preserveFixChoices);
+	}
+
+	function updateManifestConfig(nextConfig: Record<string, unknown>) {
+		if (!manifestConfig) return;
+		const nextText = updatePackageConfigText(draft.manifestText, manifestConfig, nextConfig);
+		updateManifestText(nextText, true);
+	}
+
+	function setManifestEditMode(nextMode: ManifestEditMode) {
+		if (nextMode === 'manual') {
+			manifestEditMode = 'manual';
+			manifestModeError = '';
+			return;
+		}
+
+		if (!parseManifestObject(draft.manifestText)) {
+			manifestEditMode = 'manual';
+			manifestModeError = 'Control mode requires a valid JSON object manifest.';
+			return;
+		}
+
+		manifestEditMode = 'controls';
+		manifestModeError = '';
 	}
 
 	function resetManifestChanges() {
@@ -274,17 +307,45 @@
 		includeHpmMetadata = false;
 		hpmMetadataChanged = false;
 		resetManifestCorrection(draft.manifestTextInitial, requestedDestination);
+		resetManifestEditMode(draft.manifestTextInitial);
 		manifestFixState.applyPathAliasLocationFix = false;
 		manifestFixState.migrateLegacyPath = false;
 	}
 
-	function resetManifestCorrection(manifestText: string, defaultHpath: string) {
+	function resetManifestCorrection(
+		manifestText: string,
+		defaultHpath: string,
+		preserveFixChoices = false
+	) {
 		const parsedConfig = parseManifestObject(manifestText);
+		const previousState = preserveFixChoices ? manifestFixState : null;
 		manifestConfig = parsedConfig;
 		manifestFixState = createConfigFixState(parsedConfig ?? {}, {
 			defaultHpath,
 			...manifestCorrectionContext(draft.packageFile)
 		});
+		if (!previousState) return;
+		manifestFixState.applySourcePathFix =
+			previousState.applySourcePathFix && manifestFixState.sourcePathFixCandidates.length > 0;
+		manifestFixState.sourcePathFixPath = manifestFixState.sourcePathFixCandidates.includes(
+			previousState.sourcePathFixPath
+		)
+			? previousState.sourcePathFixPath
+			: (manifestFixState.sourcePathFixCandidates[0] ?? '');
+		manifestFixState.applyPathAliasFix =
+			previousState.applyPathAliasFix && Boolean(manifestFixState.pathAliasConflict);
+		manifestFixState.applyPathAliasLocationFix =
+			previousState.applyPathAliasLocationFix && Boolean(manifestFixState.pathAliasLocationIssue);
+		manifestFixState.migrateLegacyPath =
+			previousState.migrateLegacyPath &&
+			Object.prototype.hasOwnProperty.call(parsedConfig ?? {}, 'path');
+		manifestFixState.legacyPathAlias = previousState.legacyPathAlias;
+		manifestFixState.pathAliasResolution = previousState.pathAliasResolution;
+	}
+
+	function resetManifestEditMode(manifestText: string) {
+		manifestEditMode = parseManifestObject(manifestText) ? 'controls' : 'manual';
+		manifestModeError = '';
 	}
 
 	function parseManifestObject(manifestText: string): Record<string, unknown> | null {
@@ -401,10 +462,12 @@
 		const installIds = installs
 			.filter((install: HoudiniInstall) => draft.selectedInstallIds.includes(install.id))
 			.map((install: HoudiniInstall) => install.id);
-		const correctedText = manifestConfig ? manifestPreviewText : draft.manifestText;
+		const correctedText =
+			manifestEditMode === 'controls' && manifestConfig ? manifestPreviewText : draft.manifestText;
 		const hasCorrectedManifest =
 			draft.manifestText !== draft.manifestTextInitial ||
-			Boolean(manifestConfig && correctedText !== draft.manifestText);
+			(manifestEditMode === 'controls' &&
+				Boolean(manifestConfig && correctedText !== draft.manifestText));
 		const selection: InstallDialogSelection = {
 			packageFile: draft.packageFile,
 			version: requestedVersion,
@@ -559,6 +622,50 @@
 			<div class="install-dialog-column install-manifest-column">
 				<fieldset class="install-dialog-fieldset">
 					<legend>Package manifest</legend>
+					{#if packageFiles.length > 0}
+						<div class="install-manifest-mode-switch">
+							<span class="install-manifest-mode-label" id="install-manifest-mode-label"
+								>Edit mode</span
+							>
+							<div
+								class="install-manifest-mode-options"
+								role="radiogroup"
+								aria-labelledby="install-manifest-mode-label"
+							>
+								<label
+									class="install-manifest-mode-option"
+									class:is-selected={manifestEditMode === 'controls'}
+								>
+									<input
+										type="radio"
+										name="install-manifest-edit-mode"
+										value="controls"
+										checked={manifestEditMode === 'controls'}
+										disabled={installState === 'working'}
+										onchange={() => setManifestEditMode('controls')}
+									/>
+									<span>Control mode</span>
+								</label>
+								<label
+									class="install-manifest-mode-option"
+									class:is-selected={manifestEditMode === 'manual'}
+								>
+									<input
+										type="radio"
+										name="install-manifest-edit-mode"
+										value="manual"
+										checked={manifestEditMode === 'manual'}
+										disabled={installState === 'working'}
+										onchange={() => setManifestEditMode('manual')}
+									/>
+									<span>Manual edit</span>
+								</label>
+							</div>
+						</div>
+						{#if manifestModeError}
+							<p class="install-manifest-mode-error" role="alert">{manifestModeError}</p>
+						{/if}
+					{/if}
 					{#if packageFiles.length === 0}
 						<p class="install-manifest-empty" role="alert">
 							No JSON package files were found in this repository. Installation is unavailable.
@@ -579,22 +686,30 @@
 								{/each}
 							</select>
 						</label>
+						{#if manifestEditMode === 'controls' && manifestConfig}
+							<PackageConfigControls
+								config={manifestConfig}
+								disabled={installState === 'working'}
+								onChange={updateManifestConfig}
+							/>
+						{/if}
 						<ConfigPreviewPanel
 							originalText={draft.manifestTextInitial}
 							previewText={installPreviewText}
 							{evaluatedVariables}
-							editable
+							editable={manifestEditMode === 'manual'}
 							fillHeight
 							resetAvailable={hpmMetadataChanged}
-							lockedRanges={destinationLockedRanges}
-							locked={manifestFixState.applyPathAliasFix ||
-								manifestFixState.applyPathAliasLocationFix ||
-								manifestFixState.migrateLegacyPath}
+							lockedRanges={manifestEditMode === 'controls' ? destinationLockedRanges : []}
+							locked={manifestEditMode === 'controls' &&
+								(manifestFixState.applyPathAliasFix ||
+									manifestFixState.applyPathAliasLocationFix ||
+									manifestFixState.migrateLegacyPath)}
 							onReset={resetManifestChanges}
 							disabled={installState === 'working'}
 							onLockedRangeHover={(range) =>
 								(hoveredConfigController = range?.controllerId ?? null)}
-							onEdit={updateManifestText}
+							onEdit={manifestEditMode === 'manual' ? updateManifestText : undefined}
 						/>
 					{/if}
 				</fieldset>
@@ -670,6 +785,7 @@
 						<ConfigFixesPanel
 							bind:state={manifestFixState}
 							disabled={installState === 'working'}
+							fixesDisabled={installState === 'working' || manifestEditMode === 'manual'}
 							idPrefix="install-manifest"
 							layout="table"
 							showHpmMetadataToggle
@@ -1194,6 +1310,63 @@
 		color: var(--text);
 		font-size: 12px;
 		font-weight: 600;
+	}
+
+	.install-manifest-mode-switch {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 8px;
+	}
+
+	.install-manifest-mode-label {
+		color: var(--text-dim);
+		font-size: 11px;
+	}
+
+	.install-manifest-mode-options {
+		display: inline-flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 4px;
+	}
+
+	.install-manifest-mode-option {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 7px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.02);
+		color: var(--text-muted);
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.install-manifest-mode-option.is-selected {
+		border-color: rgba(57, 155, 130, 0.55);
+		background: rgba(57, 155, 130, 0.12);
+		color: var(--text);
+	}
+
+	.install-manifest-mode-option:focus-within {
+		outline: 2px solid rgba(57, 155, 130, 0.3);
+		outline-offset: 1px;
+	}
+
+	.install-manifest-mode-option input {
+		accent-color: #399b82;
+		margin: 0;
+	}
+
+	.install-manifest-mode-error {
+		margin: 6px 0 0;
+		color: #df6d58;
+		font-size: 11px;
+		line-height: 1.4;
 	}
 
 	.install-fieldset-heading {

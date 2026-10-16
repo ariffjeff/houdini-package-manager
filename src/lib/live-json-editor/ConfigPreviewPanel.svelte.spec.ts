@@ -12,15 +12,17 @@ describe('ConfigPreviewPanel.svelte', () => {
 		});
 
 		const diffToggle = page.getByRole('checkbox', { name: 'Show diff' });
-		const rawToggle = page.getByRole('checkbox', { name: 'Show raw original' });
+		const rawToggle = page.getByRole('checkbox', { name: 'Show raw' });
 
-		await expect.element(diffToggle).toBeChecked();
+		await expect.element(diffToggle).not.toBeChecked();
 		await expect.element(page.getByText('"hpath": "new"')).toBeInTheDocument();
 		await expect
 			.element(page.getByRole('textbox', { name: 'Corrected package manifest JSON' }))
 			.toBeInTheDocument();
 
 		await diffToggle.click();
+		await expect.element(diffToggle).toBeChecked();
+		await expect.element(page.getByText('"path": "old"')).toBeInTheDocument();
 		await expect
 			.element(page.getByRole('textbox', { name: 'Corrected package manifest JSON' }))
 			.toBeInTheDocument();
@@ -28,6 +30,28 @@ describe('ConfigPreviewPanel.svelte', () => {
 		await rawToggle.click();
 		await expect.element(diffToggle).not.toBeChecked();
 		await expect.element(page.getByText('"path": "old"')).toBeInTheDocument();
+	});
+
+	it('keeps editing on the canonical text when the diff contains removed rows', async () => {
+		const original = '{\n  "path": "old",\n  "enabled": true\n}';
+		const preview = '{\n  "hpath": "new",\n  "enabled": true\n}';
+		let editedText = '';
+
+		render(ConfigPreviewPanel, {
+			originalText: original,
+			previewText: preview,
+			editable: true,
+			onEdit: (text: string) => (editedText = text)
+		});
+
+		await page.getByRole('checkbox', { name: 'Show diff' }).click();
+		await expect.element(page.getByText('"path": "old"')).toBeInTheDocument();
+		const editor = page.getByRole('textbox', { name: 'Corrected package manifest JSON' });
+		const editedPreview = preview.replace('"new"', '"custom"');
+		await editor.fill(editedPreview);
+
+		await expect.element(editor).toHaveValue(editedPreview);
+		expect(editedText).toBe(editedPreview);
 	});
 
 	it('rejects edits that touch a controlled config range', async () => {
