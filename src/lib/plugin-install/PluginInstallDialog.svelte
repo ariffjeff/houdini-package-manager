@@ -620,64 +620,16 @@
 			</aside>
 
 			<div class="install-dialog-column install-manifest-column">
-				<fieldset class="install-dialog-fieldset">
-					<legend>Package manifest</legend>
-					{#if packageFiles.length > 0}
-						<div class="install-manifest-mode-switch">
-							<span class="install-manifest-mode-label" id="install-manifest-mode-label"
-								>Edit mode</span
-							>
-							<div
-								class="install-manifest-mode-options"
-								role="radiogroup"
-								aria-labelledby="install-manifest-mode-label"
-							>
-								<label
-									class="install-manifest-mode-option"
-									class:is-selected={manifestEditMode === 'controls'}
-								>
-									<input
-										type="radio"
-										name="install-manifest-edit-mode"
-										value="controls"
-										checked={manifestEditMode === 'controls'}
-										disabled={installState === 'working'}
-										onchange={() => setManifestEditMode('controls')}
-									/>
-									<span>Control mode</span>
-								</label>
-								<label
-									class="install-manifest-mode-option"
-									class:is-selected={manifestEditMode === 'manual'}
-								>
-									<input
-										type="radio"
-										name="install-manifest-edit-mode"
-										value="manual"
-										checked={manifestEditMode === 'manual'}
-										disabled={installState === 'working'}
-										onchange={() => setManifestEditMode('manual')}
-									/>
-									<span>Manual edit</span>
-								</label>
-							</div>
-						</div>
-						{#if manifestModeError}
-							<p class="install-manifest-mode-error" role="alert">{manifestModeError}</p>
-						{/if}
-					{/if}
-					{#if packageFiles.length === 0}
-						<p class="install-manifest-empty" role="alert">
-							No JSON package files were found in this repository. Installation is unavailable.
-						</p>
-					{:else}
+				{#if packageFiles.length > 0}
+					<fieldset class="install-dialog-fieldset install-package-chooser-fieldset">
+						<legend>Package file</legend>
 						<label class="install-manifest-select">
 							<span>Choose the Houdini package config to install.</span>
 							<select
 								class="mb-2"
 								aria-label="Houdini package manifest"
 								value={draft.packageFile}
-								disabled={installState === 'working'}
+								disabled={installState === 'working' || manifestEditMode === 'manual'}
 								onchange={(event) =>
 									selectPackageFile((event.currentTarget as HTMLSelectElement).value)}
 							>
@@ -686,6 +638,169 @@
 								{/each}
 							</select>
 						</label>
+						<section
+							class="install-manifest-mode-section"
+							aria-labelledby="install-manifest-mode-title"
+						>
+							<strong id="install-manifest-mode-title">Edit mode</strong>
+							<div class="install-manifest-mode-switch">
+								<div
+									class="install-manifest-mode-options"
+									role="radiogroup"
+									aria-label="Manifest edit mode"
+								>
+									<label
+										class="install-manifest-mode-option"
+										class:is-selected={manifestEditMode === 'controls'}
+									>
+										<input
+											type="radio"
+											name="install-manifest-edit-mode"
+											value="controls"
+											checked={manifestEditMode === 'controls'}
+											disabled={installState === 'working'}
+											onchange={() => setManifestEditMode('controls')}
+										/>
+										<span>Control mode</span>
+									</label>
+									<label
+										class="install-manifest-mode-option"
+										class:is-selected={manifestEditMode === 'manual'}
+									>
+										<input
+											type="radio"
+											name="install-manifest-edit-mode"
+											value="manual"
+											checked={manifestEditMode === 'manual'}
+											disabled={installState === 'working'}
+											onchange={() => setManifestEditMode('manual')}
+										/>
+										<span>Manual edit</span>
+									</label>
+								</div>
+							</div>
+							{#if manifestModeError}
+								<p class="install-manifest-mode-error" role="alert">{manifestModeError}</p>
+							{/if}
+						</section>
+					</fieldset>
+				{/if}
+				<fieldset class="install-dialog-fieldset">
+					<legend>Issue fixes</legend>
+					{#if packageFiles.length > 0}
+						<ConfigFixesPanel
+							bind:state={manifestFixState}
+							disabled={installState === 'working' || manifestEditMode === 'manual'}
+							fixesDisabled={installState === 'working' || manifestEditMode === 'manual'}
+							idPrefix="install-manifest"
+							layout="table"
+							manifestIssues={selectedManifestPreflight?.issues ?? []}
+							manifestFatal={selectedManifestPreflight?.fatal ?? false}
+							manifestUninspected={!selectedManifestPreflight}
+							{manifestDraftError}
+							highlightedControllerId={hoveredConfigController}
+							onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
+						/>
+					{:else}
+						<p class="install-manifest-empty">No package manifest is available.</p>
+					{/if}
+				</fieldset>
+				<fieldset class="install-dialog-fieldset">
+					<legend>Package manifest</legend>
+					{#if packageFiles.length === 0}
+						<p class="install-manifest-empty" role="alert">
+							No JSON package files were found in this repository. Installation is unavailable.
+						</p>
+					{:else}
+						<section
+							class="install-hpm-metadata-section"
+							aria-labelledby="install-hpm-metadata-title"
+						>
+							<div>
+								<strong id="install-hpm-metadata-title">Apply HPM Metadata</strong>
+								<p>
+									Adds repository and version details so HPM can identify and track this plugin.
+								</p>
+							</div>
+							<label class="install-hpm-metadata-toggle">
+								<input
+									type="checkbox"
+									checked={includeHpmMetadata}
+									disabled={installState === 'working' || manifestEditMode === 'manual'}
+									onchange={(event) => {
+										includeHpmMetadata = (event.currentTarget as HTMLInputElement).checked;
+										hpmMetadataChanged = includeHpmMetadata !== true;
+									}}
+								/>
+								<span>Append HPM metadata</span>
+							</label>
+						</section>
+						<section
+							class="install-manifest-destination-section"
+							class:is-controller-highlighted={hoveredConfigController === 'plugin-destination'}
+							aria-labelledby="install-manifest-destination-title"
+						>
+							<div class="install-manifest-subsection-heading">
+								<strong id="install-manifest-destination-title">Plugin destination</strong>
+								<p>Git will clone or update the remote source at this exact folder.</p>
+							</div>
+							{#each remoteSourceOptions as sourcePath (sourcePath)}
+								<label class="install-destination-card">
+									<input
+										class="install-destination-radio"
+										type="radio"
+										name="install-destination"
+										checked={draft.destinationChoice === sourcePath}
+										disabled={installState === 'working' || manifestEditMode === 'manual'}
+										onchange={() => (draft.destinationChoice = sourcePath)}
+									/>
+									<span class="install-destination-content">
+										<strong
+											>{sourcePath === hpmPluginDestination ? 'HPM' : 'Discovered source'}</strong
+										>
+										<small>{sourcePath}</small>
+									</span>
+								</label>
+							{/each}
+							<label class="install-destination-card">
+								<input
+									class="install-destination-radio"
+									type="radio"
+									name="install-destination"
+									checked={draft.destinationChoice === 'custom'}
+									disabled={installState === 'working' || manifestEditMode === 'manual'}
+									onchange={() => (draft.destinationChoice = 'custom')}
+								/>
+								<span class="install-destination-content">
+									<strong>Custom folder</strong>
+									<div class="install-destination-custom-control">
+										<input
+											class="install-destination-input"
+											type="text"
+											aria-label="Custom plugin destination"
+											value={draft.customDestination}
+											placeholder={`C:\\Plugins\\${plugin.name}`}
+											readonly={draft.destinationChoice !== 'custom'}
+											disabled={installState === 'working' || manifestEditMode === 'manual'}
+											onclick={activateCustomDestination}
+											onfocus={activateCustomDestination}
+											oninput={(event) =>
+												(draft.customDestination = (event.currentTarget as HTMLInputElement).value)}
+										/>
+										<button
+											type="button"
+											class="install-destination-reset"
+											title="Reset custom destination"
+											aria-label="Reset custom destination"
+											disabled={!customDestinationChanged || manifestEditMode === 'manual'}
+											onclick={resetCustomDestination}
+										>
+											<RotateCcw size={13} strokeWidth={1.9} aria-hidden="true" />
+										</button>
+									</div>
+								</span>
+							</label>
+						</section>
 						{#if manifestEditMode === 'controls' && manifestConfig}
 							<PackageConfigControls
 								config={manifestConfig}
@@ -693,6 +808,14 @@
 								onChange={updateManifestConfig}
 							/>
 						{/if}
+					{/if}
+				</fieldset>
+			</div>
+
+			<div class="install-dialog-column install-preview-column">
+				<fieldset class="install-dialog-fieldset">
+					<legend>Config text</legend>
+					{#if packageFiles.length > 0}
 						<ConfigPreviewPanel
 							originalText={draft.manifestTextInitial}
 							previewText={installPreviewText}
@@ -710,93 +833,6 @@
 							onLockedRangeHover={(range) =>
 								(hoveredConfigController = range?.controllerId ?? null)}
 							onEdit={manifestEditMode === 'manual' ? updateManifestText : undefined}
-						/>
-					{/if}
-				</fieldset>
-			</div>
-
-			<div class="install-dialog-column install-fixes-column">
-				<fieldset
-					class={[
-						'install-dialog-fieldset',
-						hoveredConfigController === 'plugin-destination' ? 'is-controller-highlighted' : ''
-					]}
-				>
-					<legend>Plugin destination</legend>
-					<p>Git will clone or update the remote source at this exact folder.</p>
-					{#each remoteSourceOptions as sourcePath (sourcePath)}
-						<label class="install-destination-card">
-							<input
-								class="install-destination-radio"
-								type="radio"
-								name="install-destination"
-								checked={draft.destinationChoice === sourcePath}
-								disabled={installState === 'working'}
-								onchange={() => (draft.destinationChoice = sourcePath)}
-							/>
-							<span class="install-destination-content">
-								<strong>{sourcePath === hpmPluginDestination ? 'HPM' : 'Discovered source'}</strong>
-								<small>{sourcePath}</small>
-							</span>
-						</label>
-					{/each}
-					<label class="install-destination-card">
-						<input
-							class="install-destination-radio"
-							type="radio"
-							name="install-destination"
-							checked={draft.destinationChoice === 'custom'}
-							disabled={installState === 'working'}
-							onchange={() => (draft.destinationChoice = 'custom')}
-						/>
-						<span class="install-destination-content">
-							<strong>Custom folder</strong>
-							<div class="install-destination-custom-control">
-								<input
-									class="install-destination-input"
-									type="text"
-									aria-label="Custom plugin destination"
-									value={draft.customDestination}
-									placeholder={`C:\\Plugins\\${plugin.name}`}
-									readonly={draft.destinationChoice !== 'custom'}
-									disabled={installState === 'working'}
-									onclick={activateCustomDestination}
-									onfocus={activateCustomDestination}
-									oninput={(event) =>
-										(draft.customDestination = (event.currentTarget as HTMLInputElement).value)}
-								/>
-								<button
-									type="button"
-									class="install-destination-reset"
-									title="Reset custom destination"
-									aria-label="Reset custom destination"
-									disabled={!customDestinationChanged}
-									onclick={resetCustomDestination}
-								>
-									<RotateCcw size={13} strokeWidth={1.9} aria-hidden="true" />
-								</button>
-							</div>
-						</span>
-					</label>
-				</fieldset>
-				<fieldset class="install-dialog-fieldset">
-					<legend>Issue fixes</legend>
-					{#if packageFiles.length > 0}
-						<ConfigFixesPanel
-							bind:state={manifestFixState}
-							disabled={installState === 'working'}
-							fixesDisabled={installState === 'working' || manifestEditMode === 'manual'}
-							idPrefix="install-manifest"
-							layout="table"
-							showHpmMetadataToggle
-							bind:includeHpmMetadata
-							onHpmMetadataChange={(value) => (hpmMetadataChanged = value !== true)}
-							manifestIssues={selectedManifestPreflight?.issues ?? []}
-							manifestFatal={selectedManifestPreflight?.fatal ?? false}
-							manifestUninspected={!selectedManifestPreflight}
-							{manifestDraftError}
-							highlightedControllerId={hoveredConfigController}
-							onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
 						/>
 					{:else}
 						<p class="install-manifest-empty">No package manifest is available.</p>
@@ -1092,8 +1128,8 @@
 		display: grid;
 		grid-template-columns:
 			minmax(180px, 0.3fr)
+			minmax(360px, 1.2fr)
 			minmax(300px, 0.9fr)
-			minmax(250px, 1fr)
 			minmax(280px, 0.75fr);
 		min-height: 0;
 		flex: 1 1 auto;
@@ -1205,25 +1241,35 @@
 	}
 
 	.install-manifest-column,
-	.install-fixes-column,
+	.install-preview-column,
 	.install-review-column {
 		min-width: 0;
 	}
 
-	.install-manifest-column,
-	.install-fixes-column {
+	.install-manifest-column {
+		height: 100%;
+		overflow-y: auto;
+	}
+
+	.install-preview-column {
 		height: 100%;
 		overflow: hidden;
 	}
 
-	.install-manifest-column > .install-dialog-fieldset,
-	.install-fixes-column > .install-dialog-fieldset {
+	.install-manifest-column > .install-dialog-fieldset {
 		display: flex;
 		flex-direction: column;
 		box-sizing: border-box;
+		flex: 0 0 auto;
+		min-height: 0;
+		overflow: visible;
+	}
+
+	.install-preview-column > .install-dialog-fieldset {
+		display: flex;
 		height: 100%;
 		min-height: 0;
-		overflow-y: auto;
+		flex-direction: column;
 	}
 
 	.version-select-option {
@@ -1414,6 +1460,62 @@
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;
 		line-height: 1.4;
+	}
+
+	.install-hpm-metadata-section {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+		margin-top: 8px;
+		padding: 10px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.02);
+	}
+
+	.install-hpm-metadata-section > div {
+		display: grid;
+		min-width: 0;
+		gap: 3px;
+	}
+
+	.install-hpm-metadata-section p {
+		margin: 0;
+	}
+
+	.install-hpm-metadata-toggle {
+		display: inline-flex;
+		align-items: center;
+		flex: 0 0 auto;
+		gap: 6px;
+		color: var(--text-muted);
+		font-size: 11px;
+		cursor: pointer;
+	}
+
+	.install-hpm-metadata-toggle input {
+		accent-color: #399b82;
+		margin: 0;
+	}
+
+	.install-manifest-destination-section {
+		margin-top: 14px;
+		padding-top: 12px;
+		border-top: 1px solid var(--line);
+	}
+
+	.install-manifest-destination-section.is-controller-highlighted {
+		border-top-color: rgba(239, 190, 83, 0.85);
+	}
+
+	.install-manifest-subsection-heading {
+		display: grid;
+		gap: 3px;
+	}
+
+	.install-manifest-subsection-heading p {
+		margin: 0;
 	}
 
 	.install-manifest-select {
