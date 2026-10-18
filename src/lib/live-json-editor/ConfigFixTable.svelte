@@ -11,7 +11,6 @@
 		manifestUninspected?: boolean;
 		manifestDraftError?: string;
 		highlightedControllerId?: string | null;
-		onControllerHover?: (controllerId: string | null) => void;
 	};
 
 	let {
@@ -21,8 +20,7 @@
 		manifestIssues = [],
 		manifestUninspected = false,
 		manifestDraftError = '',
-		highlightedControllerId = null,
-		onControllerHover
+		highlightedControllerId = null
 	}: Props = $props();
 
 	function issueFix(issue: PackageConfigIssue): string {
@@ -55,9 +53,6 @@
 				<tr
 					class:config-fix-controller-highlighted={issue.code === 'deprecated-path' &&
 						highlightedControllerId === 'deprecated-path'}
-					onpointerenter={() =>
-						issue.code === 'deprecated-path' && onControllerHover?.('deprecated-path')}
-					onpointerleave={() => issue.code === 'deprecated-path' && onControllerHover?.(null)}
 				>
 					<td class:has-fatal={issue.severity === 'fatal'}>
 						<div class="config-table-issue">
@@ -204,11 +199,7 @@
 				</tr>
 			{/if}
 			{#if state.sourcePathFixCandidates.length}
-				<tr
-					class:config-fix-controller-highlighted={highlightedControllerId === 'source-path-fix'}
-					onpointerenter={() => onControllerHover?.('source-path-fix')}
-					onpointerleave={() => onControllerHover?.(null)}
-				>
+				<tr class:config-fix-controller-highlighted={highlightedControllerId === 'source-path-fix'}>
 					<td><span class="config-table-issue">The managed plugin source is missing.</span></td>
 					<td>
 						<label class="config-fix-toggle">
@@ -233,11 +224,7 @@
 				</tr>
 			{/if}
 			{#if state.config.path !== undefined && !manifestIssues.some((issue) => issue.code === 'deprecated-path')}
-				<tr
-					class:config-fix-controller-highlighted={highlightedControllerId === 'deprecated-path'}
-					onpointerenter={() => onControllerHover?.('deprecated-path')}
-					onpointerleave={() => onControllerHover?.(null)}
-				>
+				<tr class:config-fix-controller-highlighted={highlightedControllerId === 'deprecated-path'}>
 					<td><span class="config-table-issue">The deprecated path key is present.</span></td>
 					<td>
 						<label class="config-fix-toggle">
@@ -269,7 +256,6 @@
 	}
 
 	.config-fix-table-shell {
-		margin-top: 12px;
 		overflow-x: auto;
 		border: 1px solid var(--line);
 		border-radius: 7px;
@@ -311,10 +297,6 @@
 
 	.config-fix-table tbody tr:nth-child(even) td {
 		background: rgba(255, 255, 255, 0.018);
-	}
-
-	.config-fix-table tbody tr:hover td {
-		background: rgba(57, 155, 130, 0.055);
 	}
 
 	.config-fix-table tbody tr.config-fix-controller-highlighted td {
@@ -407,10 +389,13 @@
 	}
 
 	.config-fix-toggle {
+		position: relative;
 		display: flex;
 		align-items: flex-start;
 		gap: 8px;
-		padding: 8px 9px;
+		min-height: 32px;
+		box-sizing: border-box;
+		padding: 8px 9px 8px 39px;
 		border: 1px solid rgba(211, 155, 56, 0.22);
 		border-radius: 5px;
 		background: rgba(211, 155, 56, 0.055);
@@ -427,10 +412,71 @@
 		color: var(--text);
 	}
 
-	.config-fix-toggle input,
+	.config-fix-toggle input {
+		position: absolute;
+		inset: 8px auto 8px 0;
+		z-index: 1;
+		width: 30px;
+		height: auto;
+		margin: 0;
+		cursor: pointer;
+		opacity: 0;
+	}
+
 	.config-alias-options input {
-		margin: 2px 0 0;
-		accent-color: #399b82;
+		position: absolute;
+		inset: 0 auto 0 0;
+		z-index: 1;
+		width: 30px;
+		height: 100%;
+		margin: 0;
+		cursor: pointer;
+		opacity: 0;
+	}
+
+	.config-fix-toggle::before {
+		position: absolute;
+		top: 8px;
+		bottom: 8px;
+		left: 9px;
+		width: 22px;
+		height: auto;
+		box-sizing: border-box;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: rgba(8, 14, 16, 0.5);
+		content: '';
+		transition:
+			background 140ms ease,
+			border-color 140ms ease;
+	}
+
+	.config-fix-toggle::after {
+		position: absolute;
+		top: 50%;
+		left: 20px;
+		width: 6px;
+		height: 11px;
+		border: solid #f2fff9;
+		border-width: 0 2px 2px 0;
+		content: '';
+		opacity: 0;
+		transform: translate(-50%, -58%) rotate(45deg);
+		transition: opacity 140ms ease;
+	}
+
+	.config-fix-toggle:has(input:checked)::before {
+		border-color: #3d9b7c;
+		background: #2e8065;
+	}
+
+	.config-fix-toggle:has(input:checked)::after {
+		opacity: 1;
+	}
+
+	.config-fix-toggle:has(input:focus-visible) {
+		outline: 3px solid rgba(59, 155, 130, 0.26);
+		outline-offset: 1px;
 	}
 
 	.config-alias-options {
@@ -440,10 +486,13 @@
 	}
 
 	.config-alias-options label {
+		position: relative;
 		display: flex;
 		align-items: flex-start;
 		gap: 7px;
-		padding: 5px 7px;
+		min-height: 32px;
+		box-sizing: border-box;
+		padding: 7px 7px 7px 37px;
 		border: 1px solid transparent;
 		border-radius: 4px;
 		color: var(--text-muted);
@@ -454,6 +503,51 @@
 		border-color: var(--line);
 		background: rgba(255, 255, 255, 0.035);
 		color: var(--text);
+	}
+
+	.config-alias-options label::before {
+		position: absolute;
+		top: 50%;
+		left: 9px;
+		width: 18px;
+		height: 18px;
+		box-sizing: border-box;
+		border: 1px solid var(--line-strong);
+		border-radius: 50%;
+		background: rgba(8, 14, 16, 0.5);
+		content: '';
+		transform: translateY(-50%);
+		transition:
+			background 140ms ease,
+			border-color 140ms ease;
+	}
+
+	.config-alias-options label::after {
+		position: absolute;
+		top: 50%;
+		left: 18px;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #f2fff9;
+		content: '';
+		opacity: 0;
+		transform: translate(-50%, -50%);
+		transition: opacity 140ms ease;
+	}
+
+	.config-alias-options label:has(input:checked)::before {
+		border-color: #3d9b7c;
+		background: #2e8065;
+	}
+
+	.config-alias-options label:has(input:checked)::after {
+		opacity: 1;
+	}
+
+	.config-alias-options label:has(input:focus-visible) {
+		outline: 3px solid rgba(59, 155, 130, 0.26);
+		outline-offset: 1px;
 	}
 
 	.config-table-fix-note,

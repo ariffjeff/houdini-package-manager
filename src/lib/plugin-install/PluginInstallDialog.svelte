@@ -621,90 +621,96 @@
 
 			<div class="install-dialog-column install-manifest-column">
 				{#if packageFiles.length > 0}
-					<fieldset class="install-dialog-fieldset install-package-chooser-fieldset">
-						<legend>Package file</legend>
-						<label class="install-manifest-select">
-							<span>Choose the Houdini package config to install.</span>
-							<select
-								class="mb-2"
-								aria-label="Houdini package manifest"
-								value={draft.packageFile}
-								disabled={installState === 'working' || manifestEditMode === 'manual'}
-								onchange={(event) =>
-									selectPackageFile((event.currentTarget as HTMLSelectElement).value)}
-							>
-								{#each packageFiles as packageFile (packageFile)}
-									<option value={packageFile}>{packageFile}</option>
-								{/each}
-							</select>
-						</label>
-						<section
-							class="install-manifest-mode-section"
-							aria-labelledby="install-manifest-mode-title"
-						>
-							<strong id="install-manifest-mode-title">Edit mode</strong>
-							<div class="install-manifest-mode-switch">
-								<div
-									class="install-manifest-mode-options"
-									role="radiogroup"
-									aria-label="Manifest edit mode"
+					<section class="install-package-chooser" aria-labelledby="install-package-file-title">
+						<strong id="install-package-file-title">Package file</strong>
+						<div class="install-package-chooser-row">
+							<label class="install-manifest-select">
+								<select
+									aria-label="Houdini package manifest"
+									value={draft.packageFile}
+									disabled={installState === 'working' || manifestEditMode === 'manual'}
+									onchange={(event) =>
+										selectPackageFile((event.currentTarget as HTMLSelectElement).value)}
 								>
-									<label
-										class="install-manifest-mode-option"
-										class:is-selected={manifestEditMode === 'controls'}
+									{#each packageFiles as packageFile (packageFile)}
+										<option value={packageFile}>{packageFile}</option>
+									{/each}
+								</select>
+							</label>
+							<section
+								class="install-manifest-mode-section"
+								aria-labelledby="install-manifest-mode-title"
+							>
+								<div class="install-manifest-mode-switch">
+									<div
+										class="install-manifest-mode-options"
+										role="radiogroup"
+										aria-label="Manifest edit mode"
 									>
-										<input
-											type="radio"
-											name="install-manifest-edit-mode"
-											value="controls"
-											checked={manifestEditMode === 'controls'}
-											disabled={installState === 'working'}
-											onchange={() => setManifestEditMode('controls')}
-										/>
-										<span>Control mode</span>
-									</label>
-									<label
-										class="install-manifest-mode-option"
-										class:is-selected={manifestEditMode === 'manual'}
-									>
-										<input
-											type="radio"
-											name="install-manifest-edit-mode"
-											value="manual"
-											checked={manifestEditMode === 'manual'}
-											disabled={installState === 'working'}
-											onchange={() => setManifestEditMode('manual')}
-										/>
-										<span>Manual edit</span>
-									</label>
+										<label
+											class="install-manifest-mode-option"
+											class:is-selected={manifestEditMode === 'controls'}
+										>
+											<span
+												class="install-manifest-control-rail install-manifest-control-rail-radio"
+											>
+												<input
+													type="radio"
+													name="install-manifest-edit-mode"
+													value="controls"
+													checked={manifestEditMode === 'controls'}
+													disabled={installState === 'working'}
+													onchange={() => setManifestEditMode('controls')}
+												/>
+												<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
+											</span>
+											<span>Control mode</span>
+										</label>
+										<label
+											class="install-manifest-mode-option"
+											class:is-selected={manifestEditMode === 'manual'}
+										>
+											<span
+												class="install-manifest-control-rail install-manifest-control-rail-radio"
+											>
+												<input
+													type="radio"
+													name="install-manifest-edit-mode"
+													value="manual"
+													checked={manifestEditMode === 'manual'}
+													disabled={installState === 'working'}
+													onchange={() => setManifestEditMode('manual')}
+												/>
+												<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
+											</span>
+											<span>Manual edit</span>
+										</label>
+									</div>
 								</div>
-							</div>
-							{#if manifestModeError}
-								<p class="install-manifest-mode-error" role="alert">{manifestModeError}</p>
-							{/if}
-						</section>
-					</fieldset>
+								{#if manifestModeError}
+									<p class="install-manifest-mode-error" role="alert">{manifestModeError}</p>
+								{/if}
+							</section>
+						</div>
+					</section>
 				{/if}
-				<fieldset class="install-dialog-fieldset">
-					<legend>Issue fixes</legend>
-					{#if packageFiles.length > 0}
-						<ConfigFixesPanel
-							bind:state={manifestFixState}
-							disabled={installState === 'working' || manifestEditMode === 'manual'}
-							fixesDisabled={installState === 'working' || manifestEditMode === 'manual'}
-							idPrefix="install-manifest"
-							layout="table"
-							manifestIssues={selectedManifestPreflight?.issues ?? []}
-							manifestFatal={selectedManifestPreflight?.fatal ?? false}
-							manifestUninspected={!selectedManifestPreflight}
-							{manifestDraftError}
-							highlightedControllerId={hoveredConfigController}
-							onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
-						/>
-					{:else}
-						<p class="install-manifest-empty">No package manifest is available.</p>
-					{/if}
-				</fieldset>
+				{#if packageFiles.length > 0}
+					<ConfigFixesPanel
+						bind:state={manifestFixState}
+						disabled={installState === 'working' || manifestEditMode === 'manual'}
+						fixesDisabled={installState === 'working' || manifestEditMode === 'manual'}
+						idPrefix="install-manifest"
+						layout="table"
+						manifestIssues={selectedManifestPreflight?.issues ?? []}
+						manifestFatal={selectedManifestPreflight?.fatal ?? false}
+						manifestUninspected={!selectedManifestPreflight}
+						{manifestDraftError}
+						highlightedControllerId={hoveredConfigController}
+						onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
+					/>
+				{:else}
+					<p class="install-manifest-empty">No package manifest is available.</p>
+				{/if}
 				<fieldset class="install-dialog-fieldset">
 					<legend>Package manifest</legend>
 					{#if packageFiles.length === 0}
@@ -723,15 +729,18 @@
 								</p>
 							</div>
 							<label class="install-hpm-metadata-toggle">
-								<input
-									type="checkbox"
-									checked={includeHpmMetadata}
-									disabled={installState === 'working' || manifestEditMode === 'manual'}
-									onchange={(event) => {
-										includeHpmMetadata = (event.currentTarget as HTMLInputElement).checked;
-										hpmMetadataChanged = includeHpmMetadata !== true;
-									}}
-								/>
+								<span class="install-manifest-control-rail">
+									<input
+										type="checkbox"
+										checked={includeHpmMetadata}
+										disabled={installState === 'working' || manifestEditMode === 'manual'}
+										onchange={(event) => {
+											includeHpmMetadata = (event.currentTarget as HTMLInputElement).checked;
+											hpmMetadataChanged = includeHpmMetadata !== true;
+										}}
+									/>
+									<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
+								</span>
 								<span>Append HPM metadata</span>
 							</label>
 						</section>
@@ -746,14 +755,17 @@
 							</div>
 							{#each remoteSourceOptions as sourcePath (sourcePath)}
 								<label class="install-destination-card">
-									<input
-										class="install-destination-radio"
-										type="radio"
-										name="install-destination"
-										checked={draft.destinationChoice === sourcePath}
-										disabled={installState === 'working' || manifestEditMode === 'manual'}
-										onchange={() => (draft.destinationChoice = sourcePath)}
-									/>
+									<span class="install-manifest-control-rail install-manifest-control-rail-radio">
+										<input
+											class="install-destination-radio"
+											type="radio"
+											name="install-destination"
+											checked={draft.destinationChoice === sourcePath}
+											disabled={installState === 'working' || manifestEditMode === 'manual'}
+											onchange={() => (draft.destinationChoice = sourcePath)}
+										/>
+										<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
+									</span>
 									<span class="install-destination-content">
 										<strong
 											>{sourcePath === hpmPluginDestination ? 'HPM' : 'Discovered source'}</strong
@@ -763,14 +775,17 @@
 								</label>
 							{/each}
 							<label class="install-destination-card">
-								<input
-									class="install-destination-radio"
-									type="radio"
-									name="install-destination"
-									checked={draft.destinationChoice === 'custom'}
-									disabled={installState === 'working' || manifestEditMode === 'manual'}
-									onchange={() => (draft.destinationChoice = 'custom')}
-								/>
+								<span class="install-manifest-control-rail install-manifest-control-rail-radio">
+									<input
+										class="install-destination-radio"
+										type="radio"
+										name="install-destination"
+										checked={draft.destinationChoice === 'custom'}
+										disabled={installState === 'working' || manifestEditMode === 'manual'}
+										onchange={() => (draft.destinationChoice = 'custom')}
+									/>
+									<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
+								</span>
 								<span class="install-destination-content">
 									<strong>Custom folder</strong>
 									<div class="install-destination-custom-control">
@@ -1358,38 +1373,163 @@
 		font-weight: 600;
 	}
 
+	.install-manifest-column {
+		color: var(--text);
+		font-size: 12px;
+		line-height: 1.4;
+	}
+
+	.install-package-chooser {
+		display: grid;
+		gap: 7px;
+		padding: 2px 0;
+	}
+
+	.install-package-chooser > strong {
+		color: var(--text);
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.install-package-chooser-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.install-manifest-column
+		:is(.install-manifest-mode-option, .install-hpm-metadata-section, .install-destination-card) {
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.02);
+	}
+
+	.install-manifest-mode-section {
+		display: grid;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.install-manifest-subsection-heading strong,
+	.install-hpm-metadata-section strong,
+	.install-destination-content strong {
+		font-size: 12px;
+		font-weight: 600;
+	}
+
 	.install-manifest-mode-switch {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
 		gap: 8px;
-		margin-top: 8px;
-	}
-
-	.install-manifest-mode-label {
-		color: var(--text-dim);
-		font-size: 11px;
+		margin-top: 0;
 	}
 
 	.install-manifest-mode-options {
 		display: inline-flex;
 		flex-wrap: wrap;
-		justify-content: flex-end;
+		justify-content: flex-start;
 		gap: 4px;
 	}
 
 	.install-manifest-mode-option {
 		display: inline-flex;
 		align-items: center;
-		gap: 5px;
-		padding: 4px 7px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: rgba(255, 255, 255, 0.02);
+		gap: 8px;
+		padding: 6px 9px;
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: 12px;
 		cursor: pointer;
+	}
+
+	.install-manifest-control-rail {
+		position: relative;
+		display: flex;
+		align-self: stretch;
+		width: 22px;
+		min-height: 28px;
+		flex: 0 0 22px;
+		align-items: stretch;
+	}
+
+	.install-manifest-control-rail input {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		cursor: pointer;
+		opacity: 0;
+	}
+
+	.install-manifest-control-rail-mark {
+		position: relative;
+		display: block;
+		width: 100%;
+		min-height: 28px;
+		box-sizing: border-box;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: rgba(8, 14, 16, 0.5);
+		transition:
+			background 140ms ease,
+			border-color 140ms ease;
+	}
+
+	.install-manifest-control-rail-radio .install-manifest-control-rail-mark {
+		align-self: center;
+		width: 18px;
+		height: 18px;
+		min-height: 18px;
+		border-radius: 50%;
+	}
+
+	.install-manifest-control-rail-mark::after {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		content: '';
+		opacity: 0;
+		transition: opacity 140ms ease;
+	}
+
+	.install-manifest-control-rail:not(.install-manifest-control-rail-radio)
+		.install-manifest-control-rail-mark::after {
+		width: 6px;
+		height: 11px;
+		border: solid #f2fff9;
+		border-width: 0 2px 2px 0;
+		transform: translate(-50%, -58%) rotate(45deg);
+	}
+
+	.install-manifest-control-rail-radio .install-manifest-control-rail-mark::after {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #f2fff9;
+		transform: translate(-50%, -50%);
+	}
+
+	.install-manifest-control-rail input:checked + .install-manifest-control-rail-mark {
+		border-color: #3d9b7c;
+		background: #2e8065;
+	}
+
+	.install-manifest-control-rail input:checked + .install-manifest-control-rail-mark::after {
+		opacity: 1;
+	}
+
+	.install-manifest-control-rail input:focus-visible + .install-manifest-control-rail-mark {
+		outline: 3px solid rgba(59, 155, 130, 0.26);
+		outline-offset: 1px;
+	}
+
+	.install-manifest-control-rail input:disabled + .install-manifest-control-rail-mark {
+		cursor: wait;
+		opacity: 0.5;
 	}
 
 	.install-manifest-mode-option.is-selected {
@@ -1409,9 +1549,8 @@
 	}
 
 	.install-manifest-mode-error {
-		margin: 6px 0 0;
+		margin: 0;
 		color: #df6d58;
-		font-size: 11px;
 		line-height: 1.4;
 	}
 
@@ -1454,8 +1593,12 @@
 		opacity: 0.5;
 	}
 
-	.install-dialog-fieldset p,
-	.install-destination-card small {
+	.install-manifest-column
+		:is(
+			.install-hpm-metadata-section p,
+			.install-manifest-subsection-heading p,
+			.install-destination-card small
+		) {
 		color: var(--text-muted);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
 		font-size: 12px;
@@ -1469,9 +1612,6 @@
 		gap: 12px;
 		margin-top: 8px;
 		padding: 10px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: rgba(255, 255, 255, 0.02);
 	}
 
 	.install-hpm-metadata-section > div {
@@ -1490,13 +1630,8 @@
 		flex: 0 0 auto;
 		gap: 6px;
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: 12px;
 		cursor: pointer;
-	}
-
-	.install-hpm-metadata-toggle input {
-		accent-color: #399b82;
-		margin: 0;
 	}
 
 	.install-manifest-destination-section {
@@ -1512,6 +1647,7 @@
 	.install-manifest-subsection-heading {
 		display: grid;
 		gap: 3px;
+		margin-bottom: 8px;
 	}
 
 	.install-manifest-subsection-heading p {
@@ -1521,23 +1657,27 @@
 	.install-manifest-select {
 		display: grid;
 		gap: 6px;
-		margin-top: 8px;
+		min-width: 0;
 		color: var(--text-muted);
 		font-size: 12px;
 	}
 
-	.install-manifest-select select {
+	.install-manifest-select select,
+	.install-destination-input {
+		box-sizing: border-box;
 		width: 100%;
 		min-width: 0;
 		padding: 8px 9px;
-		border: 1px solid var(--line-strong);
+		border: 1px solid var(--line);
 		border-radius: 4px;
 		background: var(--surface-raised);
 		color: var(--text);
 		font: inherit;
+		font-size: 12px;
 	}
 
-	.install-manifest-select select:focus-visible {
+	.install-manifest-select select:focus-visible,
+	.install-destination-input:focus-visible {
 		border-color: #399b82;
 		outline: 2px solid rgba(57, 155, 130, 0.3);
 		outline-offset: 1px;
@@ -1545,6 +1685,9 @@
 
 	.install-manifest-empty {
 		margin: 8px 0 0;
+		color: var(--text-muted);
+		font-size: 12px;
+		line-height: 1.4;
 	}
 
 	.install-target-options {
@@ -1745,11 +1888,8 @@
 		min-width: 0;
 		align-items: flex-start;
 		gap: 9px;
-		margin-top: 8px;
-		padding: 9px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: rgba(255, 255, 255, 0.02);
+		margin-top: 6px;
+		padding: 8px;
 		cursor: pointer;
 	}
 
@@ -1760,8 +1900,6 @@
 
 	.install-destination-radio {
 		accent-color: #399b82;
-		flex: 0 0 auto;
-		margin: 2px 0 0;
 	}
 
 	.install-destination-content {
@@ -1779,18 +1917,10 @@
 	}
 
 	.install-destination-input {
-		box-sizing: border-box;
 		width: 0;
-		min-width: 0;
 		flex: 1 1 0;
 		margin: 0;
-		padding: 9px 10px;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--surface-raised);
-		color: var(--text);
 		font-family: 'Cascadia Code', 'Courier New', monospace;
-		font-size: 12px;
 	}
 
 	.install-destination-reset {
@@ -2025,6 +2155,14 @@
 		.install-dialog-actions button {
 			flex: 1 1 0;
 			min-width: 0;
+		}
+
+		.install-package-chooser-row {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.install-manifest-mode-options {
+			width: 100%;
 		}
 	}
 </style>

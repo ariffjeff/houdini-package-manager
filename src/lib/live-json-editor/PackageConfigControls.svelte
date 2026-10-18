@@ -120,6 +120,7 @@
 	let { config = $bindable(), disabled = false, onChange }: Props = $props();
 
 	let jsonDrafts = $state<Record<string, JsonDraft>>({});
+	let preservedControlValues = $state<Record<string, unknown>>({});
 	let environmentRows = $derived(readEnvironmentRows(config.env));
 	let preservedEntries = $derived(
 		Object.entries(config).filter(
@@ -139,8 +140,25 @@
 		onChange?.(nextConfig);
 	}
 
-	function addControl(control: ControlDefinition): void {
-		commitConfigValue(control.key, control.defaultValue);
+	function cloneControlValue(value: unknown): unknown {
+		return clonePackageConfig({ value }).value;
+	}
+
+	function hasPreservedControlValue(key: EditableKey): boolean {
+		return Object.prototype.hasOwnProperty.call(preservedControlValues, key);
+	}
+
+	function toggleControl(control: ControlDefinition): void {
+		if (hasConfigValue(control.key)) {
+			preservedControlValues[control.key] = cloneControlValue(config[control.key]);
+			commitConfigValue(control.key, undefined);
+			return;
+		}
+
+		const value = hasPreservedControlValue(control.key)
+			? cloneControlValue(preservedControlValues[control.key])
+			: control.defaultValue;
+		commitConfigValue(control.key, value);
 	}
 
 	function isRecord(value: unknown): value is Record<string, unknown> {
@@ -452,283 +470,349 @@
 		</div>
 	</header>
 
+	{#if controls.length}
+		<section class="package-config-keyword-bank" aria-labelledby="package-keyword-bank-title">
+			<strong id="package-keyword-bank-title">Package keys</strong>
+			<div class="package-config-keyword-grid">
+				{#each controls as control (control.key)}
+					{@const present = hasConfigValue(control.key)}
+					<button
+						type="button"
+						class="package-config-keyword"
+						class:is-active={present}
+						title={control.description}
+						aria-label={`${control.key}: ${control.description}`}
+						aria-pressed={present}
+						{disabled}
+						onclick={() => toggleControl(control)}
+					>
+						{control.key}
+					</button>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
 	<div class="package-config-card-list">
 		{#each controls as control (control.key)}
 			{@const currentValue = config[control.key]}
 			{@const present = hasConfigValue(control.key)}
-			<section class="package-config-card" aria-labelledby={`${control.key}-control-title`}>
-				<div class="package-config-card-heading">
-					<div>
-						<h3 id={`${control.key}-control-title`}>
-							<code>{control.key}</code>
-							<span>{control.label}</span>
-						</h3>
-						<p>{control.description}</p>
+			{#if present}
+				<section
+					class="package-config-card"
+					class:is-boolean-card={control.kind === 'boolean' && typeof currentValue === 'boolean'}
+					aria-labelledby={`${control.key}-control-title`}
+				>
+					<div class="package-config-card-heading">
+						<div>
+							<h3 id={`${control.key}-control-title`}>
+								<code>{control.key}</code>
+								<span>{control.label}</span>
+							</h3>
+							<p>{control.description}</p>
+						</div>
+						{#if present}
+							<span class="package-config-status">Configured</span>
+						{/if}
 					</div>
-					{#if present}
-						<span class="package-config-status">Configured</span>
-					{/if}
-				</div>
 
-				{#if !present}
-					<div class="package-config-empty">
-						<span>This optional key is not present.</span>
-						<button
-							type="button"
-							class="package-config-button"
-							{disabled}
-							onclick={() => addControl(control)}
-						>
-							<Plus size={14} strokeWidth={2} aria-hidden="true" />
-							<span>Add</span>
-						</button>
-					</div>
-				{:else if control.kind === 'boolean'}
-					<div class="package-config-control-body">
-						{#if typeof currentValue === 'boolean'}
-							<label class="package-config-checkbox">
-								<input
-									type="checkbox"
-									checked={currentValue}
-									{disabled}
-									onchange={(event) =>
-										commitConfigValue(
-											control.key,
-											(event.currentTarget as HTMLInputElement).checked
-										)}
-								/>
-								<span>{currentValue ? 'Enabled' : 'Disabled'}</span>
-							</label>
-						{:else if typeof currentValue === 'string'}
-							<label class="package-config-field">
-								<span>Expression or value</span>
-								<input
-									type="text"
-									value={currentValue}
-									{disabled}
-									oninput={(event) =>
-										commitConfigValue(control.key, (event.currentTarget as HTMLInputElement).value)}
-								/>
-							</label>
-						{:else}
-							<label class="package-config-field">
-								<span>Conditional JSON value</span>
-								<textarea
-									rows="3"
-									value={jsonDraftText(control.key, currentValue)}
-									{disabled}
-									aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
-									aria-describedby={jsonDraftError(control.key, currentValue)
-										? jsonErrorId(control.key)
-										: undefined}
-									oninput={(event) =>
-										editJsonValue(
-											control.key,
-											currentValue,
-											(event.currentTarget as HTMLTextAreaElement).value,
-											(value) => commitConfigValue(control.key, value)
-										)}></textarea>
-							</label>
-							{#if jsonDraftError(control.key, currentValue)}
-								<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
-									{jsonDraftError(control.key, currentValue)}
-								</p>
-							{/if}
-						{/if}
-					</div>
-				{:else if control.kind === 'integer'}
-					<div class="package-config-control-body">
-						{#if typeof currentValue === 'number' && Number.isInteger(currentValue)}
-							<label class="package-config-field">
-								<span>Integer value</span>
-								<input
-									type="number"
-									step="1"
-									value={currentValue}
-									{disabled}
-									oninput={(event) =>
-										updateInteger(control.key, (event.currentTarget as HTMLInputElement).value)}
-								/>
-							</label>
-						{:else}
-							<label class="package-config-field">
-								<span>Advanced JSON value</span>
-								<textarea
-									rows="3"
-									value={jsonDraftText(control.key, currentValue)}
-									{disabled}
-									aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
-									aria-describedby={jsonDraftError(control.key, currentValue)
-										? jsonErrorId(control.key)
-										: undefined}
-									oninput={(event) =>
-										editJsonValue(
-											control.key,
-											currentValue,
-											(event.currentTarget as HTMLTextAreaElement).value,
-											(value) => commitConfigValue(control.key, value)
-										)}></textarea>
-							</label>
-							{#if jsonDraftError(control.key, currentValue)}
-								<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
-									{jsonDraftError(control.key, currentValue)}
-								</p>
-							{/if}
-						{/if}
-					</div>
-				{:else if control.kind === 'list'}
-					<div class="package-config-control-body">
-						{#if isSimpleStringListValue(currentValue)}
-							{@const values = listValues(currentValue)}
-							<div class="package-config-list-editor">
-								{#if values.length}
-									<div class="package-config-list-rows">
-										{#each values as value, index (listRowKey(control.key, index, value))}
-											<div class="package-config-list-row">
-												<label class="package-config-field">
-													<span>Value {index + 1}</span>
-													<input
-														type="text"
-														{value}
-														{disabled}
-														onchange={(event) =>
-															updateListItem(
-																control.key,
-																index,
-																(event.currentTarget as HTMLInputElement).value
-															)}
-													/>
-												</label>
-												<button
-													type="button"
-													class="package-config-icon-button"
-													aria-label={`Remove ${control.label} value ${index + 1}`}
-													title="Remove value"
-													{disabled}
-													onclick={() => removeListItem(control.key, index)}
-												>
-													<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
-												</button>
-											</div>
-										{/each}
-									</div>
-								{:else}
-									<p class="package-config-empty-row">No values configured.</p>
-								{/if}
-								<div class="package-config-list-actions">
-									<button
-										type="button"
-										class="package-config-button"
+					{#if present && control.kind === 'boolean'}
+						<div class="package-config-control-body">
+							{#if typeof currentValue === 'boolean'}
+								<label class="package-config-checkbox">
+									<input
+										type="checkbox"
+										checked={currentValue}
+										aria-label={control.label}
 										{disabled}
-										onclick={() => addListItem(control.key)}
-									>
-										<Plus size={14} strokeWidth={2} aria-hidden="true" />
-										<span>Add value</span>
-									</button>
-									{#if typeof currentValue === 'string'}
-										<span class="package-config-hint"
-											>The current scalar stays a string until another value is added.</span
-										>
-									{/if}
-								</div>
-							</div>
-						{:else}
-							<label class="package-config-field">
-								<span>Advanced JSON value</span>
-								<textarea
-									rows="3"
-									value={jsonDraftText(control.key, currentValue)}
-									{disabled}
-									aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
-									aria-describedby={jsonDraftError(control.key, currentValue)
-										? jsonErrorId(control.key)
-										: undefined}
-									oninput={(event) =>
-										editJsonValue(
-											control.key,
-											currentValue,
-											(event.currentTarget as HTMLTextAreaElement).value,
-											(value) => commitConfigValue(control.key, value)
-										)}></textarea>
-							</label>
-							{#if jsonDraftError(control.key, currentValue)}
-								<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
-									{jsonDraftError(control.key, currentValue)}
-								</p>
+										onchange={(event) =>
+											commitConfigValue(
+												control.key,
+												(event.currentTarget as HTMLInputElement).checked
+											)}
+									/>
+								</label>
+							{:else if typeof currentValue === 'string'}
+								<label class="package-config-field">
+									<span>Expression or value</span>
+									<input
+										type="text"
+										value={currentValue}
+										{disabled}
+										oninput={(event) =>
+											commitConfigValue(
+												control.key,
+												(event.currentTarget as HTMLInputElement).value
+											)}
+									/>
+								</label>
+							{:else}
+								<label class="package-config-field">
+									<span>Conditional JSON value</span>
+									<textarea
+										rows="3"
+										value={jsonDraftText(control.key, currentValue)}
+										{disabled}
+										aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
+										aria-describedby={jsonDraftError(control.key, currentValue)
+											? jsonErrorId(control.key)
+											: undefined}
+										oninput={(event) =>
+											editJsonValue(
+												control.key,
+												currentValue,
+												(event.currentTarget as HTMLTextAreaElement).value,
+												(value) => commitConfigValue(control.key, value)
+											)}></textarea>
+								</label>
+								{#if jsonDraftError(control.key, currentValue)}
+									<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
+										{jsonDraftError(control.key, currentValue)}
+									</p>
+								{/if}
 							{/if}
-						{/if}
-					</div>
-				{:else}
-					<div class="package-config-control-body">
-						{#if Array.isArray(currentValue) || isRecord(currentValue)}
-							<div class="package-config-environment-editor">
-								{#if environmentRows.length}
-									<div class="package-config-environment-rows">
-										{#each environmentRows as row (row.id)}
-											{#if row.kind === 'variable'}
-												<div class="package-config-environment-row">
-													<label class="package-config-field package-config-environment-name">
-														<span>Variable name</span>
+						</div>
+					{:else if present && control.kind === 'integer'}
+						<div class="package-config-control-body">
+							{#if typeof currentValue === 'number' && Number.isInteger(currentValue)}
+								<label class="package-config-field">
+									<span>Integer value</span>
+									<input
+										type="number"
+										step="1"
+										value={currentValue}
+										{disabled}
+										oninput={(event) =>
+											updateInteger(control.key, (event.currentTarget as HTMLInputElement).value)}
+									/>
+								</label>
+							{:else}
+								<label class="package-config-field">
+									<span>Advanced JSON value</span>
+									<textarea
+										rows="3"
+										value={jsonDraftText(control.key, currentValue)}
+										{disabled}
+										aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
+										aria-describedby={jsonDraftError(control.key, currentValue)
+											? jsonErrorId(control.key)
+											: undefined}
+										oninput={(event) =>
+											editJsonValue(
+												control.key,
+												currentValue,
+												(event.currentTarget as HTMLTextAreaElement).value,
+												(value) => commitConfigValue(control.key, value)
+											)}></textarea>
+								</label>
+								{#if jsonDraftError(control.key, currentValue)}
+									<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
+										{jsonDraftError(control.key, currentValue)}
+									</p>
+								{/if}
+							{/if}
+						</div>
+					{:else if present && control.kind === 'list'}
+						<div class="package-config-control-body">
+							{#if isSimpleStringListValue(currentValue)}
+								{@const values = listValues(currentValue)}
+								<div class="package-config-list-editor">
+									{#if values.length}
+										<div class="package-config-list-rows">
+											{#each values as value, index (listRowKey(control.key, index, value))}
+												<div class="package-config-list-row">
+													<label class="package-config-field">
+														<span>Value {index + 1}</span>
 														<input
 															type="text"
-															value={row.name}
+															{value}
 															{disabled}
 															onchange={(event) =>
-																updateEnvironmentVariable(
-																	row,
-																	'name',
+																updateListItem(
+																	control.key,
+																	index,
 																	(event.currentTarget as HTMLInputElement).value
 																)}
 														/>
 													</label>
-													{#if typeof row.value === 'string'}
-														<label class="package-config-field package-config-environment-value">
-															<span>Value</span>
+													<button
+														type="button"
+														class="package-config-icon-button"
+														aria-label={`Remove ${control.label} value ${index + 1}`}
+														title="Remove value"
+														{disabled}
+														onclick={() => removeListItem(control.key, index)}
+													>
+														<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
+													</button>
+												</div>
+											{/each}
+										</div>
+									{:else}
+										<p class="package-config-empty-row">No values configured.</p>
+									{/if}
+									<div class="package-config-list-actions">
+										<button
+											type="button"
+											class="package-config-button"
+											{disabled}
+											onclick={() => addListItem(control.key)}
+										>
+											<Plus size={14} strokeWidth={2} aria-hidden="true" />
+											<span>Add value</span>
+										</button>
+										{#if typeof currentValue === 'string'}
+											<span class="package-config-hint"
+												>The current scalar stays a string until another value is added.</span
+											>
+										{/if}
+									</div>
+								</div>
+							{:else}
+								<label class="package-config-field">
+									<span>Advanced JSON value</span>
+									<textarea
+										rows="3"
+										value={jsonDraftText(control.key, currentValue)}
+										{disabled}
+										aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
+										aria-describedby={jsonDraftError(control.key, currentValue)
+											? jsonErrorId(control.key)
+											: undefined}
+										oninput={(event) =>
+											editJsonValue(
+												control.key,
+												currentValue,
+												(event.currentTarget as HTMLTextAreaElement).value,
+												(value) => commitConfigValue(control.key, value)
+											)}></textarea>
+								</label>
+								{#if jsonDraftError(control.key, currentValue)}
+									<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
+										{jsonDraftError(control.key, currentValue)}
+									</p>
+								{/if}
+							{/if}
+						</div>
+					{:else if present}
+						<div class="package-config-control-body">
+							{#if Array.isArray(currentValue) || isRecord(currentValue)}
+								<div class="package-config-environment-editor">
+									{#if environmentRows.length}
+										<div class="package-config-environment-rows">
+											{#each environmentRows as row (row.id)}
+												{#if row.kind === 'variable'}
+													<div class="package-config-environment-row">
+														<label class="package-config-field package-config-environment-name">
+															<span>Variable name</span>
 															<input
 																type="text"
-																value={row.value}
-																{disabled}
-																oninput={(event) =>
-																	updateEnvironmentVariable(
-																		row,
-																		'value',
-																		(event.currentTarget as HTMLInputElement).value
-																	)}
-															/>
-														</label>
-													{:else if typeof row.value === 'number'}
-														<label class="package-config-field package-config-environment-value">
-															<span>Value</span>
-															<input
-																type="number"
-																step="any"
-																value={row.value}
-																{disabled}
-																oninput={(event) =>
-																	updateEnvironmentNumber(
-																		row,
-																		(event.currentTarget as HTMLInputElement).value
-																	)}
-															/>
-														</label>
-													{:else if typeof row.value === 'boolean'}
-														<label class="package-config-checkbox package-config-environment-value">
-															<input
-																type="checkbox"
-																checked={row.value}
+																value={row.name}
 																{disabled}
 																onchange={(event) =>
 																	updateEnvironmentVariable(
 																		row,
-																		'value',
-																		(event.currentTarget as HTMLInputElement).checked
+																		'name',
+																		(event.currentTarget as HTMLInputElement).value
 																	)}
 															/>
-															<span>Boolean value</span>
 														</label>
-													{:else}
+														{#if typeof row.value === 'string'}
+															<label class="package-config-field package-config-environment-value">
+																<span>Value</span>
+																<input
+																	type="text"
+																	value={row.value}
+																	{disabled}
+																	oninput={(event) =>
+																		updateEnvironmentVariable(
+																			row,
+																			'value',
+																			(event.currentTarget as HTMLInputElement).value
+																		)}
+																/>
+															</label>
+														{:else if typeof row.value === 'number'}
+															<label class="package-config-field package-config-environment-value">
+																<span>Value</span>
+																<input
+																	type="number"
+																	step="any"
+																	value={row.value}
+																	{disabled}
+																	oninput={(event) =>
+																		updateEnvironmentNumber(
+																			row,
+																			(event.currentTarget as HTMLInputElement).value
+																		)}
+																/>
+															</label>
+														{:else if typeof row.value === 'boolean'}
+															<label
+																class="package-config-checkbox package-config-environment-value"
+															>
+																<input
+																	type="checkbox"
+																	checked={row.value}
+																	{disabled}
+																	onchange={(event) =>
+																		updateEnvironmentVariable(
+																			row,
+																			'value',
+																			(event.currentTarget as HTMLInputElement).checked
+																		)}
+																/>
+																<span>Boolean value</span>
+															</label>
+														{:else}
+															<label class="package-config-field package-config-environment-value">
+																<span>Advanced JSON value</span>
+																<textarea
+																	rows="3"
+																	value={jsonDraftText(environmentDraftId(row.id), row.value)}
+																	{disabled}
+																	aria-invalid={Boolean(
+																		jsonDraftError(environmentDraftId(row.id), row.value)
+																	)}
+																	aria-describedby={jsonDraftError(
+																		environmentDraftId(row.id),
+																		row.value
+																	)
+																		? jsonErrorId(environmentDraftId(row.id))
+																		: undefined}
+																	oninput={(event) =>
+																		editJsonValue(
+																			environmentDraftId(row.id),
+																			row.value,
+																			(event.currentTarget as HTMLTextAreaElement).value,
+																			(value) => updateEnvironmentAdvanced(row, value)
+																		)}></textarea>
+															</label>
+															{#if jsonDraftError(environmentDraftId(row.id), row.value)}
+																<p
+																	id={jsonErrorId(environmentDraftId(row.id))}
+																	class="package-config-error"
+																	aria-live="polite"
+																>
+																	{jsonDraftError(environmentDraftId(row.id), row.value)}
+																</p>
+															{/if}
+														{/if}
+														<button
+															type="button"
+															class="package-config-icon-button"
+															aria-label={`Remove environment variable ${row.name}`}
+															title="Remove variable"
+															{disabled}
+															onclick={() => removeEnvironmentRow(row)}
+														>
+															<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
+														</button>
+													</div>
+												{:else}
+													<div class="package-config-environment-row package-config-advanced-row">
 														<label class="package-config-field package-config-environment-value">
-															<span>Advanced JSON value</span>
+															<span>Advanced environment entry</span>
 															<textarea
 																rows="3"
 																value={jsonDraftText(environmentDraftId(row.id), row.value)}
@@ -759,107 +843,62 @@
 																{jsonDraftError(environmentDraftId(row.id), row.value)}
 															</p>
 														{/if}
-													{/if}
-													<button
-														type="button"
-														class="package-config-icon-button"
-														aria-label={`Remove environment variable ${row.name}`}
-														title="Remove variable"
-														{disabled}
-														onclick={() => removeEnvironmentRow(row)}
-													>
-														<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
-													</button>
-												</div>
-											{:else}
-												<div class="package-config-environment-row package-config-advanced-row">
-													<label class="package-config-field package-config-environment-value">
-														<span>Advanced environment entry</span>
-														<textarea
-															rows="3"
-															value={jsonDraftText(environmentDraftId(row.id), row.value)}
+														<button
+															type="button"
+															class="package-config-icon-button"
+															aria-label="Remove advanced environment entry"
+															title="Remove entry"
 															{disabled}
-															aria-invalid={Boolean(
-																jsonDraftError(environmentDraftId(row.id), row.value)
-															)}
-															aria-describedby={jsonDraftError(
-																environmentDraftId(row.id),
-																row.value
-															)
-																? jsonErrorId(environmentDraftId(row.id))
-																: undefined}
-															oninput={(event) =>
-																editJsonValue(
-																	environmentDraftId(row.id),
-																	row.value,
-																	(event.currentTarget as HTMLTextAreaElement).value,
-																	(value) => updateEnvironmentAdvanced(row, value)
-																)}></textarea>
-													</label>
-													{#if jsonDraftError(environmentDraftId(row.id), row.value)}
-														<p
-															id={jsonErrorId(environmentDraftId(row.id))}
-															class="package-config-error"
-															aria-live="polite"
+															onclick={() => removeEnvironmentRow(row)}
 														>
-															{jsonDraftError(environmentDraftId(row.id), row.value)}
-														</p>
-													{/if}
-													<button
-														type="button"
-														class="package-config-icon-button"
-														aria-label="Remove advanced environment entry"
-														title="Remove entry"
-														{disabled}
-														onclick={() => removeEnvironmentRow(row)}
-													>
-														<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
-													</button>
-												</div>
-											{/if}
-										{/each}
-									</div>
-								{:else}
-									<p class="package-config-empty-row">No environment variables configured.</p>
+															<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
+														</button>
+													</div>
+												{/if}
+											{/each}
+										</div>
+									{:else}
+										<p class="package-config-empty-row">No environment variables configured.</p>
+									{/if}
+									<button
+										type="button"
+										class="package-config-button"
+										{disabled}
+										onclick={addEnvironmentRow}
+									>
+										<Plus size={14} strokeWidth={2} aria-hidden="true" />
+										<span>Add variable</span>
+									</button>
+								</div>
+							{:else}
+								<label class="package-config-field">
+									<span>Advanced environment JSON</span>
+									<textarea
+										rows="3"
+										value={jsonDraftText(control.key, currentValue)}
+										{disabled}
+										aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
+										aria-describedby={jsonDraftError(control.key, currentValue)
+											? jsonErrorId(control.key)
+											: undefined}
+										oninput={(event) =>
+											editJsonValue(
+												control.key,
+												currentValue,
+												(event.currentTarget as HTMLTextAreaElement).value,
+												(value) => commitConfigValue(control.key, value)
+											)}></textarea>
+								</label>
+								{#if jsonDraftError(control.key, currentValue)}
+									<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
+										{jsonDraftError(control.key, currentValue)}
+									</p>
 								{/if}
-								<button
-									type="button"
-									class="package-config-button"
-									{disabled}
-									onclick={addEnvironmentRow}
-								>
-									<Plus size={14} strokeWidth={2} aria-hidden="true" />
-									<span>Add variable</span>
-								</button>
-							</div>
-						{:else}
-							<label class="package-config-field">
-								<span>Advanced environment JSON</span>
-								<textarea
-									rows="3"
-									value={jsonDraftText(control.key, currentValue)}
-									{disabled}
-									aria-invalid={Boolean(jsonDraftError(control.key, currentValue))}
-									aria-describedby={jsonDraftError(control.key, currentValue)
-										? jsonErrorId(control.key)
-										: undefined}
-									oninput={(event) =>
-										editJsonValue(
-											control.key,
-											currentValue,
-											(event.currentTarget as HTMLTextAreaElement).value,
-											(value) => commitConfigValue(control.key, value)
-										)}></textarea>
-							</label>
-							{#if jsonDraftError(control.key, currentValue)}
-								<p id={jsonErrorId(control.key)} class="package-config-error" aria-live="polite">
-									{jsonDraftError(control.key, currentValue)}
-								</p>
 							{/if}
-						{/if}
-					</div>
-				{/if}
-			</section>
+						</div>
+					{/if}
+				</section>
+			{/if}
 		{/each}
 	</div>
 
@@ -920,6 +959,56 @@
 		line-height: 1.45;
 	}
 
+	.package-config-keyword-bank {
+		display: grid;
+		gap: 8px;
+	}
+
+	.package-config-keyword-bank > strong {
+		color: var(--text-dim);
+		font-size: 12px;
+	}
+
+	.package-config-keyword-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+		gap: 6px;
+	}
+
+	.package-config-keyword {
+		min-width: 0;
+		padding: 7px 8px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: rgba(0, 0, 0, 0.12);
+		color: var(--text-dim);
+		font: inherit;
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 11px;
+		text-align: left;
+		overflow-wrap: anywhere;
+		cursor: pointer;
+	}
+
+	.package-config-keyword:hover:not(:disabled),
+	.package-config-keyword:focus-visible {
+		border-color: rgba(57, 155, 130, 0.65);
+		background: rgba(57, 155, 130, 0.1);
+		color: var(--text);
+		outline: none;
+	}
+
+	.package-config-keyword.is-active {
+		border-color: rgba(57, 155, 130, 0.55);
+		background: rgba(57, 155, 130, 0.12);
+		color: var(--text);
+	}
+
+	.package-config-keyword:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+
 	.package-config-preserved code,
 	.package-config-card code {
 		color: #f0c875;
@@ -968,6 +1057,20 @@
 		background: rgba(0, 0, 0, 0.12);
 	}
 
+	.package-config-card.is-boolean-card {
+		grid-template-columns: 30px minmax(0, 1fr);
+		column-gap: 12px;
+	}
+
+	.package-config-card.is-boolean-card .package-config-card-heading,
+	.package-config-card.is-boolean-card .package-config-control-body {
+		grid-column: 2;
+	}
+
+	.package-config-card.is-boolean-card .package-config-control-body {
+		display: contents;
+	}
+
 	.package-config-card-heading {
 		display: flex;
 		align-items: flex-start;
@@ -1012,7 +1115,6 @@
 		text-transform: uppercase;
 	}
 
-	.package-config-empty,
 	.package-config-list-actions {
 		display: flex;
 		flex-wrap: wrap;
@@ -1020,7 +1122,6 @@
 		gap: 8px;
 	}
 
-	.package-config-empty,
 	.package-config-empty-row {
 		color: var(--text-muted);
 		font-size: 12px;
@@ -1135,22 +1236,104 @@
 	}
 
 	.package-config-checkbox {
+		position: relative;
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
 		width: fit-content;
-		padding: 8px 9px;
+		min-height: 32px;
+		box-sizing: border-box;
+		padding: 8px 9px 8px 39px;
 		border: 1px solid rgba(57, 155, 130, 0.25);
 		border-radius: 4px;
 		background: rgba(57, 155, 130, 0.06);
 		cursor: pointer;
 	}
 
+	.package-config-card.is-boolean-card .package-config-checkbox {
+		grid-column: 1;
+		grid-row: 1 / span 2;
+		align-self: stretch;
+		width: 30px;
+		min-height: 0;
+		padding: 0;
+		border: 0;
+		background: transparent;
+	}
+
 	.package-config-checkbox input {
-		width: 14px;
-		height: 14px;
+		position: absolute;
+		inset: 0 auto 0 0;
+		z-index: 1;
+		width: 30px;
+		height: 100%;
 		margin: 0;
-		accent-color: #399b82;
+		cursor: pointer;
+		opacity: 0;
+	}
+
+	.package-config-card.is-boolean-card .package-config-checkbox input {
+		inset: 8px 0;
+		width: 100%;
+		height: auto;
+	}
+
+	.package-config-checkbox::before {
+		position: absolute;
+		top: 50%;
+		left: 9px;
+		width: 22px;
+		height: 100%;
+		box-sizing: border-box;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: rgba(8, 14, 16, 0.5);
+		content: '';
+		transform: translateY(-50%);
+		transition:
+			background 140ms ease,
+			border-color 140ms ease;
+	}
+
+	.package-config-card.is-boolean-card .package-config-checkbox::before {
+		top: 8px;
+		bottom: 8px;
+		left: 4px;
+		width: 22px;
+		height: auto;
+		transform: none;
+	}
+
+	.package-config-checkbox::after {
+		position: absolute;
+		top: 50%;
+		left: 20px;
+		width: 6px;
+		height: 11px;
+		border: solid #f2fff9;
+		border-width: 0 2px 2px 0;
+		content: '';
+		opacity: 0;
+		transform: translate(-50%, -58%) rotate(45deg);
+		transition: opacity 140ms ease;
+	}
+
+	.package-config-card.is-boolean-card .package-config-checkbox::after {
+		left: 15px;
+	}
+
+	.package-config-checkbox:has(input:checked)::before {
+		border-color: #3d9b7c;
+		background: #2e8065;
+	}
+
+	.package-config-checkbox:has(input:checked)::after {
+		opacity: 1;
+	}
+
+	.package-config-checkbox:has(input:focus-visible) {
+		outline: 3px solid rgba(59, 155, 130, 0.26);
+		outline-offset: 1px;
 	}
 
 	.package-config-list-rows,

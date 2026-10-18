@@ -81,7 +81,6 @@
 		{manifestUninspected}
 		{manifestDraftError}
 		{highlightedControllerId}
-		{onControllerHover}
 	/>
 
 	<div class:config-fix-legacy-hidden={layout === 'table'} class="config-fix-layout">
@@ -532,9 +531,13 @@
 	}
 
 	.config-fix-toggle {
+		position: relative;
 		display: flex;
 		align-items: flex-start;
 		gap: 8px;
+		min-height: 32px;
+		box-sizing: border-box;
+		padding: 8px 9px 8px 39px;
 		color: var(--text-dim);
 		font-size: 12px;
 		font-weight: 600;
@@ -547,11 +550,59 @@
 	}
 
 	.config-fix-toggle input {
-		width: 14px;
-		height: 14px;
-		flex: 0 0 auto;
-		margin: 1px 0 0;
-		accent-color: #399b82;
+		position: absolute;
+		inset: 0 auto 0 0;
+		z-index: 1;
+		width: 30px;
+		height: 100%;
+		margin: 0;
+		cursor: pointer;
+		opacity: 0;
+	}
+
+	.config-fix-toggle::before {
+		position: absolute;
+		top: 50%;
+		left: 9px;
+		width: 22px;
+		height: 100%;
+		box-sizing: border-box;
+		border: 1px solid var(--line-strong);
+		border-radius: 4px;
+		background: rgba(8, 14, 16, 0.5);
+		content: '';
+		transform: translateY(-50%);
+		transition:
+			background 140ms ease,
+			border-color 140ms ease;
+	}
+
+	.config-fix-toggle::after {
+		position: absolute;
+		top: 50%;
+		left: 20px;
+		width: 6px;
+		height: 11px;
+		border: solid #f2fff9;
+		border-width: 0 2px 2px 0;
+		content: '';
+		opacity: 0;
+		transform: translate(-50%, -58%) rotate(45deg);
+		transition: opacity 140ms ease;
+	}
+
+	.config-fix-toggle:has(input:checked)::before {
+		border-color: #3d9b7c;
+		background: #2e8065;
+	}
+
+	.config-fix-toggle:has(input:checked)::after {
+		opacity: 1;
+	}
+
+	.config-fix-toggle:has(input:focus-visible) {
+		outline: 3px solid rgba(59, 155, 130, 0.26);
+		outline-offset: 1px;
 	}
 
 	.config-fix-source-field {
@@ -594,10 +645,13 @@
 	}
 
 	.config-alias-options label {
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		padding: 7px 9px;
+		min-height: 32px;
+		box-sizing: border-box;
+		padding: 7px 9px 7px 39px;
 		border: 1px solid rgba(211, 155, 56, 0.4);
 		border-radius: 4px;
 		background: rgba(0, 0, 0, 0.12);
@@ -612,7 +666,58 @@
 	}
 
 	.config-alias-options input {
+		position: absolute;
+		inset: 0 auto 0 0;
+		z-index: 1;
+		width: 30px;
+		height: 100%;
 		margin: 0;
-		accent-color: #399b82;
+		cursor: pointer;
+		opacity: 0;
+	}
+
+	.config-alias-options label::before {
+		position: absolute;
+		top: 50%;
+		left: 11px;
+		width: 18px;
+		height: 18px;
+		box-sizing: border-box;
+		border: 1px solid var(--line-strong);
+		border-radius: 50%;
+		background: rgba(8, 14, 16, 0.5);
+		content: '';
+		transform: translateY(-50%);
+		transition:
+			background 140ms ease,
+			border-color 140ms ease;
+	}
+
+	.config-alias-options label::after {
+		position: absolute;
+		top: 50%;
+		left: 20px;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #f2fff9;
+		content: '';
+		opacity: 0;
+		transform: translate(-50%, -50%);
+		transition: opacity 140ms ease;
+	}
+
+	.config-alias-options label:has(input:checked)::before {
+		border-color: #3d9b7c;
+		background: #2e8065;
+	}
+
+	.config-alias-options label:has(input:checked)::after {
+		opacity: 1;
+	}
+
+	.config-alias-options label:has(input:focus-visible) {
+		outline: 3px solid rgba(59, 155, 130, 0.26);
+		outline-offset: 1px;
 	}
 </style>
