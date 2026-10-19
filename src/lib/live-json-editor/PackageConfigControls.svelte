@@ -177,8 +177,8 @@
 		return typeof value === 'string' ? [value] : value;
 	}
 
-	function listRowKey(key: EditableKey, index: number, value: string): string {
-		return `${key}:${index}:${value}`;
+	function listRowKey(key: EditableKey, index: number): string {
+		return `${key}:${index}`;
 	}
 
 	function updateListItem(key: EditableKey, index: number, value: string): void {
@@ -305,20 +305,30 @@
 		if (Number.isInteger(value)) commitConfigValue(key, value);
 	}
 
+	function renamedEnvironmentRecord(
+		entry: Record<string, unknown>,
+		currentName: string,
+		nextName: string
+	): Record<string, unknown> {
+		return Object.fromEntries(
+			Object.entries(entry).map(([name, value]) => [name === currentName ? nextName : name, value])
+		);
+	}
+
 	function readEnvironmentRows(value: unknown): EnvironmentRow[] {
 		if (Array.isArray(value)) {
 			const rows: EnvironmentRow[] = [];
 			value.forEach((entry, arrayIndex) => {
 				if (isRecord(entry)) {
-					for (const [name, entryValue] of Object.entries(entry)) {
+					Object.entries(entry).forEach(([name, entryValue], variableIndex) => {
 						rows.push({
-							id: `array:${arrayIndex}:${name}`,
+							id: `array:${arrayIndex}:variable:${variableIndex}`,
 							kind: 'variable',
 							name,
 							value: entryValue,
 							arrayIndex
 						});
-					}
+					});
 					return;
 				}
 				rows.push({
@@ -331,8 +341,8 @@
 			return rows;
 		}
 		if (isRecord(value)) {
-			return Object.entries(value).map(([name, entryValue]) => ({
-				id: `record:${name}`,
+			return Object.entries(value).map(([name, entryValue], variableIndex) => ({
+				id: `record:${variableIndex}`,
 				kind: 'variable' as const,
 				name,
 				value: entryValue
@@ -402,9 +412,7 @@
 				if (field === 'name') {
 					if (!nextValue || typeof nextValue !== 'string' || nextValue === row.name) return;
 					if (Object.prototype.hasOwnProperty.call(entry, nextValue)) return;
-					const oldValue = entry[row.name];
-					delete entry[row.name];
-					entry[nextValue] = oldValue;
+					environment[row.arrayIndex] = renamedEnvironmentRecord(entry, row.name, nextValue);
 				} else {
 					entry[row.name] = nextValue;
 				}
@@ -414,9 +422,9 @@
 			if (field === 'name') {
 				if (!nextValue || typeof nextValue !== 'string' || nextValue === row.name) return;
 				if (Object.prototype.hasOwnProperty.call(environment, nextValue)) return;
-				const oldValue = environment[row.name];
-				delete environment[row.name];
-				environment[nextValue] = oldValue;
+				const renamed = renamedEnvironmentRecord(environment, row.name, nextValue);
+				for (const name of Object.keys(environment)) delete environment[name];
+				Object.assign(environment, renamed);
 			} else {
 				environment[row.name] = nextValue;
 			}
@@ -619,7 +627,7 @@
 								<div class="package-config-list-editor">
 									{#if values.length}
 										<div class="package-config-list-rows">
-											{#each values as value, index (listRowKey(control.key, index, value))}
+											{#each values as value, index (listRowKey(control.key, index))}
 												<div class="package-config-list-row">
 													<label class="package-config-field">
 														<span>Value {index + 1}</span>
@@ -627,7 +635,7 @@
 															type="text"
 															{value}
 															{disabled}
-															onchange={(event) =>
+															oninput={(event) =>
 																updateListItem(
 																	control.key,
 																	index,
@@ -709,7 +717,7 @@
 																type="text"
 																value={row.name}
 																{disabled}
-																onchange={(event) =>
+																oninput={(event) =>
 																	updateEnvironmentVariable(
 																		row,
 																		'name',

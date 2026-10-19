@@ -80,4 +80,28 @@ describe('PackageConfigControls.svelte', () => {
 			env: [{ TOOL_ROOT: [{ "houdini_os == 'linux'": '$HOME/linux' }] }]
 		});
 	});
+
+	it('updates keyword values and environment names while typing', async () => {
+		let nextConfig: Record<string, unknown> | undefined;
+
+		render(PackageConfigControls, {
+			config: {
+				requires: 'houdini',
+				env: [{ TOOL_ROOT: '$HOME/tool', EXTRA: 'value' }]
+			},
+			onChange: (config: Record<string, unknown>) => (nextConfig = config)
+		});
+
+		await page.getByRole('textbox', { name: 'Value 1' }).fill('houdini-core');
+		expect(nextConfig).toEqual({
+			requires: 'houdini-core',
+			env: [{ TOOL_ROOT: '$HOME/tool', EXTRA: 'value' }]
+		});
+
+		await page.getByRole('textbox', { name: 'Variable name' }).first().fill('TOOL_BASE');
+		expect(nextConfig).toEqual({
+			requires: 'houdini-core',
+			env: [{ TOOL_BASE: '$HOME/tool', EXTRA: 'value' }]
+		});
+	});
 });
