@@ -707,163 +707,198 @@
 							{#if Array.isArray(currentValue) || isRecord(currentValue)}
 								<div class="package-config-environment-editor">
 									{#if environmentRows.length}
-										<div class="package-config-environment-rows">
-											{#each environmentRows as row (row.id)}
-												{#if row.kind === 'variable'}
-													<div class="package-config-environment-row">
-														<label class="package-config-field package-config-environment-name">
-															<span>Variable name</span>
-															<input
-																type="text"
-																value={row.name}
-																{disabled}
-																oninput={(event) =>
-																	updateEnvironmentVariable(
-																		row,
-																		'name',
-																		(event.currentTarget as HTMLInputElement).value
-																	)}
-															/>
-														</label>
-														{#if typeof row.value === 'string'}
-															<label class="package-config-field package-config-environment-value">
-																<span>Value</span>
-																<input
-																	type="text"
-																	value={row.value}
-																	{disabled}
-																	oninput={(event) =>
-																		updateEnvironmentVariable(
-																			row,
-																			'value',
-																			(event.currentTarget as HTMLInputElement).value
-																		)}
-																/>
-															</label>
-														{:else if typeof row.value === 'number'}
-															<label class="package-config-field package-config-environment-value">
-																<span>Value</span>
-																<input
-																	type="number"
-																	step="any"
-																	value={row.value}
-																	{disabled}
-																	oninput={(event) =>
-																		updateEnvironmentNumber(
-																			row,
-																			(event.currentTarget as HTMLInputElement).value
-																		)}
-																/>
-															</label>
-														{:else if typeof row.value === 'boolean'}
-															<label
-																class="package-config-checkbox package-config-environment-value"
-															>
-																<input
-																	type="checkbox"
-																	checked={row.value}
-																	{disabled}
-																	onchange={(event) =>
-																		updateEnvironmentVariable(
-																			row,
-																			'value',
-																			(event.currentTarget as HTMLInputElement).checked
-																		)}
-																/>
-																<span>Boolean value</span>
-															</label>
+										<div class="package-config-environment-table-scroll">
+											<table
+												class="package-config-environment-table"
+												aria-label="Environment variables"
+											>
+												<thead>
+													<tr>
+														<th scope="col">Variable</th>
+														<th scope="col">Value</th>
+														<th scope="col">Actions</th>
+													</tr>
+												</thead>
+												<tbody>
+													{#each environmentRows as row (row.id)}
+														{#if row.kind === 'variable'}
+															<tr>
+																<td>
+																	<label
+																		class="package-config-field package-config-environment-name"
+																	>
+																		<span>Variable name</span>
+																		<input
+																			type="text"
+																			value={row.name}
+																			{disabled}
+																			oninput={(event) =>
+																				updateEnvironmentVariable(
+																					row,
+																					'name',
+																					(event.currentTarget as HTMLInputElement).value
+																				)}
+																		/>
+																	</label>
+																</td>
+																<td>
+																	{#if typeof row.value === 'string'}
+																		<label
+																			class="package-config-field package-config-environment-value"
+																		>
+																			<span>Value</span>
+																			<input
+																				type="text"
+																				value={row.value}
+																				{disabled}
+																				oninput={(event) =>
+																					updateEnvironmentVariable(
+																						row,
+																						'value',
+																						(event.currentTarget as HTMLInputElement).value
+																					)}
+																			/>
+																		</label>
+																	{:else if typeof row.value === 'number'}
+																		<label
+																			class="package-config-field package-config-environment-value"
+																		>
+																			<span>Value</span>
+																			<input
+																				type="number"
+																				step="any"
+																				value={row.value}
+																				{disabled}
+																				oninput={(event) =>
+																					updateEnvironmentNumber(
+																						row,
+																						(event.currentTarget as HTMLInputElement).value
+																					)}
+																			/>
+																		</label>
+																	{:else if typeof row.value === 'boolean'}
+																		<label
+																			class="package-config-checkbox package-config-environment-value"
+																		>
+																			<input
+																				type="checkbox"
+																				checked={row.value}
+																				{disabled}
+																				onchange={(event) =>
+																					updateEnvironmentVariable(
+																						row,
+																						'value',
+																						(event.currentTarget as HTMLInputElement).checked
+																					)}
+																			/>
+																			<span>Boolean value</span>
+																		</label>
+																	{:else}
+																		<label
+																			class="package-config-field package-config-environment-value"
+																		>
+																			<span>Advanced JSON value</span>
+																			<textarea
+																				rows="3"
+																				value={jsonDraftText(environmentDraftId(row.id), row.value)}
+																				{disabled}
+																				aria-invalid={Boolean(
+																					jsonDraftError(environmentDraftId(row.id), row.value)
+																				)}
+																				aria-describedby={jsonDraftError(
+																					environmentDraftId(row.id),
+																					row.value
+																				)
+																					? jsonErrorId(environmentDraftId(row.id))
+																					: undefined}
+																				oninput={(event) =>
+																					editJsonValue(
+																						environmentDraftId(row.id),
+																						row.value,
+																						(event.currentTarget as HTMLTextAreaElement).value,
+																						(value) => updateEnvironmentAdvanced(row, value)
+																					)}></textarea>
+																		</label>
+																		{#if jsonDraftError(environmentDraftId(row.id), row.value)}
+																			<p
+																				id={jsonErrorId(environmentDraftId(row.id))}
+																				class="package-config-error"
+																				aria-live="polite"
+																			>
+																				{jsonDraftError(environmentDraftId(row.id), row.value)}
+																			</p>
+																		{/if}
+																	{/if}
+																</td>
+																<td class="package-config-environment-action-cell">
+																	<button
+																		type="button"
+																		class="package-config-icon-button"
+																		aria-label={`Remove environment variable ${row.name}`}
+																		title="Remove variable"
+																		{disabled}
+																		onclick={() => removeEnvironmentRow(row)}
+																	>
+																		<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
+																	</button>
+																</td>
+															</tr>
 														{:else}
-															<label class="package-config-field package-config-environment-value">
-																<span>Advanced JSON value</span>
-																<textarea
-																	rows="3"
-																	value={jsonDraftText(environmentDraftId(row.id), row.value)}
-																	{disabled}
-																	aria-invalid={Boolean(
-																		jsonDraftError(environmentDraftId(row.id), row.value)
-																	)}
-																	aria-describedby={jsonDraftError(
-																		environmentDraftId(row.id),
-																		row.value
-																	)
-																		? jsonErrorId(environmentDraftId(row.id))
-																		: undefined}
-																	oninput={(event) =>
-																		editJsonValue(
-																			environmentDraftId(row.id),
-																			row.value,
-																			(event.currentTarget as HTMLTextAreaElement).value,
-																			(value) => updateEnvironmentAdvanced(row, value)
-																		)}></textarea>
-															</label>
-															{#if jsonDraftError(environmentDraftId(row.id), row.value)}
-																<p
-																	id={jsonErrorId(environmentDraftId(row.id))}
-																	class="package-config-error"
-																	aria-live="polite"
-																>
-																	{jsonDraftError(environmentDraftId(row.id), row.value)}
-																</p>
-															{/if}
+															<tr>
+																<th scope="row">Advanced entry</th>
+																<td>
+																	<label
+																		class="package-config-field package-config-environment-value"
+																	>
+																		<span>Advanced environment entry</span>
+																		<textarea
+																			rows="3"
+																			value={jsonDraftText(environmentDraftId(row.id), row.value)}
+																			{disabled}
+																			aria-invalid={Boolean(
+																				jsonDraftError(environmentDraftId(row.id), row.value)
+																			)}
+																			aria-describedby={jsonDraftError(
+																				environmentDraftId(row.id),
+																				row.value
+																			)
+																				? jsonErrorId(environmentDraftId(row.id))
+																				: undefined}
+																			oninput={(event) =>
+																				editJsonValue(
+																					environmentDraftId(row.id),
+																					row.value,
+																					(event.currentTarget as HTMLTextAreaElement).value,
+																					(value) => updateEnvironmentAdvanced(row, value)
+																				)}></textarea>
+																	</label>
+																	{#if jsonDraftError(environmentDraftId(row.id), row.value)}
+																		<p
+																			id={jsonErrorId(environmentDraftId(row.id))}
+																			class="package-config-error"
+																			aria-live="polite"
+																		>
+																			{jsonDraftError(environmentDraftId(row.id), row.value)}
+																		</p>
+																	{/if}
+																</td>
+																<td class="package-config-environment-action-cell">
+																	<button
+																		type="button"
+																		class="package-config-icon-button"
+																		aria-label="Remove advanced environment entry"
+																		title="Remove entry"
+																		{disabled}
+																		onclick={() => removeEnvironmentRow(row)}
+																	>
+																		<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
+																	</button>
+																</td>
+															</tr>
 														{/if}
-														<button
-															type="button"
-															class="package-config-icon-button"
-															aria-label={`Remove environment variable ${row.name}`}
-															title="Remove variable"
-															{disabled}
-															onclick={() => removeEnvironmentRow(row)}
-														>
-															<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
-														</button>
-													</div>
-												{:else}
-													<div class="package-config-environment-row package-config-advanced-row">
-														<label class="package-config-field package-config-environment-value">
-															<span>Advanced environment entry</span>
-															<textarea
-																rows="3"
-																value={jsonDraftText(environmentDraftId(row.id), row.value)}
-																{disabled}
-																aria-invalid={Boolean(
-																	jsonDraftError(environmentDraftId(row.id), row.value)
-																)}
-																aria-describedby={jsonDraftError(
-																	environmentDraftId(row.id),
-																	row.value
-																)
-																	? jsonErrorId(environmentDraftId(row.id))
-																	: undefined}
-																oninput={(event) =>
-																	editJsonValue(
-																		environmentDraftId(row.id),
-																		row.value,
-																		(event.currentTarget as HTMLTextAreaElement).value,
-																		(value) => updateEnvironmentAdvanced(row, value)
-																	)}></textarea>
-														</label>
-														{#if jsonDraftError(environmentDraftId(row.id), row.value)}
-															<p
-																id={jsonErrorId(environmentDraftId(row.id))}
-																class="package-config-error"
-																aria-live="polite"
-															>
-																{jsonDraftError(environmentDraftId(row.id), row.value)}
-															</p>
-														{/if}
-														<button
-															type="button"
-															class="package-config-icon-button"
-															aria-label="Remove advanced environment entry"
-															title="Remove entry"
-															{disabled}
-															onclick={() => removeEnvironmentRow(row)}
-														>
-															<Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
-														</button>
-													</div>
-												{/if}
-											{/each}
+													{/each}
+												</tbody>
+											</table>
 										</div>
 									{:else}
 										<p class="package-config-empty-row">No environment variables configured.</p>
@@ -1344,8 +1379,7 @@
 		outline-offset: 1px;
 	}
 
-	.package-config-list-rows,
-	.package-config-environment-rows {
+	.package-config-list-rows {
 		display: grid;
 		min-width: 0;
 		gap: 7px;
@@ -1364,15 +1398,79 @@
 		line-height: 1.4;
 	}
 
-	.package-config-environment-row {
-		display: grid;
-		grid-template-columns: minmax(150px, 0.7fr) minmax(0, 1fr) 32px;
-		gap: 8px;
-		align-items: end;
-		padding: 8px;
+	.package-config-environment-table-scroll {
+		min-width: 0;
+		overflow-x: auto;
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 4px;
-		background: rgba(0, 0, 0, 0.1);
+	}
+
+	.package-config-environment-table {
+		width: 100%;
+		min-width: 440px;
+		border-collapse: collapse;
+		table-layout: fixed;
+		color: var(--text-muted);
+		font-size: 12px;
+	}
+
+	.package-config-environment-table th,
+	.package-config-environment-table td {
+		padding: 7px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+		text-align: left;
+		vertical-align: middle;
+	}
+
+	.package-config-environment-table thead th {
+		background: rgba(255, 255, 255, 0.035);
+		color: var(--text-dim);
+		font-family: 'Cascadia Code', 'Courier New', monospace;
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+	}
+
+	.package-config-environment-table th:first-child {
+		width: 30%;
+	}
+
+	.package-config-environment-table th:last-child {
+		width: 44px;
+	}
+
+	.package-config-environment-table tbody tr:last-child > * {
+		border-bottom: 0;
+	}
+
+	.package-config-environment-table tbody th[scope='row'] {
+		color: var(--text-dim);
+		font-weight: 500;
+	}
+
+	.package-config-environment-table .package-config-field {
+		gap: 0;
+	}
+
+	.package-config-environment-table .package-config-field > span {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.package-config-environment-action-cell {
+		text-align: right !important;
+	}
+
+	.package-config-environment-action-cell .package-config-icon-button {
+		width: 28px;
+		height: 28px;
 	}
 
 	.package-config-environment-value {
@@ -1383,11 +1481,6 @@
 		align-self: end;
 		min-height: 32px;
 		box-sizing: border-box;
-	}
-
-	.package-config-advanced-row {
-		grid-template-columns: minmax(0, 1fr) 32px;
-		align-items: end;
 	}
 
 	.package-config-error {
@@ -1421,24 +1514,6 @@
 		.package-config-preserved-row {
 			grid-template-columns: 1fr;
 			gap: 4px;
-		}
-
-		.package-config-environment-row {
-			grid-template-columns: minmax(0, 1fr) 32px;
-		}
-
-		.package-config-environment-name,
-		.package-config-environment-value {
-			grid-column: 1 / -1;
-		}
-
-		.package-config-environment-row > .package-config-icon-button {
-			grid-column: 2;
-			grid-row: 1 / span 2;
-		}
-
-		.package-config-advanced-row {
-			grid-template-columns: minmax(0, 1fr) 32px;
 		}
 	}
 </style>

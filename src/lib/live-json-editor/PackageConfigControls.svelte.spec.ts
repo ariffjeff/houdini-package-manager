@@ -92,6 +92,9 @@ describe('PackageConfigControls.svelte', () => {
 			onChange: (config: Record<string, unknown>) => (nextConfig = config)
 		});
 
+		await expect
+			.element(page.getByRole('table', { name: 'Environment variables' }))
+			.toBeInTheDocument();
 		await page.getByRole('textbox', { name: 'Value 1' }).fill('houdini-core');
 		expect(nextConfig).toEqual({
 			requires: 'houdini-core',
@@ -102,6 +105,18 @@ describe('PackageConfigControls.svelte', () => {
 		expect(nextConfig).toEqual({
 			requires: 'houdini-core',
 			env: [{ TOOL_BASE: '$HOME/tool', EXTRA: 'value' }]
+		});
+
+		await page.getByRole('button', { name: 'Remove environment variable TOOL_BASE' }).click();
+		expect(nextConfig).toEqual({
+			requires: 'houdini-core',
+			env: [{ EXTRA: 'value' }]
+		});
+
+		await page.getByRole('button', { name: 'Add variable' }).click();
+		expect(nextConfig).toEqual({
+			requires: 'houdini-core',
+			env: [{ EXTRA: 'value' }, { NEW_VARIABLE: '' }]
 		});
 	});
 });
