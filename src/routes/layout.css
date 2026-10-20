@@ -18,6 +18,8 @@
 	--text-muted: #98aaa4;
 	--text-dim: #71827c;
 	--accent-orange: #f60;
+	--scrollbar-thumb: rgba(152, 170, 164, 0.38);
+	--scrollbar-thumb-hover: rgba(152, 170, 164, 0.62);
 }
 
 html,
@@ -31,6 +33,32 @@ body {
 	background:
 		radial-gradient(circle at 12% 0%, rgba(50, 110, 98, 0.2), transparent 32rem),
 		linear-gradient(135deg, #101b1d 0%, #120f14 100%);
+}
+
+* {
+	scrollbar-color: var(--scrollbar-thumb) transparent;
+	scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+	border: 2px solid transparent;
+	border-radius: 999px;
+	background-color: var(--scrollbar-thumb);
+	background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background-color: var(--scrollbar-thumb-hover);
 }
 
 .svelte-flow__attribution {
