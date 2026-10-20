@@ -7,7 +7,8 @@ import {
 	effectiveHpath,
 	evaluateConfigVariables,
 	findConfigControlRanges,
-	highlightJsonTokens
+	highlightJsonTokens,
+	updatePackageConfigText
 } from './config-editor';
 
 describe('config editor helpers', () => {
@@ -151,6 +152,37 @@ describe('config editor helpers', () => {
 		expect(correctedConfigText(state, 'C:/install/plugin', sourceText)).toBe(
 			'{\r\n\r\n    "hpath": "C:/legacy/plugin",\r\n\r\n    "enable": false\r\n}\r\n'
 		);
+	});
+
+	it('keeps renamed environment keys in their original position', () => {
+		const config = {
+			env: [
+				{ QLIB: '$HOUDINI_USER_PREF_DIR/qLib-master' },
+				{ QOTL: '$QLIB/otls' },
+				{
+					var: 'HOUDINI_OTLSCAN_PATH',
+					value: ['$QOTL/base', '$QOTL/future', '$QOTL/experimental'],
+					method: 'append'
+				}
+			]
+		};
+		const sourceText = JSON.stringify(config, null, 4);
+		const nextConfig = {
+			env: [
+				config.env[0],
+				config.env[1],
+				{
+					variable: 'HOUDINI_OTLSCAN_PATH',
+					paths: ['$QOTL/base', '$QOTL/future', '$QOTL/experimental'],
+					mode: 'append'
+				}
+			]
+		};
+
+		const nextText = updatePackageConfigText(sourceText, config, nextConfig);
+		const nextEnvironment = JSON.parse(nextText).env;
+
+		expect(Object.keys(nextEnvironment[2])).toEqual(['variable', 'paths', 'mode']);
 	});
 
 	it('preserves blank lines after env when migrating path into HOUDINI_PATH', () => {

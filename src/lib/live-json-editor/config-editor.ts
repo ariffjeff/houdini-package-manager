@@ -538,16 +538,42 @@ function applyConfigTextEdits(
 
 	function visit(path: JSONPath, before: unknown, after: unknown): void {
 		if (isJsonRecord(before) && isJsonRecord(after)) {
+			const removedKeys = Object.keys(before).filter(
+				(key) => !Object.prototype.hasOwnProperty.call(after, key)
+			);
+			const addedKeys = Object.keys(after).filter(
+				(key) => !Object.prototype.hasOwnProperty.call(before, key)
+			);
+			const renames = new Map<string, string>();
+
+			for (const removedKey of removedKeys) {
+				const matchingAdded = addedKeys.filter(
+					(addedKey) => JSON.stringify(before[removedKey]) === JSON.stringify(after[addedKey])
+				);
+				if (matchingAdded.length !== 1) continue;
+
+				const matchingRemoved = removedKeys.filter(
+					(key) => JSON.stringify(before[key]) === JSON.stringify(after[matchingAdded[0]])
+				);
+				if (matchingRemoved.length === 1) renames.set(removedKey, matchingAdded[0]);
+			}
+
 			for (const key of Object.keys(before)) {
 				if (Object.prototype.hasOwnProperty.call(after, key))
 					visit([...path, key], before[key], after[key]);
 			}
+			for (const [previousKey, nextKey] of renames) {
+				result = renameJsonProperty(result, [...path, previousKey], nextKey);
+			}
 			for (const key of Object.keys(before)) {
-				if (!Object.prototype.hasOwnProperty.call(after, key))
+				if (!Object.prototype.hasOwnProperty.call(after, key) && !renames.has(key))
 					applyModification([...path, key], undefined);
 			}
 			for (const key of Object.keys(after)) {
-				if (!Object.prototype.hasOwnProperty.call(before, key))
+				if (
+					!Object.prototype.hasOwnProperty.call(before, key) &&
+					![...renames.values()].includes(key)
+				)
 					applyModification([...path, key], after[key]);
 			}
 			return;
