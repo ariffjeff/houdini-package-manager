@@ -139,6 +139,22 @@ describe('package config fixes', () => {
 		});
 	});
 
+	it('preserves object-form env variables when writing HOUDINI_PATH', () => {
+		expect(
+			applyPackageConfigFixes(
+				{
+					HOUDINI_PATH: 'C:/old/AJTools',
+					env: { CUSTOM_ROOT: '$HOUDINI_PATH/bin' },
+					enable: false
+				},
+				{ hpath: 'C:/new/AJTools', pathAlias: 'HOUDINI_PATH' }
+			)
+		).toEqual({
+			env: [{ CUSTOM_ROOT: '$HOUDINI_PATH/bin', HOUDINI_PATH: 'C:/new/AJTools' }],
+			enable: false
+		});
+	});
+
 	it('normalizes aliases to their required config locations', () => {
 		expect(
 			applyPackageConfigFixes(

@@ -188,6 +188,10 @@ const pluginDiscoveryCandidate = {
 		{ value: 'main', label: 'main', kind: 'commit' as const }
 	],
 	packageFile: 'houdini-tools.json',
+	packageFiles: ['houdini-tools.json'],
+	manifestPreflight: {
+		'houdini-tools.json': { content: '{}', recognized: true, fatal: false, issues: [] }
+	},
 	manifestSource: 'repository' as const,
 	warnings: [],
 	tags: ['github']
@@ -476,16 +480,19 @@ it('previews removal of HOUDINI_PATH when migrating path to hpath', async () => 
 		.element(page.getByRole('combobox', { name: 'Local plugin source alias' }))
 		.toHaveValue('hpath');
 
-	await page.getByText(/The deprecated path key will be removed and replaced with/).click();
+	await page.getByRole('checkbox', { name: /Remove deprecated path key/ }).click();
+	const editorDialog = page.getByRole('dialog', { name: 'Live JSON Editor' });
 	await expect
-		.element(page.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
-		.toHaveClass(/is-removed/);
+		.element(
+			editorDialog.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/houdini21\.0\/packages"/)
+		)
+		.not.toBeInTheDocument();
 	await expect
-		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/houdini21\.0\/packages"/))
-		.toHaveClass(/is-removed/);
+		.element(editorDialog.getByText(/"hpath": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
+		.toBeInTheDocument();
 	await expect
-		.element(page.getByText(/"hpath": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
-		.toHaveClass(/is-changed/);
+		.element(editorDialog.getByText(/"path": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/))
+		.not.toBeInTheDocument();
 
 	await page.getByRole('button', { name: 'Save and close', exact: true }).click();
 	await expect
@@ -520,21 +527,20 @@ it('edits and switches a HOUDINI_PATH source alias with reference rewriting', as
 	await expect
 		.element(page.getByRole('combobox', { name: 'Local plugin source alias' }))
 		.toHaveValue('HOUDINI_PATH');
+	const editorDialog = page.getByRole('dialog', { name: 'Live JSON Editor' });
 	await sourceInput.fill('C:/Users/test/Plugins/MOPS');
 	await expect.element(sourceInput).toHaveValue('C:/Users/test/Plugins/MOPS');
 	await expect
-		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Plugins\/MOPS",?/))
-		.toHaveClass(/is-changed/);
-	await expect.element(page.getByText(/"CUSTOM_ROOT": "\$HOUDINI_PATH\/bin"/)).toBeInTheDocument();
+		.element(editorDialog)
+		.toHaveTextContent(/"HOUDINI_PATH": "C:\/Users\/test\/Plugins\/MOPS",?/);
+	await expect.element(editorDialog).toHaveTextContent(/"CUSTOM_ROOT": "\$HOUDINI_PATH\/bin"/);
 
 	await page.getByRole('combobox', { name: 'Local plugin source alias' }).selectOptions('hpath');
 	await expect
-		.element(page.getByText(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops",/))
-		.toHaveClass(/is-removed/);
-	await expect
-		.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
-		.toHaveClass(/is-changed/);
-	await expect.element(page.getByText(/"CUSTOM_ROOT": "\$hpath\/bin"/)).toHaveClass(/is-changed/);
+		.element(editorDialog)
+		.not.toHaveTextContent(/"HOUDINI_PATH": "C:\/Users\/test\/Documents\/HPM\/plugins\/mops"/);
+	await expect.element(editorDialog).toHaveTextContent(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/);
+	await expect.element(editorDialog).toHaveTextContent(/"CUSTOM_ROOT": "\$hpath\/bin"/);
 
 	await page.getByRole('button', { name: 'Save and close', exact: true }).click();
 	await expect
@@ -1159,6 +1165,7 @@ describe('activation workspace', () => {
 			.toBeInTheDocument();
 		await page.getByRole('button', { name: 'Configure remote install for MOPS' }).click();
 		await page.getByRole('checkbox', { name: 'Show non-tagged commits' }).click();
+		await page.getByRole('checkbox', { name: /Houdini 21\.0/ }).click();
 		await expect
 			.element(page.getByRole('button', { name: 'Install plugin', exact: true }))
 			.not.toBeDisabled();
@@ -1212,19 +1219,20 @@ describe('activation workspace', () => {
 			.element(page.getByRole('heading', { name: 'Install MOPS', exact: true }))
 			.toBeInTheDocument();
 		await page.getByRole('checkbox', { name: 'Show non-tagged commits' }).click();
-		await expect
-			.element(page.getByText('Use HPM plugin folder', { exact: true }))
-			.toBeInTheDocument();
+		await page.getByRole('button', { name: 'All', exact: true }).click();
+		await expect.element(page.getByText('HPM', { exact: true })).toBeInTheDocument();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(2);
 		await expect.element(page.getByText('c99890d', { exact: true })).toHaveLength(1);
 
 		await page.getByRole('checkbox', { name: /Houdini 21\.0/ }).click();
 		await expect.element(page.getByText('→', { exact: true })).toHaveLength(1);
-		await page.getByRole('radio', { name: /Use a custom folder/ }).click();
+		await page.getByRole('radio', { name: /Custom folder/ }).click();
 		const destination = 'C:/Users/test/Plugins/MOPS';
 		await page.getByRole('textbox', { name: 'Custom plugin destination' }).fill(destination);
 		await expect.element(page.getByText('1 of 2 Houdini installs')).toBeInTheDocument();
-		await expect.element(page.getByText(destination, { exact: true })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('textbox', { name: 'Custom plugin destination' }))
+			.toHaveValue(destination);
 
 		await page.getByRole('button', { name: 'Install plugin', exact: true }).click();
 		await expect
@@ -1233,7 +1241,9 @@ describe('activation workspace', () => {
 				pluginId: 'package:mops',
 				version: 'v1.10.0',
 				installIds: [secondInstallId],
-				destinationPath: destination
+				destinationPath: destination,
+				generatedConfigText: '',
+				includeHpmMetadata: true
 			});
 		await expect
 			.element(page.getByText(`MOPS v1.10.0 installed at ${destination}.`, { exact: true }))
@@ -1258,13 +1268,13 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText('No valid Houdini package manifest was found.', { exact: true }))
 			.toBeInTheDocument();
-		await page.getByRole('button', { name: 'Install', exact: true }).click();
+		await page.getByRole('button', { name: 'Add to Installer', exact: true }).click();
+		await page.getByRole('link', { name: 'Install', exact: true }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Install Houdini Tools', exact: true }))
 			.toBeInTheDocument();
-		await expect
-			.element(page.getByText('Use HPM plugin folder', { exact: true }))
-			.toBeInTheDocument();
+		await expect.element(page.getByText('HPM', { exact: true })).toBeInTheDocument();
+		await page.getByRole('checkbox', { name: /Houdini 21\.0/ }).click();
 
 		await page.getByRole('button', { name: 'Install plugin', exact: true }).click();
 		await expect
@@ -1372,9 +1382,6 @@ describe('activation workspace', () => {
 		await expect
 			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
 			.toBeInTheDocument();
-		await expect
-			.element(page.getByText(/"hpath": "C:\/Users\/test\/Plugins\/MOPS"/))
-			.toHaveClass(/is-changed/);
 		await page.getByRole('button', { name: 'Save and close', exact: true }).click();
 		await expect
 			.poll(() => pluginActionRequests.at(-1))
@@ -1676,12 +1683,8 @@ describe('activation workspace', () => {
 			.not.toBeChecked();
 		await page.getByRole('checkbox', { name: 'Restore source path from another config' }).click();
 		await expect
-			.element(
-				page
-					.getByRole('dialog', { name: 'Live JSON Editor' })
-					.getByText('C:/Users/test/Desktop/DCC/MOPS', { exact: true })
-			)
-			.toBeInTheDocument();
+			.element(page.getByRole('dialog', { name: 'Live JSON Editor' }))
+			.toHaveTextContent('C:/Users/test/Desktop/DCC/MOPS');
 		await page.getByRole('button', { name: 'Save and close' }).click();
 		await expect
 			.poll(() => pluginActionRequests.at(-1))

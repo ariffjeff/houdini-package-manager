@@ -768,7 +768,7 @@
 										type="radio"
 										name="install-destination"
 										checked={draft.destinationChoice === sourcePath}
-										disabled={installState === 'working' || manifestEditMode === 'manual'}
+										disabled={installState === 'working'}
 										onchange={() => (draft.destinationChoice = sourcePath)}
 									/>
 									<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
@@ -788,7 +788,7 @@
 									type="radio"
 									name="install-destination"
 									checked={draft.destinationChoice === 'custom'}
-									disabled={installState === 'working' || manifestEditMode === 'manual'}
+									disabled={installState === 'working'}
 									onchange={() => (draft.destinationChoice = 'custom')}
 								/>
 								<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
@@ -803,7 +803,7 @@
 										value={draft.customDestination}
 										placeholder={`C:\\Plugins\\${plugin.name}`}
 										readonly={draft.destinationChoice !== 'custom'}
-										disabled={installState === 'working' || manifestEditMode === 'manual'}
+										disabled={installState === 'working'}
 										onclick={activateCustomDestination}
 										onfocus={activateCustomDestination}
 										oninput={(event) =>
@@ -814,7 +814,7 @@
 										class="install-destination-reset"
 										title="Reset custom destination"
 										aria-label="Reset custom destination"
-										disabled={!customDestinationChanged || manifestEditMode === 'manual'}
+										disabled={!customDestinationChanged}
 										onclick={resetCustomDestination}
 									>
 										<RotateCcw size={13} strokeWidth={1.9} aria-hidden="true" />

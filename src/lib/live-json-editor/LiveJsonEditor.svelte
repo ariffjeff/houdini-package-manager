@@ -16,6 +16,7 @@
 		createConfigFixState,
 		effectiveHpath,
 		configuredPathAlias,
+		hasPathAlias,
 		findConfigControlRanges,
 		type ConfigFixState
 	} from './config-editor';
@@ -171,6 +172,13 @@
 		editor.config = { ...config };
 	}
 
+	function selectPathAlias(pathAlias: ConfigFixState['pathAlias']): void {
+		editor.pathAlias = pathAlias;
+		if (hasPathAlias(editor.config, pathAlias)) {
+			editor.hpath = configHpath(editor.config, editor.hpath, pathAlias);
+		}
+	}
+
 	function updateManualConfigText(text: string): void {
 		manualConfigText = text;
 		manualModeError = '';
@@ -320,6 +328,32 @@
 				highlightedControllerId={hoveredConfigController}
 				onControllerHover={(controllerId) => (hoveredConfigController = controllerId)}
 			/>
+			<div class="editor-source-controls">
+				<label>
+					<span>Local plugin source</span>
+					<input
+						type="text"
+						aria-label="Local plugin source"
+						bind:value={editor.hpath}
+						disabled={editor.state === 'loading' || editor.state === 'saving'}
+					/>
+				</label>
+				<label>
+					<span>Local plugin source alias</span>
+					<select
+						aria-label="Local plugin source alias"
+						value={editor.pathAlias}
+						onchange={(event) =>
+							selectPathAlias(
+								(event.currentTarget as HTMLSelectElement).value as ConfigFixState['pathAlias']
+							)}
+						disabled={editor.state === 'loading' || editor.state === 'saving'}
+					>
+						<option value="hpath">hpath</option>
+						<option value="HOUDINI_PATH">HOUDINI_PATH</option>
+					</select>
+				</label>
+			</div>
 			<div class="editor-mode-switch">
 				<span class="editor-mode-label" id="live-config-edit-mode-label">Edit mode</span>
 				<div
@@ -519,6 +553,41 @@
 		margin: 20px 0;
 	}
 
+	.editor-source-controls {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(150px, 0.4fr);
+		gap: 10px;
+	}
+
+	.editor-source-controls label {
+		display: grid;
+		min-width: 0;
+		gap: 5px;
+		color: var(--text-dim);
+		font-size: 11px;
+	}
+
+	.editor-source-controls input,
+	.editor-source-controls select {
+		box-sizing: border-box;
+		width: 100%;
+		min-width: 0;
+		padding: 8px 9px;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--surface-raised);
+		color: var(--text);
+		font: inherit;
+		font-size: 12px;
+	}
+
+	.editor-source-controls input:focus-visible,
+	.editor-source-controls select:focus-visible {
+		border-color: #399b82;
+		outline: 2px solid rgba(57, 155, 130, 0.3);
+		outline-offset: 1px;
+	}
+
 	.editor-mode-switch {
 		display: flex;
 		align-items: center;
@@ -657,6 +726,10 @@
 
 		.editor-actions {
 			flex-wrap: wrap;
+		}
+
+		.editor-source-controls {
+			grid-template-columns: minmax(0, 1fr);
 		}
 
 		.editor-actions button {

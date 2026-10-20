@@ -118,7 +118,11 @@ function setPathAlias(
 	if (!value) return;
 	if (alias === 'HOUDINI_PATH') {
 		removeJsonKey(packageValue, alias);
-		const env = Array.isArray(packageValue.env) ? packageValue.env.filter(isRecord) : [];
+		const env = Array.isArray(packageValue.env)
+			? packageValue.env.filter(isRecord)
+			: isRecord(packageValue.env)
+				? [packageValue.env]
+				: [];
 		if (!env.length) env.push({});
 		env[0][alias] = value;
 		packageValue.env = env;
