@@ -729,10 +729,6 @@
 						class="install-hpm-metadata-section"
 						aria-labelledby="install-hpm-metadata-title"
 					>
-						<div>
-							<strong id="install-hpm-metadata-title">Apply HPM Metadata</strong>
-							<p>Adds repository and version details so HPM can identify and track this plugin.</p>
-						</div>
 						<label class="install-hpm-metadata-toggle">
 							<span class="install-manifest-control-rail">
 								<input
@@ -746,8 +742,11 @@
 								/>
 								<span class="install-manifest-control-rail-mark" aria-hidden="true"></span>
 							</span>
-							<span>Append HPM metadata</span>
 						</label>
+						<div>
+							<strong id="install-hpm-metadata-title">Apply HPM Metadata</strong>
+							<p>Adds repository and version details so HPM can identify and track this plugin.</p>
+						</div>
 					</section>
 					<section
 						class={[
@@ -1599,7 +1598,6 @@
 	.install-hpm-metadata-section {
 		display: flex;
 		align-items: flex-start;
-		justify-content: space-between;
 		gap: 12px;
 		margin-top: 8px;
 		padding: 10px;
