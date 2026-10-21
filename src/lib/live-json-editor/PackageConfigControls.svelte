@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Plus, Trash2 } from '@lucide/svelte';
+	import CheckboxToggle from '$lib/CheckboxToggle.svelte';
 	import {
 		clonePackageConfig,
 		knownPackageConfigKeys,
@@ -527,19 +528,12 @@
 					{#if present && control.kind === 'boolean'}
 						<div class="package-config-control-body">
 							{#if typeof currentValue === 'boolean'}
-								<label class="package-config-checkbox">
-									<input
-										type="checkbox"
-										checked={currentValue}
-										aria-label={control.label}
-										{disabled}
-										onchange={(event) =>
-											commitConfigValue(
-												control.key,
-												(event.currentTarget as HTMLInputElement).checked
-											)}
-									/>
-								</label>
+								<CheckboxToggle
+									checked={currentValue}
+									ariaLabel={control.label}
+									{disabled}
+									onChange={(checked) => commitConfigValue(control.key, checked)}
+								/>
 							{:else if typeof currentValue === 'string'}
 								<label class="package-config-field">
 									<span>Expression or value</span>
