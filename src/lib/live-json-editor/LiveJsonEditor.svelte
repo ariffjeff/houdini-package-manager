@@ -30,7 +30,15 @@
 		message: string;
 	};
 
-	let { plugin, install, target, targets, isScanActive, onClose, onDiscovery } = $props<{
+	let {
+		plugin,
+		install,
+		target,
+		targets,
+		isScanActive,
+		onClose,
+		onDiscovery
+	}: {
 		plugin: PluginRecord;
 		install: HoudiniInstall;
 		target: ActivationTarget;
@@ -38,7 +46,7 @@
 		isScanActive: boolean;
 		onClose: () => void;
 		onDiscovery: (response: HoudiniDiscoveryResponse) => void;
-	}>();
+	} = $props();
 
 	let editor = $state<TargetConfigEditor>({
 		packagePath: '',

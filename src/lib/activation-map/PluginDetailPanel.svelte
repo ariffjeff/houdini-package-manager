@@ -60,7 +60,7 @@
 		onOpenInstallPath,
 		onSelectPlugin,
 		onHconfigEvent
-	} = $props<{
+	}: {
 		plugin?: PluginRecord;
 		officialPlugins: PluginRecord[];
 		install?: HoudiniInstall;
@@ -79,7 +79,7 @@
 		installState: InstallDialogState;
 		installMessage: string;
 		onRescanPluginConfigs: () => void | Promise<void>;
-		onRescanInstall: () => void | Promise<void>;
+		onRescanInstall: () => boolean | Promise<boolean>;
 		onSyncGit: () => void | Promise<void>;
 		onPluginAction: (request: PluginDetailAction) => void | Promise<void>;
 		onOpenTargetConfig: (install: HoudiniInstall, target: ActivationTarget) => void;
@@ -88,7 +88,7 @@
 		onOpenInstallPath: (path: string) => void | Promise<void>;
 		onSelectPlugin: (pluginId: string) => void;
 		onHconfigEvent: (event: { status: 'success' | 'error' | 'cancelled'; detail: string }) => void;
-	}>();
+	} = $props();
 
 	function stopActionPropagation(event: MouseEvent) {
 		event.stopPropagation();

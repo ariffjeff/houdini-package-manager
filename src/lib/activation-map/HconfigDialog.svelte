@@ -10,7 +10,7 @@
 		showStaleWarning,
 		onClose,
 		onRefresh
-	} = $props<{
+	}: {
 		installLabel: string;
 		rawOutput: string | null;
 		expandedOutput: string | null;
@@ -19,7 +19,7 @@
 		showStaleWarning: boolean;
 		onClose: () => void;
 		onRefresh: () => void;
-	}>();
+	} = $props();
 
 	let isExpanded = $state(true);
 	let copyState = $state<'idle' | 'formatted' | 'raw'>('idle');

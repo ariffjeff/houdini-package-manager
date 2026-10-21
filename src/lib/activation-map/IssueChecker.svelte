@@ -20,7 +20,7 @@
 		onFilterChange,
 		onGroupBuildsChange,
 		onSelectIssue
-	} = $props<{
+	}: {
 		issueItems: IssueItem[];
 		issueConfigOptions: IssueConfigOption[];
 		installs: HoudiniInstall[];
@@ -30,7 +30,7 @@
 		onFilterChange: (filterId: string) => void;
 		onGroupBuildsChange: (groupIssueBuilds: boolean) => void;
 		onSelectIssue: (issue: IssueItem, target: ActivationTarget) => void;
-	}>();
+	} = $props();
 
 	let issueCheckerFilter = $derived(
 		issueConfigOptions.find((option: IssueConfigOption) => option.id === filterId)?.filter ?? null

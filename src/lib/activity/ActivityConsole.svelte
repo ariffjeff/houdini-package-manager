@@ -10,7 +10,7 @@
 	} from '@lucide/svelte';
 	import type { ActivityEvent, ActivityEventKind, ActivityEventStatus } from './types';
 
-	let { events } = $props<{ events: ActivityEvent[] }>();
+	let { events }: { events: ActivityEvent[] } = $props();
 	let dialogOpen = $state(false);
 	let searchQuery = $state('');
 	let latestEvent = $derived(events[0]);

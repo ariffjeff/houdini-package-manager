@@ -10,7 +10,15 @@
 
 	type MigrationState = 'idle' | 'working' | 'success' | 'error';
 
-	let { plugins, installs, targets, migrationState, message, onClose, onMigrate } = $props<{
+	let {
+		plugins,
+		installs,
+		targets,
+		migrationState,
+		message,
+		onClose,
+		onMigrate
+	}: {
 		plugins: PluginRecord[];
 		installs: HoudiniInstall[];
 		targets: ActivationTarget[];
@@ -18,7 +26,7 @@
 		message: string;
 		onClose: () => void;
 		onMigrate: (request: HoudiniPluginMigrationRequest) => void;
-	}>();
+	} = $props();
 	let destinationInstallId = $state('');
 	let selectedPluginIds = $state<string[]>([]);
 	let selectedSourceInstallIds = $state<Record<string, string>>({});

@@ -97,7 +97,7 @@
 		onOpenInstallPath,
 		onSelectPlugin,
 		onHconfigEvent
-	} = $props<{
+	}: {
 		view: ViewMode;
 		searchQuery: string;
 		selectedNodeId: string | null;
@@ -163,7 +163,7 @@
 		onOpenInstallPath: (path: string) => void | Promise<void>;
 		onSelectPlugin: (pluginId: string) => void;
 		onHconfigEvent: (event: HconfigEvent) => void;
-	}>();
+	} = $props();
 
 	function scanStateLabel(stage: ScanStage) {
 		const status = scanStatuses[stage];

@@ -3,13 +3,19 @@
 	import type { ActivationTarget } from './types';
 	import type { TargetIssueDetails } from './target-issue-dialog';
 
-	let { details, actionsDisabled, onClose, onOpenConfig, onOpenEditor } = $props<{
+	let {
+		details,
+		actionsDisabled,
+		onClose,
+		onOpenConfig,
+		onOpenEditor
+	}: {
 		details: TargetIssueDetails;
 		actionsDisabled: boolean;
 		onClose: () => void;
 		onOpenConfig: (installId: string) => void;
 		onOpenEditor: (installId: string, target: ActivationTarget) => void;
-	}>();
+	} = $props();
 
 	function openConfig() {
 		onOpenConfig(details.installId);

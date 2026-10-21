@@ -60,7 +60,7 @@
 		onClose,
 		onCancel,
 		onInstall
-	} = $props<{
+	}: {
 		plugin: InstallDialogPlugin;
 		versions: InstallVersionOption[];
 		installs: HoudiniInstall[];
@@ -76,7 +76,7 @@
 			selection: InstallDialogSelection,
 			options: InstallDialogOptions
 		) => void | Promise<void>;
-	}>();
+	} = $props();
 
 	let draft = $state<InstallDraft>({
 		packageFile: '',

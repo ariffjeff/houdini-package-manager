@@ -69,7 +69,7 @@
 		onCloseTargetIssue,
 		onOpenTargetConfig,
 		onOpenTargetEditor
-	} = $props<{
+	}: {
 		installDialogOpen: boolean;
 		installPlugin: InstallDialogPlugin | undefined;
 		installVersionOptions: InstallVersionOption[];
@@ -116,7 +116,7 @@
 		onCloseTargetIssue: () => void;
 		onOpenTargetConfig: (installId: string) => void;
 		onOpenTargetEditor: (installId: string, target: ActivationTarget) => void;
-	}>();
+	} = $props();
 </script>
 
 {#if installDialogOpen && installPlugin}

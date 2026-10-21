@@ -21,10 +21,13 @@
 	} from './discovery-state.svelte';
 	import type { PluginDiscoveryCandidate } from './types';
 
-	let { installs, onInstallCandidate } = $props<{
+	let {
+		installs,
+		onInstallCandidate
+	}: {
 		installs: HoudiniInstall[];
 		onInstallCandidate: (candidate: PluginDiscoveryCandidate) => void;
-	}>();
+	} = $props();
 
 	let catalogSearch = $state('');
 	let catalogPage = $state(1);

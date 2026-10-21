@@ -3,7 +3,7 @@
 		color = 'currentColor',
 		class: className = '',
 		...rest
-	} = $props<{ color?: string; class?: string; [key: string]: unknown }>();
+	}: { color?: string; class?: string; [key: string]: unknown } = $props();
 </script>
 
 <svg

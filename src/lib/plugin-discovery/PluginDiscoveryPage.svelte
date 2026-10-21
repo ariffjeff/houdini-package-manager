@@ -28,7 +28,7 @@
 	} from './discovery-state.svelte';
 	import type { PluginDiscoveryCandidate } from './types';
 
-	let { mode = 'discover' } = $props<{ mode?: 'discover' | 'install' }>();
+	let { mode = 'discover' }: { mode?: 'discover' | 'install' } = $props();
 
 	let installs = $state<HoudiniInstall[]>([]);
 	let plugins = $state<PluginRecord[]>([]);

@@ -6,14 +6,14 @@
 		width,
 		height,
 		...rest
-	} = $props<{
+	}: {
 		color?: string;
 		class?: string;
 		size?: number | string;
 		width?: number | string;
 		height?: number | string;
 		[key: string]: unknown;
-	}>();
+	} = $props();
 </script>
 
 <svg

@@ -7,7 +7,7 @@
 
 	type AppSection = 'library' | 'discover' | 'install';
 
-	let { activeSection } = $props<{ activeSection: AppSection }>();
+	let { activeSection }: { activeSection: AppSection } = $props();
 
 	function handleSettingsClick(event: MouseEvent) {
 		event.preventDefault();

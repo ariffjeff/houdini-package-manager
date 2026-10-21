@@ -26,12 +26,12 @@
 		onClose = null,
 		onActivitySettingsSaved = null,
 		onClearLocalData = null
-	} = $props<{
+	}: {
 		onClose?: (() => void) | null;
 		onActivitySettingsSaved?: (() => void) | null;
 		onClearLocalData?:
 			((kind: HpmLocalDataKind | 'discovery-cache') => void | Promise<void>) | null;
-	}>();
+	} = $props();
 
 	let activityHistoryRetention = $state(DEFAULT_ACTIVITY_HISTORY_RETENTION);
 	let editingRetention = $state(false);

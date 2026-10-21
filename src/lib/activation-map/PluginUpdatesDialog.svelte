@@ -8,14 +8,21 @@
 		updates: PluginUpdateItem[];
 	};
 
-	let { updates, pinnedUpdates, onClose, onKeepCurrent, onUnpin, onSelectUpdate } = $props<{
+	let {
+		updates,
+		pinnedUpdates,
+		onClose,
+		onKeepCurrent,
+		onUnpin,
+		onSelectUpdate
+	}: {
 		updates: PluginUpdateItem[];
 		pinnedUpdates: PluginUpdateItem[];
 		onClose: () => void;
 		onKeepCurrent: (update: PluginUpdateItem) => void;
 		onUnpin: (update: PluginUpdateItem) => void;
 		onSelectUpdate: (update: PluginUpdateItem) => void;
-	}>();
+	} = $props();
 
 	function groupUpdates(updates: PluginUpdateItem[]): PluginUpdateGroup[] {
 		const groups: PluginUpdateGroup[] = [];
