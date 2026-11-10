@@ -8,7 +8,6 @@
 	import {
 		fetchHoudiniDiscovery,
 		fetchHoudiniDiscoverySnapshot,
-		installHoudiniPlugin,
 		runHoudiniPluginAction
 	} from '$lib/houdini/client';
 	import PluginInstallDialog from '$lib/plugin-install/PluginInstallDialog.svelte';
@@ -18,7 +17,7 @@
 		InstallDialogSelection,
 		InstallVersionOption
 	} from '$lib/plugin-install/types';
-	import { createInstallPluginRequest } from '$lib/plugin-install/install-workflow';
+	import { runPluginInstall } from '$lib/plugin-install/install-workflow';
 	import PluginDiscoverySection from './PluginDiscoverySection.svelte';
 	import {
 		cancelDiscoveryInstall,
@@ -183,84 +182,73 @@
 		) {
 			return;
 		}
-		const request = createInstallPluginRequest(
-			{ repositoryUrl: candidate.repositoryUrl, packageFile: selection.packageFile },
-			selection
-		);
+		const workflowPlugin = installPlugin;
+		if (!workflowPlugin) return;
 
-		pluginDiscoveryState.installState = 'working';
-		pluginDiscoveryState.installMessage = '';
-		const controller = new AbortController();
-		setDiscoveryInstallController(controller);
-		try {
-			const result = await installHoudiniPlugin(request, controller.signal);
-			setDiscoveryState(
-				result.discovery.installs,
-				result.discovery.plugins,
-				result.discovery.targets
-			);
-			pluginDiscoveryState.installState = 'success';
-			const messages = [result.message];
-			if (options.openInstalledFolder) {
-				try {
-					await runHoudiniPluginAction({
-						action: 'open-path',
-						installId: request.installIds[0],
-						path: request.destinationPath
-					});
-				} catch (error) {
-					messages.push(error instanceof Error ? error.message : String(error));
-				}
-			}
-			if (options.openInstalledConfig) {
-				try {
-					const installedPlugin = result.discovery.plugins.find(
-						(plugin) => plugin.repositoryUrl === request.repositoryUrl
+		await runPluginInstall(
+			workflowPlugin,
+			selection,
+			options,
+			installs,
+			{
+				applyDiscovery: (response) =>
+					setDiscoveryState(response.installs, response.plugins, response.targets),
+				setState: (state) => (pluginDiscoveryState.installState = state),
+				setMessage: (message) => (pluginDiscoveryState.installMessage = message),
+				setController: setDiscoveryInstallController,
+				postInstallActions: async (request, postInstallOptions, response) => {
+					const messages: string[] = [];
+					if (postInstallOptions.openInstalledFolder) {
+						try {
+							await runHoudiniPluginAction({
+								action: 'open-path',
+								installId: request.installIds[0],
+								path: request.destinationPath
+							});
+						} catch (error) {
+							messages.push(error instanceof Error ? error.message : String(error));
+						}
+					}
+					if (postInstallOptions.openInstalledConfig) {
+						try {
+							const installedPlugin = response.plugins.find((plugin) =>
+								sameRepositoryUrl(plugin.repositoryUrl, request.repositoryUrl)
+							);
+							if (!installedPlugin) throw new Error('The installed package config was not found.');
+							await runHoudiniPluginAction({
+								pluginId: installedPlugin.id,
+								action: 'open-config',
+								installId: request.installIds[0]
+							});
+						} catch (error) {
+							messages.push(error instanceof Error ? error.message : String(error));
+						}
+					}
+					return messages;
+				},
+				onSuccess: () => {
+					const completedKey = installKey(candidate);
+					const remaining = pluginDiscoveryState.installQueue.filter(
+						(queuedCandidate) => installKey(queuedCandidate) !== completedKey
 					);
-					if (!installedPlugin) throw new Error('The installed package config was not found.');
-					await runHoudiniPluginAction({
-						pluginId: installedPlugin.id,
-						action: 'open-config',
-						installId: request.installIds[0]
-					});
-				} catch (error) {
-					messages.push(error instanceof Error ? error.message : String(error));
+					pluginDiscoveryState.installQueue = remaining;
+					if (remaining.length) {
+						const nextCandidate = remaining[0];
+						pluginDiscoveryState.activeInstallKey = installKey(nextCandidate);
+						pluginDiscoveryState.installCandidate = nextCandidate;
+						pluginDiscoveryState.installState = 'idle';
+						persistInstallQueue();
+					} else {
+						pluginDiscoveryState.installDialogOpen = false;
+						pluginDiscoveryState.activeInstallKey = '';
+						pluginDiscoveryState.installCandidate = null;
+						persistInstallQueue();
+						void goto(resolve('/discover'));
+					}
 				}
-			}
-			const completedKey = installKey(candidate);
-			const remaining = pluginDiscoveryState.installQueue.filter(
-				(queuedCandidate) => installKey(queuedCandidate) !== completedKey
-			);
-			pluginDiscoveryState.installQueue = remaining;
-			pluginDiscoveryState.installMessage = messages.join(' ');
-			if (remaining.length) {
-				const nextCandidate = remaining[0];
-				pluginDiscoveryState.activeInstallKey = installKey(nextCandidate);
-				pluginDiscoveryState.installCandidate = nextCandidate;
-				pluginDiscoveryState.installState = 'idle';
-				persistInstallQueue();
-			} else {
-				pluginDiscoveryState.installDialogOpen = false;
-				pluginDiscoveryState.activeInstallKey = '';
-				pluginDiscoveryState.installCandidate = null;
-				persistInstallQueue();
-				void goto(resolve('/discover'));
-			}
-		} catch (error) {
-			if (
-				controller.signal.aborted ||
-				(error instanceof DOMException && error.name === 'AbortError')
-			) {
-				pluginDiscoveryState.installState = 'idle';
-				pluginDiscoveryState.installMessage = 'Installation cancelled.';
-			} else {
-				pluginDiscoveryState.installState = 'error';
-				pluginDiscoveryState.installMessage =
-					error instanceof Error ? error.message : String(error);
-			}
-		} finally {
-			setDiscoveryInstallController(null);
-		}
+			},
+			{ repositoryUrl: candidate.repositoryUrl, packageFile: selection.packageFile }
+		);
 	}
 
 	function cancelInstall() {
@@ -297,8 +285,10 @@
 		<div class="install-queue-items">
 			{#each pluginDiscoveryState.installQueue as candidate (installKey(candidate))}
 				<div
-					class:active={installKey(candidate) === pluginDiscoveryState.activeInstallKey}
-					class="install-queue-item"
+					class={[
+						'install-queue-item',
+						{ active: installKey(candidate) === pluginDiscoveryState.activeInstallKey }
+					]}
 				>
 					<button
 						type="button"

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { readJsonObject, sendJson } from '../http-json.js';
 import type {
 	HoudiniPluginAction,
 	HoudiniScanRequest,
@@ -60,34 +61,27 @@ export function houdiniDiscoveryPlugin(): Plugin {
 					: isClearCacheRequest
 						? await clearHoudiniDiscoveryCache()
 						: isScanRequest
-							? await scanHoudiniWorkspace(await readJsonBody<HoudiniScanRequest>(request))
+							? await scanHoudiniWorkspace(
+									await readJsonObject<HoudiniScanRequest>(request, 'Install')
+								)
 							: isInstallRequest
 								? await installHoudiniPlugin(
-										await readJsonBody<InstallPluginRequest>(request),
+										await readJsonObject<InstallPluginRequest>(request, 'Install'),
 										abortController.signal
 									)
 								: await runHoudiniPluginAction(
-										await readJsonBody<HoudiniPluginAction>(request),
+										await readJsonObject<HoudiniPluginAction>(request, 'Install'),
 										abortController.signal
 									);
 			if (isSnapshotRequest && !result) {
-				response.statusCode = 404;
-				response.setHeader('content-type', 'application/json; charset=utf-8');
-				response.end(JSON.stringify({ error: 'No saved Houdini discovery snapshot exists.' }));
+				sendJson(response, 404, { error: 'No saved Houdini discovery snapshot exists.' });
 				return;
 			}
-			response.statusCode = 200;
-			response.setHeader('content-type', 'application/json; charset=utf-8');
-			response.setHeader('cache-control', 'no-store');
-			response.end(JSON.stringify(isClearCacheRequest ? { cleared: true } : result));
+			sendJson(response, 200, isClearCacheRequest ? { cleared: true } : result, 'no-store');
 		} catch (error) {
-			response.statusCode = 500;
-			response.setHeader('content-type', 'application/json; charset=utf-8');
-			response.end(
-				JSON.stringify({
-					error: error instanceof Error ? error.message : String(error)
-				})
-			);
+			sendJson(response, 500, {
+				error: error instanceof Error ? error.message : String(error)
+			});
 		}
 	};
 
@@ -100,19 +94,4 @@ export function houdiniDiscoveryPlugin(): Plugin {
 			server.middlewares.use(handleRequest);
 		}
 	};
-}
-
-async function readJsonBody<T>(request: IncomingMessage): Promise<T> {
-	let body = '';
-	for await (const chunk of request) {
-		body += chunk.toString();
-		if (body.length > 64 * 1024) throw new Error('Install request is too large.');
-	}
-	const value: unknown = JSON.parse(body);
-	if (!isRecord(value)) throw new Error('Install request must be a JSON object.');
-	return value as T;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
