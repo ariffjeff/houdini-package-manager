@@ -197,9 +197,17 @@
 			<div class="result-list" aria-live="polite">
 				{#each pluginDiscoveryState.results as result (result.input)}
 					{@const candidate = result.candidate}
-					<article class:error-result={Boolean(result.error)} class="result-row">
+					<article class={['result-row', { 'error-result': Boolean(result.error) }]}>
 						<div class="result-heading">
-							<code>{result.input}</code>
+							{#if candidate}
+								<div class="candidate-heading">
+									<div>
+										<h4>{candidate.name}</h4>
+										<p>{candidate.description || 'No description provided.'}</p>
+									</div>
+								</div>
+							{/if}
+							{#if !candidate}<code>{result.input}</code>{/if}
 							{#if result.error}
 								<span class="result-status error-status"
 									><TriangleAlert size={13} strokeWidth={2} aria-hidden="true" /> Failed</span
@@ -211,8 +219,7 @@
 								<div class="candidate-header-controls">
 									<button
 										type="button"
-										class:staged={isCandidateStaged(candidate)}
-										class="install-button"
+										class={['install-button', { staged: isCandidateStaged(candidate) }]}
 										disabled={installs.length === 0}
 										aria-pressed={isCandidateStaged(candidate)}
 										onclick={() => installCandidate(candidate)}
@@ -227,21 +234,17 @@
 
 						{#if candidate}
 							<div class="candidate-body">
-								<div class="candidate-heading">
-									<div>
-										<h4>{candidate.name}</h4>
-										<p>{candidate.description || 'No description provided.'}</p>
-									</div>
+								<div class="metadata-grid">
 									<a
+										class="repository-link"
 										href={candidate.repositoryUrl}
 										target="_blank"
 										rel="external noopener noreferrer"
 										aria-label={`Open ${candidate.name} on GitHub`}
+										title="Open repository on GitHub"
 									>
 										<GithubLogo size={16} strokeWidth={1.8} aria-hidden="true" />
 									</a>
-								</div>
-								<div class="metadata-grid">
 									<div><span>Author</span><strong>{candidate.author || 'Unknown'}</strong></div>
 									<div><span>License</span><strong>{candidate.license || 'Unknown'}</strong></div>
 									<div><span>Package file</span><code>{candidate.packageFile}</code></div>
@@ -1002,22 +1005,31 @@
 
 	.candidate-heading {
 		align-items: center;
+		justify-content: flex-start;
+		flex: 1 1 240px;
+		min-width: 0;
 	}
 
-	.candidate-heading a {
+	.candidate-heading > div {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.metadata-grid .repository-link {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 34px;
-		height: 34px;
+		width: 29px;
+		height: 29px;
 		flex: 0 0 auto;
 		border: 1px solid var(--line);
 		border-radius: 5px;
 		color: var(--text-muted);
+		text-decoration: none;
 	}
 
-	.candidate-heading a:hover,
-	.candidate-heading a:focus-visible {
+	.metadata-grid .repository-link:hover,
+	.metadata-grid .repository-link:focus-visible {
 		border-color: var(--line-strong);
 		color: var(--text);
 		outline: none;
@@ -1025,17 +1037,16 @@
 
 	.metadata-grid {
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 		gap: 6px 14px;
-		padding-top: 6px;
-		border-top: 1px solid var(--line);
+		overflow-x: auto;
+		justify-content: space-between;
 	}
 
 	.metadata-grid div {
 		display: grid;
 		gap: 2px;
-		flex: 1 1 120px;
-		min-width: 0;
+		flex: 0 0 auto;
 	}
 
 	.metadata-grid span {
@@ -1048,7 +1059,7 @@
 
 	.metadata-grid strong,
 	.metadata-grid code {
-		overflow-wrap: anywhere;
+		white-space: nowrap;
 		font-size: 12px;
 		font-weight: 500;
 	}
