@@ -21,6 +21,10 @@
 		resolveRepositories
 	} from './discovery-state.svelte';
 	import type { PluginDiscoveryCandidate } from './types';
+	import {
+		normalizeGithubRepositoryUrl as normalizeRepositoryUrl,
+		parseGithubRepositoryUrl
+	} from './repository-url';
 
 	const discoveryTabs = [
 		{ id: 'curated', label: 'Curated' },
@@ -90,26 +94,38 @@
 	});
 
 	async function handleResolveRepositories() {
-		const urls = [
-			...new Set(
-				pluginDiscoveryState.repositoryInput
-					.split(/\r?\n/)
-					.map((url) => url.trim())
-					.filter(Boolean)
-			)
-		];
-		if (!urls.length) {
+		const inputLines = pluginDiscoveryState.repositoryInput
+			.split(/\r?\n/)
+			.map((url, index) => ({ url: url.trim(), lineNumber: index + 1 }))
+			.filter(({ url }) => Boolean(url));
+		if (!inputLines.length) {
 			pluginDiscoveryState.resolveError = 'Enter at least one public GitHub repository URL.';
 			pluginDiscoveryState.resolveState = 'error';
 			pluginDiscoveryState.results = [];
 			return;
 		}
 
-		await resolveRepositories(urls);
-	}
+		const invalidUrls: string[] = [];
+		const canonicalUrls: string[] = [];
+		for (const { url, lineNumber } of inputLines) {
+			try {
+				canonicalUrls.push(parseGithubRepositoryUrl(url).url);
+			} catch (error) {
+				const reason = error instanceof Error ? error.message : String(error);
+				invalidUrls.push(`Line ${lineNumber}: ${url} (${reason})`);
+			}
+		}
+		if (invalidUrls.length) {
+			pluginDiscoveryState.resolveError = `Fix invalid GitHub repository URL${
+				invalidUrls.length === 1 ? '' : 's'
+			} before resolving:\n${invalidUrls.join('\n')}`;
+			pluginDiscoveryState.resolveState = 'error';
+			pluginDiscoveryState.results = [];
+			return;
+		}
 
-	function normalizeRepositoryUrl(repositoryUrl: string) {
-		return repositoryUrl.trim().replace(/\/+$/, '').toLocaleLowerCase();
+		const urls = [...new Set(canonicalUrls)];
+		await resolveRepositories(urls);
 	}
 
 	function handleDiscoveryTabKeydown(event: KeyboardEvent, currentTab: DiscoveryTab) {
@@ -1118,6 +1134,10 @@
 	.error-message,
 	.result-error {
 		color: #f0a99a;
+	}
+
+	.error-message {
+		white-space: pre-line;
 	}
 
 	.result-list {

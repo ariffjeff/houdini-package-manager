@@ -1,17 +1,16 @@
 import type { PluginDiscoveryVersion } from '../../plugin-discovery/types.js';
+import {
+	parseGithubRepositoryUrl,
+	type GithubRepository
+} from '../../plugin-discovery/repository-url.js';
+
+export { parseGithubRepositoryUrl };
+export type { GithubRepository };
 
 const githubApiBase = 'https://api.github.com';
 const cacheDuration = 5 * 60 * 1000;
 const requestTimeout = 10_000;
-const repositoryPattern = /^[A-Za-z0-9_.-]+$/;
 const metadataCache = new Map<string, { expiresAt: number; value: GithubRepositorySnapshot }>();
-
-export type GithubRepository = {
-	owner: string;
-	repository: string;
-	url: string;
-	apiPath: string;
-};
 
 export type GithubRepositorySnapshot = {
 	repository: GithubRepository;
@@ -41,37 +40,6 @@ type GithubTreeResponse = {
 	truncated?: unknown;
 	tree?: Array<{ path?: unknown; type?: unknown }>;
 };
-
-export function parseGithubRepositoryUrl(input: string): GithubRepository {
-	if (typeof input !== 'string' || !input.trim()) {
-		throw new Error('Enter a GitHub repository URL.');
-	}
-
-	const value = input.trim();
-	const sshMatch = value.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
-	if (sshMatch) return createRepository(sshMatch[1], sshMatch[2]);
-
-	let parsed: URL;
-	try {
-		parsed = new URL(value);
-	} catch {
-		throw new Error('Enter a valid GitHub repository URL.');
-	}
-
-	if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'github.com') {
-		throw new Error('Only public github.com repository URLs are supported.');
-	}
-	if (parsed.username || parsed.password || parsed.search || parsed.hash) {
-		throw new Error('GitHub repository URLs cannot include credentials, queries, or fragments.');
-	}
-
-	const segments = parsed.pathname.split('/').filter(Boolean);
-	if (segments.length !== 2) {
-		throw new Error('Use a repository URL such as https://github.com/owner/repository.');
-	}
-
-	return createRepository(segments[0], segments[1].replace(/\.git$/i, ''));
-}
 
 export async function resolveGithubRepository(
 	input: string,
@@ -175,19 +143,6 @@ async function requestGithub<T>(url: string, fetcher: typeof fetch): Promise<T> 
 	}
 
 	return (await response.json()) as T;
-}
-
-function createRepository(owner: string, repository: string): GithubRepository {
-	if (!repositoryPattern.test(owner) || !repositoryPattern.test(repository)) {
-		throw new Error('The GitHub owner and repository name contain unsupported characters.');
-	}
-
-	return {
-		owner,
-		repository,
-		url: `https://github.com/${owner}/${repository}`,
-		apiPath: `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`
-	};
 }
 
 function createVersions(

@@ -4,19 +4,35 @@ import {
 	parseGithubRepositoryUrl,
 	resolveGithubRepository
 } from './github';
+import { normalizeGithubRepositoryUrl } from '../../plugin-discovery/repository-url';
 
 afterEach(() => clearGithubRepositoryCache());
 
 describe('GitHub repository parsing', () => {
 	it('canonicalizes browser and SSH repository URLs', () => {
+		const canonicalUrl = 'https://github.com/toadstorm/MOPS';
 		expect(parseGithubRepositoryUrl('https://github.com/toadstorm/MOPS.git')).toMatchObject({
 			owner: 'toadstorm',
 			repository: 'MOPS',
-			url: 'https://github.com/toadstorm/MOPS'
+			url: canonicalUrl
 		});
-		expect(parseGithubRepositoryUrl('git@github.com:toadstorm/MOPS.git').url).toBe(
-			'https://github.com/toadstorm/MOPS'
-		);
+		for (const input of [
+			'github.com/toadstorm/MOPS',
+			'https://github.com/toadstorm/MOPS',
+			'www.github.com/toadstorm/MOPS'
+		]) {
+			expect(parseGithubRepositoryUrl(input).url).toBe(canonicalUrl);
+		}
+		expect(
+			new Set(
+				[
+					'github.com/toadstorm/MOPS',
+					'https://github.com/toadstorm/MOPS',
+					'www.github.com/toadstorm/MOPS'
+				].map(normalizeGithubRepositoryUrl)
+			)
+		).toEqual(new Set(['https://github.com/toadstorm/mops']));
+		expect(parseGithubRepositoryUrl('git@github.com:toadstorm/MOPS.git').url).toBe(canonicalUrl);
 	});
 
 	it('falls back to a license file when GitHub reports NOASSERTION', async () => {
@@ -43,6 +59,9 @@ describe('GitHub repository parsing', () => {
 	});
 
 	it('rejects branch, file, and non-GitHub URLs', () => {
+		expect(() => parseGithubRepositoryUrl('not a url')).toThrow(
+			'Enter a valid GitHub repository URL.'
+		);
 		expect(() => parseGithubRepositoryUrl('https://github.com/toadstorm/MOPS/tree/main')).toThrow(
 			'Use a repository URL'
 		);
