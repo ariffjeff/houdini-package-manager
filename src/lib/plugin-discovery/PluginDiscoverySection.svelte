@@ -4,6 +4,7 @@
 		TriangleAlert,
 		ChevronLeft,
 		ChevronRight,
+		Check,
 		LoaderCircle,
 		Package,
 		Plus,
@@ -21,6 +22,12 @@
 	} from './discovery-state.svelte';
 	import type { PluginDiscoveryCandidate } from './types';
 
+	const discoveryTabs = [
+		{ id: 'curated', label: 'Curated' },
+		{ id: 'resolver', label: 'Resolver' }
+	] as const;
+	type DiscoveryTab = (typeof discoveryTabs)[number]['id'];
+
 	let {
 		installs,
 		onInstallCandidate
@@ -30,6 +37,22 @@
 	} = $props();
 
 	let catalogSearch = $state('');
+	let activeDiscoveryTab = $state<DiscoveryTab>('curated');
+	let repositoryLineCount = $derived(
+		pluginDiscoveryState.repositoryInput.split(/\r?\n/).filter((line) => line.trim().length > 0)
+			.length
+	);
+	let resolverRepositoryUrls = $derived.by(() => {
+		const inputUrls = pluginDiscoveryState.repositoryInput
+			.split(/\r?\n/)
+			.map((url) => url.trim())
+			.filter(Boolean);
+		const candidateUrls = pluginDiscoveryState.results.flatMap((result) =>
+			result.candidate ? [result.candidate.repositoryUrl] : []
+		);
+
+		return new Set([...inputUrls, ...candidateUrls].map(normalizeRepositoryUrl));
+	});
 	let catalogPage = $state(1);
 	let openProvenanceCandidate = $state<PluginDiscoveryCandidate | null>(null);
 	const catalogPageSize = 40;
@@ -83,6 +106,37 @@
 		}
 
 		await resolveRepositories(urls);
+	}
+
+	function normalizeRepositoryUrl(repositoryUrl: string) {
+		return repositoryUrl.trim().replace(/\/+$/, '').toLocaleLowerCase();
+	}
+
+	function handleDiscoveryTabKeydown(event: KeyboardEvent, currentTab: DiscoveryTab) {
+		const currentIndex = discoveryTabs.findIndex((tab) => tab.id === currentTab);
+		let nextIndex: number;
+
+		switch (event.key) {
+			case 'ArrowRight':
+				nextIndex = (currentIndex + 1) % discoveryTabs.length;
+				break;
+			case 'ArrowLeft':
+				nextIndex = (currentIndex - 1 + discoveryTabs.length) % discoveryTabs.length;
+				break;
+			case 'Home':
+				nextIndex = 0;
+				break;
+			case 'End':
+				nextIndex = discoveryTabs.length - 1;
+				break;
+			default:
+				return;
+		}
+
+		event.preventDefault();
+		const nextTab = discoveryTabs[nextIndex].id;
+		activeDiscoveryTab = nextTab;
+		document.getElementById(`discover-tab-${nextTab}`)?.focus();
 	}
 
 	function clearCandidates() {
@@ -143,298 +197,352 @@
 		</div>
 	</header>
 
-	<section class="resolver-panel" aria-labelledby="repository-resolver-title">
-		<div class="panel-heading">
-			<div>
-				<h3 id="repository-resolver-title">Resolve GitHub Repositories</h3>
-			</div>
-			<span class="count-label">One URL per line</span>
-		</div>
-		<label for="repository-input">Public Repository URLs</label>
-		<textarea
-			id="repository-input"
-			bind:value={pluginDiscoveryState.repositoryInput}
-			placeholder="https://github.com/owner/repository"
-			rows="4"></textarea>
-		<div class="mt-2.5">
+	<div class="discovery-tabs" role="tablist" aria-label="Plugin discovery views">
+		{#each discoveryTabs as tab (tab.id)}
 			<button
+				id={`discover-tab-${tab.id}`}
 				type="button"
-				class="resolve-button"
-				onclick={handleResolveRepositories}
-				disabled={pluginDiscoveryState.resolveState === 'loading'}
+				class="discovery-tab"
+				role="tab"
+				aria-selected={activeDiscoveryTab === tab.id}
+				aria-controls={`discover-panel-${tab.id}`}
+				tabindex={activeDiscoveryTab === tab.id ? 0 : -1}
+				onclick={() => (activeDiscoveryTab = tab.id)}
+				onkeydown={(event) => handleDiscoveryTabKeydown(event, tab.id)}
 			>
-				{#if pluginDiscoveryState.resolveState === 'loading'}
-					<LoaderCircle class="spin" size={18} strokeWidth={1.8} aria-hidden="true" /> Resolving...
-				{:else}
-					<Search size={18} strokeWidth={1.8} aria-hidden="true" /> Resolve repositories
+				{tab.label}
+				{#if tab.id === 'resolver'}
+					<span class={['tab-count', 'resolver-count', { 'has-lines': repositoryLineCount > 0 }]}>
+						{repositoryLineCount}
+					</span>
 				{/if}
 			</button>
-		</div>
-		{#if pluginDiscoveryState.resolveError}
-			<p class="state-message error-message" role="alert">
-				<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-				{pluginDiscoveryState.resolveError}
-			</p>
-		{/if}
+		{/each}
+	</div>
 
-		{#if pluginDiscoveryState.results.length}
-			<div class="result-toolbar">
-				<span class="count-label"
-					>{pluginDiscoveryState.results.length} candidate{pluginDiscoveryState.results.length === 1
-						? ''
-						: 's'}</span
-				>
+	<div class="discovery-panels">
+		<div
+			id="discover-panel-resolver"
+			class="resolver-panel discovery-tab-panel"
+			role="tabpanel"
+			aria-labelledby="discover-tab-resolver"
+			tabindex="0"
+			hidden={activeDiscoveryTab !== 'resolver'}
+		>
+			<div class="panel-heading">
+				<div>
+					<h3 id="repository-resolver-title">Resolve GitHub Repositories</h3>
+				</div>
+				<span class="count-label">One URL per line</span>
+			</div>
+			<label for="repository-input">Public Repository URLs</label>
+			<textarea
+				id="repository-input"
+				bind:value={pluginDiscoveryState.repositoryInput}
+				placeholder="https://github.com/owner/repository"
+				rows="4"></textarea>
+			<div class="mt-2.5">
 				<button
 					type="button"
-					class="clear-button"
-					onclick={clearCandidates}
-					aria-label="Clear resolved candidates"
-					title="Clear resolved candidates"
+					class="resolve-button"
+					onclick={handleResolveRepositories}
+					disabled={pluginDiscoveryState.resolveState === 'loading'}
 				>
-					<X size={18} strokeWidth={1.8} aria-hidden="true" /> Clear
+					{#if pluginDiscoveryState.resolveState === 'loading'}
+						<LoaderCircle class="spin" size={18} strokeWidth={1.8} aria-hidden="true" /> Resolving...
+					{:else}
+						<Search size={18} strokeWidth={1.8} aria-hidden="true" /> Resolve repositories
+					{/if}
 				</button>
 			</div>
-			<div class="result-list" aria-live="polite">
-				{#each pluginDiscoveryState.results as result (result.input)}
-					{@const candidate = result.candidate}
-					<article class={['result-row', { 'error-result': Boolean(result.error) }]}>
-						<div class="result-heading">
-							{#if candidate}
-								<div class="candidate-heading">
-									<div>
-										<h4>{candidate.name}</h4>
-										<p>{candidate.description || 'No description provided.'}</p>
-									</div>
-								</div>
-							{/if}
-							{#if !candidate}<code>{result.input}</code>{/if}
-							{#if result.error}
-								<span class="result-status error-status"
-									><TriangleAlert size={13} strokeWidth={2} aria-hidden="true" /> Failed</span
-								>
-							{:else if !candidate}
-								<span class="result-status">Resolving...</span>
-							{/if}
-							{#if candidate}
-								<div class="candidate-header-controls">
-									<button
-										type="button"
-										class={['install-button', { staged: isCandidateStaged(candidate) }]}
-										disabled={installs.length === 0}
-										aria-pressed={isCandidateStaged(candidate)}
-										onclick={() => installCandidate(candidate)}
-									>
-										<Package size={18} strokeWidth={1.8} aria-hidden="true" />
-										{isCandidateStaged(candidate) ? 'Staged for Install' : 'Add to Installer'}
-										<ChevronRight size={16} strokeWidth={1.8} aria-hidden="true" />
-									</button>
-								</div>
-							{/if}
-						</div>
+			{#if pluginDiscoveryState.resolveError}
+				<p class="state-message error-message" role="alert">
+					<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
+					{pluginDiscoveryState.resolveError}
+				</p>
+			{/if}
 
-						{#if candidate}
-							<div class="candidate-body">
-								<div class="metadata-grid">
-									<a
-										class="repository-link"
-										href={candidate.repositoryUrl}
-										target="_blank"
-										rel="external noopener noreferrer"
-										aria-label={`Open ${candidate.name} on GitHub`}
-										title="Open repository on GitHub"
-									>
-										<GithubLogo size={16} strokeWidth={1.8} aria-hidden="true" />
-									</a>
-									<div><span>Author</span><strong>{candidate.author || 'Unknown'}</strong></div>
-									<div><span>License</span><strong>{candidate.license || 'Unknown'}</strong></div>
-									<div><span>Package file</span><code>{candidate.packageFile}</code></div>
-									<div>
-										<span>Manifest</span><strong
-											>{candidate.manifestSource === 'catalog' ? 'Curated' : 'Repository'}</strong
-										>
-									</div>
-									{#if candidate.source === 'catalog' && candidate.pinnedCommit && candidate.manifestBlobSha}
-										<button
-											type="button"
-											class="provenance-button"
-											aria-label={`View provenance details for ${candidate.name}`}
-											title={`View provenance details for ${candidate.name}`}
-											onclick={() => (openProvenanceCandidate = candidate)}
-										>
-											<ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
-										</button>
-									{/if}
-								</div>
-								{#if installs.length === 0}
-									<p class="install-hint">
-										No Houdini installs detected. Scan for an install before installing.
-									</p>
-								{/if}
-							</div>
-						{:else if result.error}
-							<p class="result-error" role="alert">
-								<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-								{result.error}
-							</p>
-						{:else}
-							<p class="state-message" role="status">
-								<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Resolving
-								repository metadata...
-							</p>
-						{/if}
-					</article>
-				{/each}
-			</div>
-		{/if}
-	</section>
-
-	{#if openProvenanceCandidate}
-		<div class="provenance-overlay">
-			<dialog
-				open
-				class="provenance-dialog"
-				aria-labelledby="provenance-dialog-title"
-				onkeydown={handleProvenanceDialogKeydown}
-			>
-				<div class="provenance-dialog-header">
-					<div>
-						<h2 id="provenance-dialog-title">Curated provenance</h2>
-						<p>{openProvenanceCandidate.name}</p>
-					</div>
+			{#if pluginDiscoveryState.results.length}
+				<div class="result-toolbar">
+					<span class="count-label"
+						>{pluginDiscoveryState.results.length} candidate{pluginDiscoveryState.results.length ===
+						1
+							? ''
+							: 's'}</span
+					>
 					<button
 						type="button"
-						class="provenance-dialog-close"
-						aria-label="Close provenance details"
-						onclick={closeProvenanceDialog}
+						class="clear-button"
+						onclick={clearCandidates}
+						aria-label="Clear resolved candidates"
+						title="Clear resolved candidates"
 					>
-						<X size={18} strokeWidth={1.8} aria-hidden="true" />
+						<X size={18} strokeWidth={1.8} aria-hidden="true" /> Clear
 					</button>
 				</div>
-				<p>
-					Catalog tag
-					<code>{openProvenanceCandidate.versions[0]?.value ?? 'Unknown'}</code>
-					is checked against the approved commit
-					<code title={openProvenanceCandidate.pinnedCommit}
-						>{shortSha(openProvenanceCandidate.pinnedCommit!)}</code
-					>. The package manifest is checked against approved blob SHA
-					<code title={openProvenanceCandidate.manifestBlobSha}
-						>{shortSha(openProvenanceCandidate.manifestBlobSha!)}</code
-					>.
-				</p>
-			</dialog>
-		</div>
-	{/if}
+				<div class="result-list" aria-live="polite">
+					{#each pluginDiscoveryState.results as result (result.input)}
+						{@const candidate = result.candidate}
+						<article class={['result-row', { 'error-result': Boolean(result.error) }]}>
+							<div class="result-heading">
+								{#if candidate}
+									<div class="candidate-heading">
+										<div>
+											<h4>{candidate.name}</h4>
+											<p>{candidate.description || 'No description provided.'}</p>
+										</div>
+									</div>
+								{/if}
+								{#if !candidate}<code>{result.input}</code>{/if}
+								{#if result.error}
+									<span class="result-status error-status"
+										><TriangleAlert size={13} strokeWidth={2} aria-hidden="true" /> Failed</span
+									>
+								{:else if !candidate}
+									<span class="result-status">Resolving...</span>
+								{/if}
+								{#if candidate}
+									<div class="candidate-header-controls">
+										<button
+											type="button"
+											class={['install-button', { staged: isCandidateStaged(candidate) }]}
+											disabled={installs.length === 0}
+											aria-pressed={isCandidateStaged(candidate)}
+											onclick={() => installCandidate(candidate)}
+										>
+											<Package size={18} strokeWidth={1.8} aria-hidden="true" />
+											{isCandidateStaged(candidate) ? 'Staged for Install' : 'Add to Installer'}
+											<ChevronRight size={16} strokeWidth={1.8} aria-hidden="true" />
+										</button>
+									</div>
+								{/if}
+							</div>
 
-	<section class="catalog-panel" aria-labelledby="curated-catalog-title">
-		<div class="panel-heading">
-			<div>
-				<h3 id="curated-catalog-title">Curated</h3>
-			</div>
-			{#if pluginDiscoveryState.catalogState === 'ready'}
-				<span class="count-label"
-					>{filteredCatalog.length} of {pluginDiscoveryState.catalog.length} packages</span
-				>
-			{/if}
-		</div>
-
-		{#if pluginDiscoveryState.catalogState === 'loading'}
-			<p class="state-message" role="status">
-				<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Loading curated packages...
-			</p>
-		{:else if pluginDiscoveryState.catalogState === 'error'}
-			<p class="state-message error-message" role="alert">
-				<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-				{pluginDiscoveryState.catalogError}
-			</p>
-		{:else if pluginDiscoveryState.catalog.length === 0}
-			<p class="state-message">The curated catalog is empty.</p>
-		{:else}
-			<div class="catalog-toolbar">
-				<label class="catalog-search" for="catalog-search">
-					<Search size={17} strokeWidth={1.8} aria-hidden="true" />
-					<span class="sr-only">Search curated packages</span>
-					<input
-						id="catalog-search"
-						bind:value={catalogSearch}
-						oninput={resetCatalogSearch}
-						placeholder="Search name, author, tags, package file..."
-					/>
-				</label>
-				{#if filteredCatalog.length === 0}
-					<p class="catalog-status">No packages match &ldquo;{catalogSearch}&rdquo;.</p>
-				{:else}
-					<div class="catalog-pagination" aria-label="Catalog pagination">
-						<span class="catalog-status">Page {currentCatalogPage} of {catalogPageCount}</span>
-						<button
-							type="button"
-							class="icon-button"
-							onclick={previousCatalogPage}
-							disabled={currentCatalogPage === 1}
-							aria-label="Previous catalog page"
-							title="Previous catalog page"
-						>
-							<ChevronLeft size={18} strokeWidth={1.8} aria-hidden="true" />
-						</button>
-						<button
-							type="button"
-							class="icon-button"
-							onclick={nextCatalogPage}
-							disabled={currentCatalogPage === catalogPageCount}
-							aria-label="Next catalog page"
-							title="Next catalog page"
-						>
-							<ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" />
-						</button>
-					</div>
-				{/if}
-			</div>
-
-			{#if filteredCatalog.length === 0}
-				<p class="state-message">No curated packages match your search.</p>
-			{:else}
-				<div class="catalog-list" role="list" aria-label="Curated plugin packages">
-					{#each visibleCatalog as entry (entry.id)}
-						<article class="catalog-row" role="listitem">
-							<div class="catalog-main">
-								<div class="catalog-title">
-									<Package size={16} strokeWidth={1.7} aria-hidden="true" />
-									<h4>{entry.name}</h4>
+							{#if candidate}
+								<div class="candidate-body">
+									<div class="metadata-grid">
+										<a
+											class="repository-link"
+											href={candidate.repositoryUrl}
+											target="_blank"
+											rel="external noopener noreferrer"
+											aria-label={`Open ${candidate.name} on GitHub`}
+											title="Open repository on GitHub"
+										>
+											<GithubLogo size={16} strokeWidth={1.8} aria-hidden="true" />
+										</a>
+										<div><span>Author</span><strong>{candidate.author || 'Unknown'}</strong></div>
+										<div><span>License</span><strong>{candidate.license || 'Unknown'}</strong></div>
+										<div><span>Package file</span><code>{candidate.packageFile}</code></div>
+										<div>
+											<span>Manifest</span><strong
+												>{candidate.manifestSource === 'catalog' ? 'Curated' : 'Repository'}</strong
+											>
+										</div>
+										{#if candidate.source === 'catalog' && candidate.pinnedCommit && candidate.manifestBlobSha}
+											<button
+												type="button"
+												class="provenance-button"
+												aria-label={`View provenance details for ${candidate.name}`}
+												title={`View provenance details for ${candidate.name}`}
+												onclick={() => (openProvenanceCandidate = candidate)}
+											>
+												<ShieldCheck size={17} strokeWidth={1.8} aria-hidden="true" />
+											</button>
+										{/if}
+									</div>
+									{#if installs.length === 0}
+										<p class="install-hint">
+											No Houdini installs detected. Scan for an install before installing.
+										</p>
+									{/if}
 								</div>
-								<p>{entry.description}</p>
-								<div class="tag-list" aria-label={`${entry.name} tags`}>
-									{#each entry.tags as tag (tag)}<span>{tag}</span>{/each}
-								</div>
-							</div>
-							<div class="catalog-meta">
-								<span>{entry.author}</span>
-								<span>{entry.license}</span>
-								<code>{entry.packageFile}</code>
-							</div>
-							<div class="catalog-actions">
-								<a
-									href={entry.repositoryUrl}
-									target="_blank"
-									rel="external noopener noreferrer"
-									aria-label={`Open ${entry.name} repository on GitHub`}
-									title="Open repository on GitHub"
-								>
-									<GithubLogo width={16} height={16} color="currentColor" aria-hidden="true" />
-								</a>
-								<button
-									type="button"
-									onclick={() => addCatalogRepository(entry.repositoryUrl)}
-									aria-label={`Add ${entry.name} to resolver`}
-									title="Add to resolver"
-								>
-									<Plus size={18} strokeWidth={1.8} aria-hidden="true" />
-								</button>
-							</div>
+							{:else if result.error}
+								<p class="result-error" role="alert">
+									<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
+									{result.error}
+								</p>
+							{:else}
+								<p class="state-message" role="status">
+									<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Resolving
+									repository metadata...
+								</p>
+							{/if}
 						</article>
 					{/each}
 				</div>
+			{:else}
+				<p class="state-message">No candidates yet.</p>
 			{/if}
+		</div>
+
+		{#if openProvenanceCandidate}
+			<div class="provenance-overlay">
+				<dialog
+					open
+					class="provenance-dialog"
+					aria-labelledby="provenance-dialog-title"
+					onkeydown={handleProvenanceDialogKeydown}
+				>
+					<div class="provenance-dialog-header">
+						<div>
+							<h2 id="provenance-dialog-title">Curated provenance</h2>
+							<p>{openProvenanceCandidate.name}</p>
+						</div>
+						<button
+							type="button"
+							class="provenance-dialog-close"
+							aria-label="Close provenance details"
+							onclick={closeProvenanceDialog}
+						>
+							<X size={18} strokeWidth={1.8} aria-hidden="true" />
+						</button>
+					</div>
+					<p>
+						Catalog tag
+						<code>{openProvenanceCandidate.versions[0]?.value ?? 'Unknown'}</code>
+						is checked against the approved commit
+						<code title={openProvenanceCandidate.pinnedCommit}
+							>{shortSha(openProvenanceCandidate.pinnedCommit!)}</code
+						>. The package manifest is checked against approved blob SHA
+						<code title={openProvenanceCandidate.manifestBlobSha}
+							>{shortSha(openProvenanceCandidate.manifestBlobSha!)}</code
+						>.
+					</p>
+				</dialog>
+			</div>
 		{/if}
-	</section>
+
+		<div
+			id="discover-panel-curated"
+			class="catalog-panel discovery-tab-panel"
+			role="tabpanel"
+			aria-labelledby="discover-tab-curated"
+			tabindex="0"
+			hidden={activeDiscoveryTab !== 'curated'}
+		>
+			<div class="panel-heading">
+				<div>
+					<h3 id="curated-catalog-title">Curated</h3>
+				</div>
+				{#if pluginDiscoveryState.catalogState === 'ready'}
+					<span class="count-label"
+						>{filteredCatalog.length} of {pluginDiscoveryState.catalog.length} packages</span
+					>
+				{/if}
+			</div>
+
+			{#if pluginDiscoveryState.catalogState === 'loading'}
+				<p class="state-message" role="status">
+					<LoaderCircle class="spin" size={16} strokeWidth={1.8} aria-hidden="true" /> Loading curated
+					packages...
+				</p>
+			{:else if pluginDiscoveryState.catalogState === 'error'}
+				<p class="state-message error-message" role="alert">
+					<TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
+					{pluginDiscoveryState.catalogError}
+				</p>
+			{:else if pluginDiscoveryState.catalog.length === 0}
+				<p class="state-message">The curated catalog is empty.</p>
+			{:else}
+				<div class="catalog-toolbar">
+					<label class="catalog-search" for="catalog-search">
+						<Search size={17} strokeWidth={1.8} aria-hidden="true" />
+						<span class="sr-only">Search curated packages</span>
+						<input
+							id="catalog-search"
+							bind:value={catalogSearch}
+							oninput={resetCatalogSearch}
+							placeholder="Search name, author, tags, package file..."
+						/>
+					</label>
+					{#if filteredCatalog.length === 0}
+						<p class="catalog-status">No packages match &ldquo;{catalogSearch}&rdquo;.</p>
+					{:else}
+						<div class="catalog-pagination" aria-label="Catalog pagination">
+							<span class="catalog-status">Page {currentCatalogPage} of {catalogPageCount}</span>
+							<button
+								type="button"
+								class="icon-button"
+								onclick={previousCatalogPage}
+								disabled={currentCatalogPage === 1}
+								aria-label="Previous catalog page"
+								title="Previous catalog page"
+							>
+								<ChevronLeft size={18} strokeWidth={1.8} aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								class="icon-button"
+								onclick={nextCatalogPage}
+								disabled={currentCatalogPage === catalogPageCount}
+								aria-label="Next catalog page"
+								title="Next catalog page"
+							>
+								<ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" />
+							</button>
+						</div>
+					{/if}
+				</div>
+
+				{#if filteredCatalog.length === 0}
+					<p class="state-message">No curated packages match your search.</p>
+				{:else}
+					<div class="catalog-list" role="list" aria-label="Curated plugin packages">
+						{#each visibleCatalog as entry (entry.id)}
+							{@const alreadyInResolver = resolverRepositoryUrls.has(
+								normalizeRepositoryUrl(entry.repositoryUrl)
+							)}
+							<article class="catalog-row" role="listitem">
+								<div class="catalog-main">
+									<div class="catalog-title">
+										<Package size={16} strokeWidth={1.7} aria-hidden="true" />
+										<h4>{entry.name}</h4>
+									</div>
+									<p>{entry.description}</p>
+									<div class="tag-list" aria-label={`${entry.name} tags`}>
+										{#each entry.tags as tag (tag)}<span>{tag}</span>{/each}
+									</div>
+								</div>
+								<div class="catalog-meta">
+									<span>{entry.author}</span>
+									<span>{entry.license}</span>
+									<code>{entry.packageFile}</code>
+								</div>
+								<div class="catalog-actions">
+									<a
+										href={entry.repositoryUrl}
+										target="_blank"
+										rel="external noopener noreferrer"
+										aria-label={`Open ${entry.name} repository on GitHub`}
+										title="Open repository on GitHub"
+									>
+										<GithubLogo width={16} height={16} color="currentColor" aria-hidden="true" />
+									</a>
+									<button
+										type="button"
+										class={{ 'in-resolver': alreadyInResolver }}
+										disabled={alreadyInResolver}
+										onclick={() => addCatalogRepository(entry.repositoryUrl)}
+										aria-label={alreadyInResolver
+											? `${entry.name} is already in Resolver`
+											: `Add ${entry.name} to resolver`}
+										title={alreadyInResolver ? 'Already in Resolver' : 'Add to resolver'}
+									>
+										{#if alreadyInResolver}
+											<Check size={18} strokeWidth={1.8} aria-hidden="true" />
+										{:else}
+											<Plus size={18} strokeWidth={1.8} aria-hidden="true" />
+										{/if}
+									</button>
+								</div>
+							</article>
+						{/each}
+					</div>
+				{/if}
+			{/if}
+		</div>
+	</div>
 </section>
 
 <style>
@@ -443,8 +551,8 @@
 		grid-template-columns: minmax(0, 1fr);
 		grid-template-areas:
 			'heading'
-			'resolver'
-			'catalog';
+			'tabs'
+			'panels';
 		gap: 18px;
 		width: min(1180px, 100%);
 		min-width: 0;
@@ -455,6 +563,76 @@
 	.discovery-heading {
 		grid-area: heading;
 		min-width: 0;
+	}
+
+	.discovery-tabs {
+		display: flex;
+		grid-area: tabs;
+		gap: 4px;
+		min-width: 0;
+		overflow-x: auto;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.discovery-tab {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
+		flex: 0 0 auto;
+		min-height: 40px;
+		padding: 0 13px;
+		border: 0;
+		border-bottom: 2px solid transparent;
+		background: transparent;
+		color: var(--text-muted);
+		font: inherit;
+		font-size: 13px;
+		font-weight: 650;
+		cursor: pointer;
+	}
+
+	.discovery-tab[aria-selected='true'] {
+		border-bottom-color: #55c4a5;
+		color: var(--text);
+	}
+
+	.discovery-tab:hover {
+		color: var(--text);
+	}
+
+	.discovery-tab:focus-visible {
+		outline: 2px solid #55c4a5;
+		outline-offset: -2px;
+	}
+
+	.tab-count {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 9px;
+		background: rgba(255, 255, 255, 0.08);
+		color: var(--text-dim);
+		font-size: 11px;
+	}
+
+	.resolver-count.has-lines {
+		background: var(--accent-orange);
+		box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.18);
+		color: #182326;
+		font-weight: 750;
+	}
+
+	.discovery-panels {
+		grid-area: panels;
+		min-width: 0;
+	}
+
+	.discovery-tab-panel[hidden] {
+		display: none;
 	}
 
 	.discovery-heading,
@@ -507,14 +685,6 @@
 		border: 1px solid var(--line);
 		border-radius: 7px;
 		background: rgba(19, 28, 30, 0.62);
-	}
-
-	.resolver-panel {
-		grid-area: resolver;
-	}
-
-	.catalog-panel {
-		grid-area: catalog;
 	}
 
 	.panel-heading {
@@ -660,28 +830,30 @@
 
 	.catalog-list {
 		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+		gap: 10px;
 		max-height: 520px;
 		overflow: auto;
-		border: 1px solid var(--line);
-		border-radius: 6px;
+		padding: 1px;
 	}
 
 	.catalog-row {
-		position: relative;
 		display: grid;
-		grid-template-columns: minmax(0, 1.5fr) minmax(150px, 0.8fr) auto;
-		align-items: center;
-		gap: 10px;
-		padding: 7px 48px 7px 10px;
-		border-bottom: 1px solid var(--line);
+		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-areas:
+			'main actions'
+			'meta actions';
+		align-items: start;
+		gap: 10px 12px;
+		min-width: 0;
+		padding: 12px;
+		border: 1px solid var(--line);
+		border-radius: 6px;
 		background: rgba(30, 42, 44, 0.44);
 	}
 
-	.catalog-row:last-child {
-		border-bottom: 0;
-	}
-
 	.catalog-main {
+		grid-area: main;
 		min-width: 0;
 	}
 
@@ -702,21 +874,23 @@
 	}
 
 	.catalog-row p {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 		margin: 2px 0 4px;
 		overflow: hidden;
 		color: var(--text-muted);
 		font-size: 12px;
 		line-height: 1.4;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.catalog-meta {
-		display: flex;
-		flex-wrap: nowrap;
-		gap: 0;
+		grid-area: meta;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 5px 10px;
 		min-width: 0;
-		overflow: hidden;
 		color: var(--text-muted);
 		font-size: 11px;
 	}
@@ -728,29 +902,15 @@
 		white-space: nowrap;
 	}
 
-	.catalog-meta span,
-	.catalog-meta code {
-		padding: 0 10px;
-		border-left: 1px solid var(--line);
-	}
-
-	.catalog-meta span:first-child {
-		padding-left: 0;
-		border-left: none;
-	}
-
 	.catalog-meta code {
 		max-width: 18ch;
 	}
 
 	.catalog-actions {
+		grid-area: actions;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		position: absolute;
-		top: 7px;
-		right: 10px;
-		bottom: 7px;
+		justify-content: center;
 		gap: 5px;
 		flex-direction: column;
 	}
@@ -786,6 +946,14 @@
 
 	.catalog-actions button {
 		color: #9ccfba;
+	}
+
+	.catalog-actions button.in-resolver {
+		border-color: #55c4a5;
+		background: rgba(57, 155, 130, 0.14);
+		color: #9ccfba;
+		cursor: default;
+		opacity: 1;
 	}
 
 	.sr-only {
@@ -1196,15 +1364,6 @@
 			gap: 5px 10px;
 		}
 
-		.catalog-row {
-			grid-template-columns: 1fr;
-			gap: 8px;
-		}
-
-		.catalog-actions {
-			justify-content: space-between;
-		}
-
 		.candidate-header-controls {
 			justify-content: flex-start;
 			width: 100%;
@@ -1213,24 +1372,6 @@
 
 		.candidate-header-controls .install-button {
 			width: auto;
-		}
-	}
-
-	@media (min-width: 900px) {
-		.discovery-section {
-			grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.5fr);
-			grid-template-areas:
-				'heading heading'
-				'catalog resolver';
-		}
-
-		.catalog-row {
-			grid-template-columns: minmax(0, 1fr) auto;
-		}
-
-		.catalog-meta {
-			grid-column: 1 / -1;
-			max-width: 100%;
 		}
 	}
 

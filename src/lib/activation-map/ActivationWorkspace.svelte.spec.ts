@@ -1254,6 +1254,7 @@ describe('activation workspace', () => {
 		stubDiscovery(discoveryResponse, discoveryResponse);
 		await render(DiscoverPage);
 
+		await page.getByRole('tab', { name: 'Resolver' }).click();
 		await expect
 			.element(page.getByRole('button', { name: 'Resolve repositories', exact: true }))
 			.toBeInTheDocument();
@@ -1264,6 +1265,9 @@ describe('activation workspace', () => {
 			);
 		await page.getByRole('button', { name: 'Resolve repositories', exact: true }).click();
 
+		await expect
+			.element(page.getByRole('tab', { name: 'Resolver 2' }))
+			.toHaveAttribute('aria-selected', 'true');
 		await expect.element(page.getByText('Houdini Tools', { exact: true })).toBeInTheDocument();
 		await expect
 			.element(page.getByText('No valid Houdini package manifest was found.', { exact: true }))
